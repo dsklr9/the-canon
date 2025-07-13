@@ -1,3 +1,4 @@
+// Part 1 of 5 - TheCanon Mobile Complete with v5 Integration
 import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import { Heart, MessageCircle, Share2, TrendingUp, Users, Zap, Trophy, Flame, Star, ChevronDown, X, Check, Shuffle, Timer, Search, Plus, GripVertical, User, Edit2, Save, ArrowUp, ArrowDown, Swords, Crown, Settings, Copy, BarChart3, Sparkles, Target, Gift, AlertCircle, Loader2, Filter, Clock, Award, TrendingDown, Users2 } from 'lucide-react';
 import { ReportModal, useRateLimit, filterContent } from './ModerationComponents';
@@ -145,16 +146,26 @@ const useIsMobile = () => {
   return isMobile;
 };
 
-// Enhanced mobile drag handler
+// Enhanced mobile drag handler with fixes
 const useMobileDrag = (onDragStart, onDragEnd, onDragMove) => {
   const [isDragging, setIsDragging] = useState(false);
   const [draggedElement, setDraggedElement] = useState(null);
   const touchStartY = useRef(0);
   const touchCurrentY = useRef(0);
   const dragThreshold = 10; // pixels before drag starts
+  const scrollLockRef = useRef(null);
 
   const handleTouchStart = useCallback((e, data) => {
+    // Only handle touches on the drag handle itself
+    if (!e.target.closest('.drag-handle')) return;
+    
     e.preventDefault();
+    e.stopPropagation();
+    
+    // Lock page scrolling
+    document.body.style.overflow = 'hidden';
+    document.body.style.touchAction = 'none';
+    
     touchStartY.current = e.touches[0].clientY;
     touchCurrentY.current = e.touches[0].clientY;
     setDraggedElement({ element: e.currentTarget, data });
@@ -164,6 +175,8 @@ const useMobileDrag = (onDragStart, onDragEnd, onDragMove) => {
     if (!draggedElement) return;
     
     e.preventDefault();
+    e.stopPropagation();
+    
     touchCurrentY.current = e.touches[0].clientY;
     
     const distance = Math.abs(touchCurrentY.current - touchStartY.current);
@@ -173,20 +186,32 @@ const useMobileDrag = (onDragStart, onDragEnd, onDragMove) => {
       onDragStart && onDragStart(draggedElement.data);
       
       // Add visual feedback
-      draggedElement.element.style.opacity = '0.5';
-      draggedElement.element.style.transform = 'scale(1.05)';
+      draggedElement.element.style.opacity = '0.7';
+      draggedElement.element.style.transform = 'scale(1.02)';
+      draggedElement.element.style.zIndex = '1000';
+      draggedElement.element.style.position = 'relative';
     }
     
     if (isDragging && onDragMove) {
+      // Move the element with the touch
+      const moveY = touchCurrentY.current - touchStartY.current;
+      draggedElement.element.style.transform = `translateY(${moveY}px) scale(1.02)`;
+      
       onDragMove(e.touches[0]);
     }
   }, [draggedElement, isDragging, onDragStart, onDragMove]);
 
   const handleTouchEnd = useCallback((e) => {
+    // Re-enable page scrolling
+    document.body.style.overflow = '';
+    document.body.style.touchAction = '';
+    
     if (isDragging && draggedElement) {
       // Reset visual feedback
       draggedElement.element.style.opacity = '1';
-      draggedElement.element.style.transform = 'scale(1)';
+      draggedElement.element.style.transform = '';
+      draggedElement.element.style.zIndex = '';
+      draggedElement.element.style.position = '';
       
       // Find drop target
       const touch = e.changedTouches[0];
@@ -231,7 +256,7 @@ const useEnhancedRateLimit = (supabase) => {
 
 // Main Component
 const TheCanon = ({ supabase }) => {
-  // Core state - keeping all your existing state variables
+  // Core state - all state variables from v5
   const [activeTab, setActiveTab] = useState('foryou');
   const [showFaceOff, setShowFaceOff] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
@@ -267,20 +292,14 @@ const TheCanon = ({ supabase }) => {
   const searchRef = useRef(null);
   const myTop10SearchRef = useRef(null);
   const [fullRankings, setFullRankings] = useState([]);
-  const [allArtists, setAllArtists] = useState([]);
-  const [notableArtists, setNotableArtists] = useState([]);
-  const [userStats, setUserStats] = useState(null);
-  const [userLists, setUserLists] = useState([]);
-  const [faceOffs, setFaceOffs] = useState([]);
-  const [isInitialLoading, setIsInitialLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isLoadingDebates, setIsLoadingDebates] = useState(false);
-  const [isLoadingRankings, setIsLoadingRankings] = useState(false);
-  const [toasts, setToasts] = useState([]);
+  
+  // New debate-related state
   const [realDebates, setRealDebates] = useState([]);
   const [selectedArtistTags, setSelectedArtistTags] = useState([]);
   const [tagSearchQuery, setTagSearchQuery] = useState('');
   const [showTagSearch, setShowTagSearch] = useState(false);
+  
+  // New social features state
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportContent, setReportContent] = useState(null);
   const [userLikes, setUserLikes] = useState(new Set());
@@ -289,10 +308,14 @@ const TheCanon = ({ supabase }) => {
   const [replyContent, setReplyContent] = useState('');
   const [friends, setFriends] = useState([]);
   const [friendRequests, setFriendRequests] = useState([]);
+  
+  // Database state
   const [currentUser, setCurrentUser] = useState(null);
   const [savingStatus, setSavingStatus] = useState('');
   const [isFirstLogin, setIsFirstLogin] = useState(false);
   const [allArtistsFromDB, setAllArtistsFromDB] = useState([]);
+  
+  // New feature states from v5
   const [faceOffFilters, setFaceOffFilters] = useState({ era: 'all', region: 'all' });
   const [battleHistory, setBattleHistory] = useState([]);
   const [dailyChallenge, setDailyChallenge] = useState(null);
@@ -302,6 +325,27 @@ const TheCanon = ({ supabase }) => {
   const [rankingComments, setRankingComments] = useState({});
   const [showCommentModal, setShowCommentModal] = useState(false);
   const [commentingOn, setCommentingOn] = useState(null);
+  
+  // Additional states for friend search
+  const [friendSearchQuery, setFriendSearchQuery] = useState('');
+  const [friendSearchResults, setFriendSearchResults] = useState([]);
+  const [showFriendSearch, setShowFriendSearch] = useState(false);
+  
+  // Initial artist data
+  const [allArtists, setAllArtists] = useState([]);
+  const [notableArtists, setNotableArtists] = useState([]);
+  const [userStats, setUserStats] = useState(null);
+  const [userLists, setUserLists] = useState([]);
+  const [faceOffs, setFaceOffs] = useState([]);
+  
+  // Loading states
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingDebates, setIsLoadingDebates] = useState(false);
+  const [isLoadingRankings, setIsLoadingRankings] = useState(false);
+  
+  // Toast notifications
+  const [toasts, setToasts] = useState([]);
 
   // Mobile detection
   const isMobile = useIsMobile();
@@ -375,21 +419,27 @@ const TheCanon = ({ supabase }) => {
     tastemaker: { icon: '🔥', name: 'Tastemaker', description: 'Spots talent early' },
     crateDigger: { icon: '💎', name: 'Crate Digger', description: 'Deep cuts only' },
     debater: { icon: '🗣️', name: 'Master Debater', description: 'Sparks conversations' },
-    curator: { icon: '📚', name: 'Curator', description: 'Builds legendary lists' }
+    curator: { icon: '📚', name: 'Curator', description: 'Builds legendary lists' },
+    veteran: { icon: '⭐', name: 'Veteran', description: '1000+ points earned' },
+    voter: { icon: '🗳️', name: 'Voter', description: '100+ battles voted' }
   };
 
-  // Initialize app
+  // Combined initialization effect
   useEffect(() => {
     let mounted = true;
     
     const initializeApp = async () => {
+      console.log('Starting app initialization...');
+      
       try {
+        // First check authentication and first login
         const { data: { user } } = await supabase.auth.getUser();
         if (!mounted) return;
         
         if (user) {
           setCurrentUser(user);
           
+          // Check first login
           const { data: profile } = await supabase
             .from('profiles')
             .select('*')
@@ -407,16 +457,20 @@ const TheCanon = ({ supabase }) => {
             setShowFaceOff(true);
           }
           
+          // Set user data
           setUsername(profile?.username || profile?.display_name || user.email.split('@')[0]);
           setUserStreak(profile?.login_streak || 0);
           setUserPoints(profile?.total_points || 0);
           
+          // Load all data in parallel for better performance
           await Promise.all([
             loadUserRankings(user.id),
             loadArtistsFromDB(),
             loadDebates(),
             loadUserLikes(),
-            loadFriends()
+            loadFriends(),
+            loadDailyChallenge(),
+            loadBattleHistory()
           ]);
         }
       } catch (error) {
@@ -424,6 +478,7 @@ const TheCanon = ({ supabase }) => {
         addToast('Error loading data. Please refresh.', 'error');
       } finally {
         if (mounted) {
+          console.log('Setting isInitialLoading to false');
           setIsInitialLoading(false);
         }
       }
@@ -434,9 +489,80 @@ const TheCanon = ({ supabase }) => {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, []); // Empty dependency array - runs once on mount
 
-  // Load functions (simplified versions - add your full implementations)
+  // Get current user
+  const getCurrentUser = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      setCurrentUser(user);
+      // Check if profile exists
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+      
+      if (error && error.code === 'PGRST116') {
+        // Profile doesn't exist, create it
+        const defaultUsername = user.email.split('@')[0];
+        const { data: newProfile, error: createError } = await supabase
+          .from('profiles')
+          .insert({
+            id: user.id,
+            username: defaultUsername,
+            display_name: user.user_metadata.full_name || defaultUsername,
+            email: user.email,
+            first_login: true,
+            total_points: 0,
+            login_streak: 0
+          })
+          .select()
+          .single();
+        
+        if (createError) {
+          console.error('Error creating profile:', createError);
+          addToast('Error creating profile', 'error');
+        } else {
+          setUsername(newProfile.username);
+        }
+      } else if (profile) {
+        setUsername(profile.username || profile.display_name);
+        setUserStreak(profile.login_streak || 0);
+        setUserPoints(profile.total_points || 0);
+        
+        // Load user badges
+        const badges = [];
+        if (profile.total_points > 1000) badges.push('curator');
+        if (profile.unique_picks_ratio > 0.3) badges.push('pioneer');
+        setUserBadges(badges);
+      }
+      
+      // Load user's rankings
+      await loadUserRankings(user.id);
+    }
+  };
+
+  // Load artists from database
+  const loadArtistsFromDB = async () => {
+    try {
+      const { data: artists, error } = await supabase
+        .from('artists')
+        .select('*')
+        .order('name');
+      
+      if (!error && artists) {
+        setAllArtistsFromDB(artists);
+      } else {
+        throw error;
+      }
+    } catch (error) {
+      console.error('Error loading artists:', error);
+      addToast('Error loading artists', 'error');
+    }
+  };
+
+  // Load user rankings
   const loadUserRankings = async (userId) => {
     setIsLoadingRankings(true);
     try {
@@ -468,7 +594,9 @@ const TheCanon = ({ supabase }) => {
               classics: item.artists.classics_count || 0
             })),
           created: new Date(ranking.created_at).toLocaleDateString(),
-          isAllTime: ranking.is_all_time
+          isAllTime: ranking.is_all_time,
+          isCollaborative: ranking.is_collaborative || false,
+          collaborators: ranking.collaborators || []
         }));
         setUserLists(formattedLists);
       }
@@ -480,35 +608,358 @@ const TheCanon = ({ supabase }) => {
     }
   };
 
-  const loadArtistsFromDB = async () => {
+  // Load daily challenge
+  const loadDailyChallenge = async () => {
     try {
-      const { data: artists, error } = await supabase
-        .from('artists')
+      const today = new Date().toISOString().split('T')[0];
+      const { data: challenge } = await supabase
+        .from('daily_challenges')
         .select('*')
-        .order('name');
+        .eq('date', today)
+        .single();
       
-      if (!error && artists) {
-        setAllArtistsFromDB(artists);
+      if (challenge) {
+        setDailyChallenge(challenge);
+      } else {
+        // Create today's challenge if it doesn't exist
+        const challenges = [
+          { type: 'era', title: '90s Legends Only', filter: { era: '90s' } },
+          { type: 'region', title: 'East Coast Excellence', filter: { region: 'east' } },
+          { type: 'category', title: 'Rate the Lyricists', category: 'lyricists' },
+          { type: 'underground', title: 'Underground Kings', filter: { mainstream: false } },
+          { type: 'rookies', title: 'Rookie Rankings', filter: { yearsActive: '<3' } }
+        ];
+        
+        const randomChallenge = challenges[Math.floor(Math.random() * challenges.length)];
+        setDailyChallenge({ ...randomChallenge, date: today });
       }
     } catch (error) {
-      console.error('Error loading artists:', error);
-      addToast('Error loading artists', 'error');
+      console.error('Error loading daily challenge:', error);
     }
   };
 
+  // Load battle history with stats
+  const loadBattleHistory = async () => {
+    if (!currentUser) return;
+    
+    try {
+      const { data: votes } = await supabase
+        .from('faceoff_votes')
+        .select('*, winner:winner_id(name, era), loser:loser_id(name, era)')
+        .eq('user_id', currentUser.id)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      
+      if (votes) {
+        setBattleHistory(votes);
+        
+        // Calculate stats
+        const stats = {
+          totalVotes: votes.length,
+          avgConviction: votes.reduce((acc, v) => acc + v.conviction_level, 0) / votes.length,
+          eraPreference: {},
+          winStreaks: []
+        };
+        
+        votes.forEach(vote => {
+          const era = vote.winner.era;
+          stats.eraPreference[era] = (stats.eraPreference[era] || 0) + 1;
+        });
+        
+        // Store stats for profile display
+        setUserStats(stats);
+      }
+    } catch (error) {
+      console.error('Error loading battle history:', error);
+    }
+  };
+
+  // Load debates from database with hot takes detection
   const loadDebates = async () => {
-    // Add your debate loading logic
+    setIsLoadingDebates(true);
+    try {
+      const { data: debates, error } = await supabase
+        .from('debates')
+        .select(`
+          *,
+          profiles!debates_author_id_fkey (
+            username,
+            display_name
+          ),
+          debate_likes (user_id),
+          debate_comments (id)
+        `)
+        .order('created_at', { ascending: false })
+        .limit(20);
+      
+      if (error) throw error;
+      
+      // Format debates and detect hot takes
+      const formattedDebates = debates.map(debate => {
+        const isHotTake = detectHotTake(debate.content, debate.artist_tags);
+        
+        return {
+          id: debate.id,
+          user: debate.profiles.username || debate.profiles.display_name,
+          avatar: "🎤",
+          content: debate.content,
+          title: debate.title,
+          likes: debate.debate_likes?.length || 0,
+          replies: debate.debate_comments?.length || 0,
+          timestamp: getRelativeTime(debate.created_at),
+          isOwn: currentUser && debate.author_id === currentUser.id,
+          artistTags: debate.artist_tags || [],
+          hot: debate.likes > 50,
+          isHotTake,
+          userLiked: debate.debate_likes?.some(like => like.user_id === currentUser?.id)
+        };
+      });
+      
+      setRealDebates(formattedDebates);
+      setHotTakes(formattedDebates.filter(d => d.isHotTake));
+      
+    } catch (error) {
+      console.error('Error loading debates:', error);
+      addToast('Error loading debates', 'error');
+    } finally {
+      setIsLoadingDebates(false);
+    }
   };
 
+  // Hot take detection algorithm
+  const detectHotTake = (content, artistTags) => {
+    const controversialPhrases = [
+      'overrated', 'trash', 'wack', 'fell off', 'better than',
+      'goat', 'greatest', 'worst', 'mid', 'carried'
+    ];
+    
+    const contentLower = content.toLowerCase();
+    const hasControversial = controversialPhrases.some(phrase => 
+      contentLower.includes(phrase)
+    );
+    
+    // Check for controversial comparisons
+    const hasVersus = contentLower.includes('>') || contentLower.includes('vs');
+    
+    return hasControversial || hasVersus;
+  };
+
+  // Load ranking comments
+  const loadRankingComments = async (rankingId) => {
+    try {
+      const { data: comments } = await supabase
+        .from('ranking_comments')
+        .select(`
+          *,
+          profiles (username, display_name)
+        `)
+        .eq('ranking_id', rankingId)
+        .order('created_at', { ascending: false });
+      
+      if (comments) {
+        setRankingComments(prev => ({
+          ...prev,
+          [rankingId]: comments
+        }));
+      }
+    } catch (error) {
+      console.error('Error loading comments:', error);
+    }
+  };
+
+  // Load user's likes
   const loadUserLikes = async () => {
-    // Add your likes loading logic
+    if (!currentUser) return;
+    
+    try {
+      const { data } = await supabase
+        .from('debate_likes')
+        .select('debate_id')
+        .eq('user_id', currentUser.id);
+      
+      if (data) {
+        setUserLikes(new Set(data.map(like => like.debate_id)));
+      }
+    } catch (error) {
+      console.error('Error loading likes:', error);
+    }
   };
 
+  // Load friends and friend requests
   const loadFriends = async () => {
-    // Add your friends loading logic
+    if (!currentUser) return;
+
+    try {
+      // Load accepted friends
+      const { data: friendships } = await supabase
+        .from('friendships')
+        .select(`
+          *,
+          friend:friend_id(id, username, display_name),
+          user:user_id(id, username, display_name)
+        `)
+        .or(`user_id.eq.${currentUser.id},friend_id.eq.${currentUser.id}`)
+        .eq('status', 'accepted');
+
+      if (friendships) {
+        const friendList = friendships.map(f => 
+          f.user_id === currentUser.id ? f.friend : f.user
+        );
+        setFriends(friendList);
+      }
+
+      // Load pending requests
+      const { data: requests } = await supabase
+        .from('friendships')
+        .select(`
+          *,
+          user:user_id(id, username, display_name)
+        `)
+        .eq('friend_id', currentUser.id)
+        .eq('status', 'pending');
+
+      if (requests) {
+        setFriendRequests(requests);
+      }
+    } catch (error) {
+      console.error('Error loading friends:', error);
+    }
   };
 
-  // Update artists when DB loads
+  // Helper function for relative time
+  const getRelativeTime = (timestamp) => {
+    const now = new Date();
+    const past = new Date(timestamp);
+    const diffMs = now - past;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return `${diffDays}d ago`;
+  };
+
+  // Toggle like on debate with rate limiting
+  const toggleLike = async (debateId) => {
+    if (!currentUser) {
+      addToast('Please log in to like debates', 'warning');
+      return;
+    }
+
+    // Check rate limit
+    if (!await checkRateLimit('like', 30, 1)) {
+      addToast('Too many likes! Please slow down.', 'warning');
+      return;
+    }
+
+    try {
+      if (userLikes.has(debateId)) {
+        // Unlike
+        await supabase
+          .from('debate_likes')
+          .delete()
+          .eq('debate_id', debateId)
+          .eq('user_id', currentUser.id);
+        
+        setUserLikes(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(debateId);
+          return newSet;
+        });
+        
+        // Update local debate count
+        setRealDebates(prev => prev.map(d => 
+          d.id === debateId ? { ...d, likes: d.likes - 1 } : d
+        ));
+      } else {
+        // Like
+        await supabase
+          .from('debate_likes')
+          .insert({
+            debate_id: debateId,
+            user_id: currentUser.id
+          });
+        
+        setUserLikes(prev => new Set([...prev, debateId]));
+        
+        // Update local debate count
+        setRealDebates(prev => prev.map(d => 
+          d.id === debateId ? { ...d, likes: d.likes + 1 } : d
+        ));
+      }
+    } catch (error) {
+      console.error('Error toggling like:', error);
+      addToast('Error updating like', 'error');
+    }
+  };
+
+  // Post reply to debate
+  const postReply = async () => {
+    if (!currentUser || !replyingTo || !replyContent.trim()) return;
+
+    // Check rate limit
+    if (!await checkRateLimit('comment', 10, 5)) {
+      addToast('Too many comments! Take a breather.', 'warning');
+      return;
+    }
+
+    try {
+      const filteredContent = filterContent(replyContent.trim());
+      
+      const { error } = await supabase
+        .from('debate_comments')
+        .insert({
+          debate_id: replyingTo.id,
+          author_id: currentUser.id,
+          content: filteredContent
+        });
+
+      if (error) throw error;
+
+      // Reload debates to show new reply count
+      await loadDebates();
+      
+      setShowReplyModal(false);
+      setReplyContent('');
+      setReplyingTo(null);
+      addToast('Reply posted!', 'success');
+    } catch (error) {
+      console.error('Error posting reply:', error);
+      addToast('Error posting reply', 'error');
+    }
+  };
+
+  // Comment on ranking
+  const postRankingComment = async (rankingId, artistPosition, comment) => {
+    if (!currentUser || !comment.trim()) return;
+
+    if (!await checkRateLimit('comment', 10, 5)) {
+      addToast('Too many comments! Take a breather.', 'warning');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('ranking_comments')
+        .insert({
+          ranking_id: rankingId,
+          user_id: currentUser.id,
+          artist_position: artistPosition,
+          content: filterContent(comment.trim())
+        });
+
+      if (error) throw error;
+
+      await loadRankingComments(rankingId);
+      addToast('Comment posted!', 'success');
+    } catch (error) {
+      console.error('Error posting comment:', error);
+      addToast('Error posting comment', 'error');
+    }
+  };
+
+  // Update allArtists when DB data loads
   useEffect(() => {
     if (allArtistsFromDB.length > 0) {
       const mappedArtists = allArtistsFromDB.map(artist => ({
@@ -522,6 +973,7 @@ const TheCanon = ({ supabase }) => {
       }));
       setAllArtists(mappedArtists);
       
+      // Filter notable artists with higher threshold
       const notable = mappedArtists.filter(artist => 
         artist.heat_score >= 80 || 
         artist.wikipedia_id || 
@@ -531,21 +983,488 @@ const TheCanon = ({ supabase }) => {
     }
   }, [allArtistsFromDB]);
 
-  // Generate face-offs
+  // Generate rankings when artists are loaded
+  useEffect(() => {
+    const hasAllTimeList = userLists.some(list => list.isAllTime);
+    if (allArtists.length > 0 && hasAllTimeList) {
+      setFullRankings(generateTop100());
+    }
+  }, [allArtists, userLists]);
+
+  // Generate face-offs when notable artists are loaded
+  useEffect(() => {
+    if (notableArtists.length >= 2 && !showTutorial && checkFaceOffLimit()) {
+      const newFaceOff = generateFaceOff();
+      if (newFaceOff) {
+        setFaceOffs([newFaceOff]);
+      }
+    }
+  }, [notableArtists, showTutorial, checkFaceOffLimit]);
+
+  // Click outside to close search
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (searchRef.current && !searchRef.current.contains(event.target)) {
+        setShowSearchResults(false);
+      }
+      if (myTop10SearchRef.current && !myTop10SearchRef.current.contains(event.target)) {
+        setShowSearchResults(false);
+      }
+      if (!event.target.closest('.tag-search-container')) {
+        setShowTagSearch(false);
+      }
+      if (!event.target.closest('.friend-search-container')) {
+        setShowFriendSearch(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyPress = (e) => {
+      if (e.key === 'Escape') {
+        setShowFaceOff(false);
+        setShowDebateModal(false);
+        setShowReplyModal(false);
+        setShowTop100Modal(false);
+        setShowSettings(false);
+        setShowArtistCard(null);
+        setShowCommentModal(false);
+      }
+    };
+    
+    document.addEventListener('keydown', handleKeyPress);
+    return () => document.removeEventListener('keydown', handleKeyPress);
+  }, []);
+
+  // Generate face-offs with better filtering
   const generateFaceOff = useCallback(() => {
     if (notableArtists.length < 2) return null;
     
-    const shuffled = [...notableArtists].sort(() => Math.random() - 0.5);
+    // Apply daily challenge filter if active
+    let filteredArtists = [...notableArtists];
+    
+    if (dailyChallenge && dailyChallenge.filter) {
+      filteredArtists = filteredArtists.filter(artist => {
+        if (dailyChallenge.filter.era) {
+          return artist.era.includes(dailyChallenge.filter.era);
+        }
+        if (dailyChallenge.filter.region) {
+          return artist.region === dailyChallenge.filter.region;
+        }
+        return true;
+      });
+    }
+    
+    // Apply user filters
+    if (faceOffFilters.era !== 'all') {
+      filteredArtists = filteredArtists.filter(a => 
+        a.era.toLowerCase().includes(faceOffFilters.era)
+      );
+    }
+    
+    if (faceOffFilters.region !== 'all') {
+      filteredArtists = filteredArtists.filter(a => 
+        a.region === faceOffFilters.region
+      );
+    }
+    
+    // Ensure sufficient notoriety (heat_score > 80)
+    filteredArtists = filteredArtists.filter(a => a.heat_score > 80);
+    
+    if (filteredArtists.length < 2) {
+      addToast('Not enough artists match your filters', 'info');
+      return null;
+    }
+    
+    const isCompetitive = Math.random() > 0.3;
+    let artist1, artist2;
+    
+    if (isCompetitive && filteredArtists.length > 20) {
+      const topArtists = filteredArtists.slice(0, 30);
+      artist1 = topArtists[Math.floor(Math.random() * topArtists.length)];
+      const nearbyArtists = topArtists.filter(a => 
+        Math.abs(topArtists.indexOf(a) - topArtists.indexOf(artist1)) <= 15 && 
+        a.id !== artist1.id
+      );
+      artist2 = nearbyArtists[Math.floor(Math.random() * nearbyArtists.length)] || 
+                filteredArtists.find(a => a.id !== artist1.id);
+    } else {
+      const shuffled = [...filteredArtists].sort(() => Math.random() - 0.5);
+      artist1 = shuffled[0];
+      artist2 = shuffled[1];
+    }
+    
+    if (!artist1 || !artist2) return null;
+    
     return { 
-      artist1: shuffled[0], 
-      artist2: shuffled[1], 
-      creator: "The Canon"
+      artist1, 
+      artist2, 
+      creator: "The Canon",
+      isDailyChallenge: dailyChallenge ? true : false
     };
-  }, [notableArtists]);
+  }, [notableArtists, faceOffFilters, dailyChallenge, addToast]);
 
-  // Generate rankings
+  // Calculate Canon Score
+  const calculateCanonScore = (appearanceRate, avgPosition) => {
+    const positionScore = (11 - avgPosition) / 10;
+    return Math.round((appearanceRate * 0.7 + positionScore * 0.3) * 100);
+  };
+
+  // Save ranking to database with validation
+  const saveRankingToDatabase = async (ranking) => {
+    if (!currentUser) return;
+    
+    // Validate ranking
+    if (!ranking.title || ranking.title.trim().length < 3) {
+      addToast('Ranking title too short', 'error');
+      return;
+    }
+    
+    if (ranking.artists.length === 0) {
+      addToast('Add some artists to your ranking', 'error');
+      return;
+    }
+    
+    setIsSaving(true);
+    setSavingStatus('Saving...');
+    
+    try {
+      const rankingData = {
+        user_id: currentUser.id,
+        list_title: ranking.title.trim(),
+        list_type: ranking.category || (ranking.isAllTime ? 'all-time' : 'custom'),
+        is_all_time: ranking.isAllTime || false,
+        is_collaborative: ranking.isCollaborative || false,
+        updated_at: new Date().toISOString()
+      };
+      
+      if (ranking.id && ranking.id.length === 36 && !ranking.id.startsWith('temp-')) {
+        rankingData.id = ranking.id;
+      }
+      
+      const { data: savedRanking, error: rankingError } = await supabase
+        .from('rankings')
+        .upsert(rankingData)
+        .select()
+        .single();
+
+      if (rankingError) throw rankingError;
+
+      // Delete existing ranking items
+      await supabase
+        .from('ranking_items')
+        .delete()
+        .eq('ranking_id', savedRanking.id);
+
+      // Insert new ranking items
+      if (ranking.artists.length > 0) {
+        const rankingItems = ranking.artists.map((artist, index) => ({
+          ranking_id: savedRanking.id,
+          artist_id: artist.id,
+          position: index + 1
+        }));
+
+        const { error: itemsError } = await supabase
+          .from('ranking_items')
+          .insert(rankingItems);
+
+        if (itemsError) throw itemsError;
+      }
+      
+      setUserLists(prevLists => 
+        prevLists.map(list => 
+          (list.id === ranking.id || list.id.startsWith('temp-')) && list.title === ranking.title
+            ? { ...list, id: savedRanking.id } 
+            : list
+        )
+      );
+
+      await awardPoints(10, 'ranking_saved');
+
+      setSavingStatus('Saved!');
+      addToast('Ranking saved successfully!', 'success');
+      setTimeout(() => setSavingStatus(''), 2000);
+    } catch (error) {
+      console.error('Error saving ranking:', error);
+      setSavingStatus('Error saving');
+      addToast('Error saving ranking', 'error');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Save face-off vote to database with battle history
+  const saveFaceOffVote = async (artist1Id, artist2Id, winnerId, conviction) => {
+    if (!currentUser) return;
+    
+    try {
+      const voteData = {
+        user_id: currentUser.id,
+        artist1_id: artist1Id,
+        artist2_id: artist2Id,
+        winner_id: winnerId,
+        conviction_level: conviction,
+        is_power_vote: conviction > 75,
+        is_daily_challenge: faceOffs[currentFaceOff]?.isDailyChallenge || false,
+        created_at: new Date().toISOString()
+      };
+      
+      await supabase
+        .from('faceoff_votes')
+        .insert(voteData);
+
+      // Update battle history
+      setBattleHistory(prev => [voteData, ...prev]);
+
+      // Award points
+      const points = conviction > 75 ? 5 : 2;
+      const bonusPoints = faceOffs[currentFaceOff]?.isDailyChallenge ? 3 : 0;
+      await awardPoints(points + bonusPoints, 'faceoff_vote');
+      
+      // Check for badges
+      if (battleHistory.length >= 100) {
+        await awardBadge('voter');
+      }
+    } catch (error) {
+      console.error('Error saving vote:', error);
+      addToast('Error saving vote', 'error');
+    }
+  };
+
+  // Award points and check achievements
+  const awardPoints = async (points, action) => {
+    if (!currentUser) return;
+    
+    const newTotal = userPoints + points;
+    setUserPoints(newTotal);
+    
+    await supabase
+      .from('profiles')
+      .update({ total_points: newTotal })
+      .eq('id', currentUser.id);
+    
+    checkAchievements(action, newTotal);
+  };
+
+  // Award badge
+  const awardBadge = async (badgeType) => {
+    if (!userBadges.includes(badgeType)) {
+      setUserBadges(prev => [...prev, badgeType]);
+      addToast(`🎉 You earned the ${badgeDefinitions[badgeType].name} badge!`, 'success');
+      
+      // Save to database
+      await supabase
+        .from('user_badges')
+        .insert({
+          user_id: currentUser.id,
+          badge_type: badgeType
+        });
+    }
+  };
+
+  const checkAchievements = (action, totalPoints) => {
+    const newAchievements = [...userAchievements];
+    
+    if (action === 'account_created' && !userAchievements.includes('first_timer')) {
+      newAchievements.push('first_timer');
+    }
+    
+    if (dailyFaceOffsCompleted >= 10 && !userAchievements.includes('voter')) {
+      newAchievements.push('voter');
+      awardBadge('voter');
+    }
+    
+    if (action === 'ranking_saved' && !userAchievements.includes('curator')) {
+      const allTimeLists = userLists.filter(l => l.isAllTime);
+      if (allTimeLists.length > 0 && allTimeLists[0].artists.length >= 10) {
+        newAchievements.push('curator');
+        awardBadge('curator');
+      }
+    }
+    
+    if (totalPoints > 1000 && !userBadges.includes('veteran')) {
+      awardBadge('veteran');
+    }
+    
+    setUserAchievements(newAchievements);
+  };
+
+  // Create new debate with validation
+  const createDebate = async () => {
+    if (!currentUser) {
+      addToast('Please log in to create a debate', 'warning');
+      return;
+    }
+    
+    if (!debateTitle.trim() || debateTitle.trim().length < 5) {
+      addToast('Title too short (min 5 characters)', 'error');
+      return;
+    }
+    
+    if (!debateContent.trim() || debateContent.trim().length < 20) {
+      addToast('Content too short (min 20 characters)', 'error');
+      return;
+    }
+    
+    if (!await checkRateLimit('debate', 5, 60)) {
+      addToast('Too many debates! Wait a bit.', 'warning');
+      return;
+    }
+    
+    try {
+      const filteredTitle = filterContent(debateTitle.trim());
+      const filteredContent = filterContent(debateContent.trim());
+      
+      const { data, error } = await supabase
+        .from('debates')
+        .insert({
+          author_id: currentUser.id,
+          title: filteredTitle,
+          content: filteredContent,
+          artist_tags: selectedArtistTags.map(artist => artist.id),
+          created_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      await loadDebates();
+      
+      setShowDebateModal(false);
+      setDebateTitle('');
+      setDebateContent('');
+      setSelectedArtistTags([]);
+      
+      addToast('Debate posted! 🔥', 'success');
+      
+      // Check for debater badge
+      const userDebates = realDebates.filter(d => d.isOwn);
+      if (userDebates.length >= 10) {
+        awardBadge('debater');
+      }
+      
+    } catch (error) {
+      console.error('Error creating debate:', error);
+      addToast('Error creating debate', 'error');
+    }
+  };
+
+  // Create collaborative list
+  const createCollaborativeList = async (listId) => {
+    if (!currentUser) return;
+    
+    try {
+      const { data: collab } = await supabase
+        .from('collaborative_lists')
+        .insert({
+          ranking_id: listId,
+          created_by: currentUser.id,
+          is_active: true
+        })
+        .select()
+        .single();
+      
+      // Generate shareable link
+      const shareLink = `${window.location.origin}/collab/${collab.id}`;
+      
+      await navigator.clipboard.writeText(shareLink);
+      addToast('Collaborative link copied! Share with friends.', 'success');
+      
+      // Update local state
+      setUserLists(prev => prev.map(list => 
+        list.id === listId 
+          ? { ...list, isCollaborative: true, shareLink } 
+          : list
+      ));
+    } catch (error) {
+      console.error('Error creating collaborative list:', error);
+      addToast('Error creating collaborative list', 'error');
+    }
+  };
+
+  // Send friend request
+  const sendFriendRequest = async (friendId) => {
+    if (!currentUser) return;
+
+    try {
+      const { error } = await supabase
+        .from('friendships')
+        .insert({
+          user_id: currentUser.id,
+          friend_id: friendId,
+          status: 'pending'
+        });
+
+      if (error) {
+        if (error.code === '23505') {
+          addToast('Friend request already sent', 'info');
+        } else {
+          throw error;
+        }
+      } else {
+        addToast('Friend request sent!', 'success');
+      }
+    } catch (error) {
+      console.error('Error sending friend request:', error);
+      addToast('Error sending friend request', 'error');
+    }
+  };
+
+  // Accept friend request
+  const acceptFriendRequest = async (requestId) => {
+    try {
+      const { error } = await supabase
+        .from('friendships')
+        .update({ status: 'accepted' })
+        .eq('id', requestId);
+
+      if (error) throw error;
+      
+      loadFriends();
+      addToast('Friend request accepted!', 'success');
+    } catch (error) {
+      console.error('Error accepting friend request:', error);
+      addToast('Error accepting request', 'error');
+    }
+  };
+
+  // Search for friends
+  const searchFriends = async (query) => {
+    if (!query || query.length < 2) {
+      setFriendSearchResults([]);
+      return;
+    }
+
+    try {
+      const { data: users, error } = await supabase
+        .from('profiles')
+        .select('id, username, display_name')
+        .or(`username.ilike.%${query}%,display_name.ilike.%${query}%`)
+        .limit(10);
+
+      if (error) throw error;
+
+      // Filter out current user and existing friends
+      const filteredUsers = users.filter(user => 
+        user.id !== currentUser?.id && 
+        !friends.some(friend => friend.id === user.id)
+      );
+
+      setFriendSearchResults(filteredUsers);
+    } catch (error) {
+      console.error('Error searching users:', error);
+      addToast('Error searching users', 'error');
+    }
+  };
+
+  // Extended rankings for top 100
   const generateTop100 = useCallback(() => {
     const rankings = [];
+    
     const allTimeList = userLists.find(l => l.isAllTime);
     
     if (allTimeList) {
@@ -561,10 +1480,17 @@ const TheCanon = ({ supabase }) => {
       });
     }
     
+    // Add trending logic
+    rankings.forEach((item, idx) => {
+      if (Math.random() < 0.1) item.trend = 'up';
+      else if (Math.random() < 0.05) item.trend = 'down';
+      else if (Math.random() < 0.02) item.trend = 'hot';
+    });
+    
     return rankings;
   }, [userLists]);
 
-  // Search functionality
+  // Search functionality with memoization
   const searchArtists = useCallback((query) => {
     if (!query || query.length < 2) return [];
     const lowerQuery = query.toLowerCase();
@@ -666,8 +1592,32 @@ const TheCanon = ({ supabase }) => {
 
   const handleDrop = useCallback((e, targetIndex, listId) => {
     e.preventDefault();
-    // Similar logic to mobile drag end
-  }, []);
+    if (!draggedItem) return;
+
+    const list = userLists.find(l => l.id === listId);
+    if (!list) return;
+
+    if (draggedItem.listId === 'search') {
+      if (!list.artists.find(a => a.id === draggedItem.artist.id)) {
+        const newArtists = [...list.artists];
+        newArtists.splice(targetIndex, 0, draggedItem.artist);
+        updateListAndSave(listId, newArtists);
+      }
+    } else if (draggedItem.listId === listId) {
+      const newArtists = [...list.artists];
+      const draggedIndex = newArtists.findIndex(a => a.id === draggedItem.artist.id);
+      
+      if (draggedIndex !== -1 && draggedIndex !== targetIndex) {
+        const [removed] = newArtists.splice(draggedIndex, 1);
+        const adjustedIndex = draggedIndex < targetIndex ? targetIndex - 1 : targetIndex;
+        newArtists.splice(adjustedIndex, 0, removed);
+        updateListAndSave(listId, newArtists);
+      }
+    }
+    
+    setDraggedItem(null);
+    setDragOverIndex(null);
+  }, [draggedItem, userLists]);
 
   // List management functions
   const updateListAndSave = useCallback((listId, newArtists) => {
@@ -681,12 +1631,6 @@ const TheCanon = ({ supabase }) => {
       saveRankingToDatabase(listToSave);
     }
   }, [userLists]);
-
-  const saveRankingToDatabase = async (ranking) => {
-    // Add your save logic
-    setSavingStatus('Saving...');
-    setTimeout(() => setSavingStatus('Saved!'), 1000);
-  };
 
   const addArtistToList = useCallback((artist, listId) => {
     const list = userLists.find(l => l.id === listId);
@@ -716,7 +1660,44 @@ const TheCanon = ({ supabase }) => {
       isAllTime: categoryId === 'all-time'
     };
     setUserLists([...userLists, newList]);
+    if (!categoryId) {
+      setEditingRanking(tempId);
+    }
+    
+    // If it's not an all-time list, save it immediately to enable editing
+    if (categoryId && categoryId !== 'all-time') {
+      saveRankingToDatabase(newList);
+    }
   }, [userLists]);
+
+  const hasAllTimeList = userLists.some(list => list.isAllTime);
+
+  const handleScroll = useCallback((e) => {
+    const bottom = e.target.scrollHeight - e.target.scrollTop === e.target.clientHeight;
+    if (bottom && loadedRankings < 150) {
+      setLoadedRankings(prev => prev + 50);
+    }
+  }, [loadedRankings]);
+
+  const quickAddToList = useCallback((artist) => {
+    if (!hasAllTimeList) {
+      const newList = {
+        id: `temp-${Date.now()}`,
+        title: "Greatest of All Time",
+        category: 'all-time',
+        artists: [artist],
+        created: "Just now",
+        isAllTime: true
+      };
+      setUserLists([newList, ...userLists]);
+      saveRankingToDatabase(newList);
+    } else {
+      const allTimeList = userLists.find(l => l.isAllTime);
+      if (allTimeList && !allTimeList.artists.find(a => a.id === artist.id)) {
+        updateListAndSave(allTimeList.id, [...allTimeList.artists, artist]);
+      }
+    }
+  }, [hasAllTimeList, userLists, updateListAndSave]);
 
   const shareList = useCallback((list) => {
     const shareUrl = `${window.location.origin}/user/${username}/${list.id}`;
@@ -733,40 +1714,6 @@ const TheCanon = ({ supabase }) => {
       addToast('Link copied to clipboard!', 'success');
     }
   }, [username]);
-
-  const quickAddToList = useCallback((artist) => {
-    const allTimeList = userLists.find(l => l.isAllTime);
-    if (!allTimeList) {
-      const newList = {
-        id: `temp-${Date.now()}`,
-        title: "Greatest of All Time",
-        category: 'all-time',
-        artists: [artist],
-        created: "Just now",
-        isAllTime: true
-      };
-      setUserLists([newList, ...userLists]);
-      saveRankingToDatabase(newList);
-    } else {
-      if (!allTimeList.artists.find(a => a.id === artist.id)) {
-        updateListAndSave(allTimeList.id, [...allTimeList.artists, artist]);
-      }
-    }
-  }, [userLists, updateListAndSave]);
-
-  // UI helper functions
-  const getTabName = () => {
-    const allTimeList = userLists.find(l => l.isAllTime);
-    if (!allTimeList) return "MY TOP 10";
-    const count = allTimeList.artists.length;
-    if (count <= 10) return "MY TOP 10";
-    if (count <= 15) return "MY TOP 15";
-    if (count <= 20) return "MY TOP 20";
-    if (count <= 25) return "MY TOP 25";
-    if (count <= 50) return "MY TOP 50";
-    if (count <= 100) return "MY TOP 100";
-    return `MY TOP ${Math.ceil(count / 50) * 50}`;
-  };
 
   const calculateUniqueness = useCallback((list) => {
     const uniquePicks = Math.floor(list.artists.length * 0.3);
@@ -786,8 +1733,29 @@ const TheCanon = ({ supabase }) => {
       return;
     }
     
+    if (dailyPowerVotes > 0 && convictionLevel > 75) {
+      setDailyPowerVotes(prev => prev - 1);
+    }
     setUserVotes({ ...userVotes, [currentFaceOff]: winnerId });
     setDailyFaceOffsCompleted(prev => prev + 1);
+    
+    if (faceOffs[currentFaceOff]) {
+      saveFaceOffVote(
+        faceOffs[currentFaceOff].artist1.id,
+        faceOffs[currentFaceOff].artist2.id,
+        winnerId,
+        convictionLevel
+      );
+    }
+    
+    const hasAllTimeList = userLists.some(list => list.isAllTime);
+    if (dailyFaceOffsCompleted === 0 && !hasAllTimeList) {
+      const votedArtist = winnerId === faceOffs[currentFaceOff].artist1.id 
+        ? faceOffs[currentFaceOff].artist1 
+        : faceOffs[currentFaceOff].artist2;
+      setSelectedArtistToAdd(votedArtist);
+      setPromptAddToList(true);
+    }
     
     setTimeout(() => {
       setShowFaceOff(false);
@@ -799,7 +1767,24 @@ const TheCanon = ({ supabase }) => {
     }, 300);
   };
 
-  const hasAllTimeList = userLists.some(list => list.isAllTime);
+  const toggleComments = (debateId) => {
+    setExpandedComments(prev => ({ ...prev, [debateId]: !prev[debateId] }));
+  };
+
+  // UI helper functions
+  const getTabName = () => {
+    const allTimeList = userLists.find(l => l.isAllTime);
+    if (!allTimeList) return "MY TOP 10";
+    const count = allTimeList.artists.length;
+    if (count <= 10) return "MY TOP 10";
+    if (count <= 15) return "MY TOP 15";
+    if (count <= 20) return "MY TOP 20";
+    if (count <= 25) return "MY TOP 25";
+    if (count <= 50) return "MY TOP 50";
+    if (count <= 100) return "MY TOP 100";
+    if (count <= 150) return "MY TOP 150";
+    return `MY TOP ${Math.ceil(count / 50) * 50}`;
+  };
 
   // Tutorial Component
   const Tutorial = () => (
@@ -857,44 +1842,99 @@ const TheCanon = ({ supabase }) => {
     </div>
   );
 
-  // Artist Card Component
-  const ArtistCard = ({ artist, onClose }) => (
-    <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-slate-800 border border-white/20 p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
-        <div className="flex justify-between items-start mb-4">
-          <div className="flex items-center gap-4">
-            <div className="text-6xl"><ArtistAvatar artist={artist} size="w-16 h-16" /></div>
-            <div>
-              <h2 className="text-2xl font-bold">{artist.name}</h2>
-              <p className="text-gray-400">{artist.era} • {artist.region}</p>
-              <div className="flex items-center gap-3 mt-2">
-                <span className="text-sm bg-purple-500/20 text-purple-300 px-2 py-1 rounded">
-                  Canon Score: {artist.canonScore}
-                </span>
-                {checkPioneerStatus(artist.id) && (
-                  <span className="text-sm bg-yellow-500/20 text-yellow-300 px-2 py-1 rounded">
-                    🏆 Pioneer Pick
+  // Enhanced Artist Card Component
+  const ArtistCard = ({ artist, onClose }) => {
+    const [artistStats, setArtistStats] = useState(null);
+    
+    useEffect(() => {
+      // Load artist stats
+      const loadStats = async () => {
+        const { data } = await supabase
+          .from('artist_stats')
+          .select('*')
+          .eq('artist_id', artist.id)
+          .single();
+        
+        if (data) setArtistStats(data);
+      };
+      loadStats();
+    }, [artist.id]);
+    
+    return (
+      <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-2xl w-full'} max-h-[80vh] overflow-y-auto`}>
+          <div className="flex justify-between items-start mb-4">
+            <div className="flex items-center gap-4">
+              <div className={`${isMobile ? 'text-4xl' : 'text-6xl'}`}><ArtistAvatar artist={artist} size={isMobile ? "w-12 h-12" : "w-16 h-16"} /></div>
+              <div>
+                <h2 className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold`}>{artist.name}</h2>
+                <p className="text-gray-400">{artist.era} • {artist.region}</p>
+                <div className="flex items-center gap-3 mt-2">
+                  <span className="text-sm bg-purple-500/20 text-purple-300 px-2 py-1 rounded">
+                    Canon Score: {artist.canonScore}
                   </span>
-                )}
+                  {checkPioneerStatus(artist.id) && (
+                    <span className="text-sm bg-yellow-500/20 text-yellow-300 px-2 py-1 rounded">
+                      🏆 Pioneer Pick
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
+            <button onClick={onClose} className="p-2 hover:bg-white/10 transition-colors touch-target">
+              <X className="w-5 h-5" />
+            </button>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-white/10 transition-colors">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        
-        <div className="space-y-6">
-          <div className="bg-black/30 border border-white/10 p-4 rounded">
-            <h3 className="font-bold mb-2">About</h3>
-            <p className="text-sm text-gray-300">
-              {artist.wikipedia_extract || "Loading artist information..."}
-            </p>
+          
+          <div className="space-y-6">
+            {/* Battle Stats */}
+            <div className="bg-black/30 border border-white/10 p-4 rounded">
+              <h3 className="font-bold mb-2">Battle Stats</h3>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-gray-400">Win Rate</p>
+                  <p className="text-xl font-bold">{artistStats?.win_rate || 0}%</p>
+                </div>
+                <div>
+                  <p className="text-gray-400">Total Battles</p>
+                  <p className="text-xl font-bold">{artistStats?.total_battles || 0}</p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Similar Artists */}
+            <div className="bg-black/30 border border-white/10 p-4 rounded">
+              <h3 className="font-bold mb-2">Fans Also Rank High</h3>
+              <div className="flex flex-wrap gap-2">
+                {allArtists
+                  .filter(a => a.era === artist.era && a.id !== artist.id)
+                  .slice(0, 5)
+                  .map(similar => (
+                    <button
+                      key={similar.id}
+                      onClick={() => {
+                        onClose();
+                        setShowArtistCard(similar);
+                      }}
+                      className="bg-white/10 hover:bg-white/20 px-3 py-1 rounded text-sm transition-colors"
+                    >
+                      {similar.name}
+                    </button>
+                  ))}
+              </div>
+            </div>
+            
+            <div className="bg-black/30 border border-white/10 p-4 rounded">
+              <h3 className="font-bold mb-2">About</h3>
+              <p className="text-sm text-gray-300">
+                {artist.wikipedia_extract || "Loading artist information..."}
+              </p>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   // Loading state
   if (isInitialLoading) {
@@ -922,6 +1962,17 @@ const TheCanon = ({ supabase }) => {
           />
         ))}
 
+        {/* Daily Challenge Banner */}
+        {dailyChallenge && !showTutorial && (
+          <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white py-2 px-4 text-center">
+            <p className="text-sm font-medium flex items-center justify-center gap-2">
+              <Target className="w-4 h-4" />
+              Today's Challenge: {dailyChallenge.title} 
+              <span className="text-xs opacity-75">(+3 bonus points per vote)</span>
+            </p>
+          </div>
+        )}
+
         {/* Main scrollable container for mobile */}
         <div className={isMobile ? 'h-full overflow-y-auto overflow-x-hidden' : ''}>
           {/* Header */}
@@ -933,37 +1984,30 @@ const TheCanon = ({ supabase }) => {
                     THE CANON
                     <Crown className={`${isMobile ? 'w-5 h-5' : 'w-6 h-6'} text-yellow-400`} />
                   </h1>
-                  {isMobile ? (
-                    <div className="text-xs text-gray-400 italic whitespace-nowrap">
-                      Settle the Canon.<br />Start the war.
-                    </div>
-                  ) : (
+                  {!isMobile && (
                     <div className="text-xs text-gray-400 italic">Settle the Canon. Start the war.</div>
                   )}
                 </div>
                 <div className={`flex items-center ${isMobile ? 'gap-2' : 'gap-4'}`}>
-                  {isMobile ? (
-                    <div className="flex items-center gap-1 text-xs">
-                      <Star className="w-3 h-3 text-yellow-400" />
-                      <span>{userPoints.toLocaleString()}</span>
-                      <span className="text-purple-400 ml-1">
-                        <Zap className="w-3 h-3 inline" />
-                        {dailyPowerVotes}
+                  {/* Gamification Display */}
+                  <div className={`flex items-center ${isMobile ? 'gap-1 text-xs' : 'gap-3 text-sm'}`}>
+                    {userStreak > 0 && !isMobile && (
+                      <span className="flex items-center gap-1">
+                        <Flame className="w-4 h-4 text-orange-400" />
+                        {userStreak} day streak
                       </span>
+                    )}
+                    <span className="flex items-center gap-1">
+                      <Star className={`${isMobile ? 'w-3 h-3' : 'w-4 h-4'} text-yellow-400`} />
+                      {isMobile ? userPoints.toLocaleString() : `${userPoints.toLocaleString()} points`}
+                    </span>
+                  </div>
+                  
+                  {!isMobile && (
+                    <div className="flex items-center gap-2 bg-purple-500/10 border border-purple-500/30 px-3 py-1.5">
+                      <Zap className="w-4 h-4 text-purple-400" />
+                      <span className="text-sm font-medium">{dailyPowerVotes} Power Votes</span>
                     </div>
-                  ) : (
-                    <>
-                      <div className="flex items-center gap-3 text-sm">
-                        <span className="flex items-center gap-1">
-                          <Star className="w-4 h-4 text-yellow-400" />
-                          {userPoints.toLocaleString()} points
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 bg-purple-500/10 border border-purple-500/30 px-3 py-1.5">
-                        <Zap className="w-4 h-4 text-purple-400" />
-                        <span className="text-sm font-medium">{dailyPowerVotes} Power Votes</span>
-                      </div>
-                    </>
                   )}
                   
                   <button 
@@ -972,16 +2016,126 @@ const TheCanon = ({ supabase }) => {
                   >
                     <Settings className={`${isMobile ? 'w-4 h-4' : 'w-5 h-5'}`} />
                   </button>
+                  
+                  {!isMobile && (
+                    <button 
+                      onClick={() => supabase.auth.signOut()}
+                      className="p-2 hover:bg-white/10 border border-white/10 transition-colors text-sm"
+                    >
+                      Sign Out
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
           </header>
 
+          {/* Saving Status Notification */}
+          {savingStatus && (
+            <div className="fixed top-20 right-4 bg-green-500 text-white px-4 py-2 rounded shadow-lg z-50">
+              {savingStatus}
+            </div>
+          )}
+
           {/* Tutorial Modal */}
           {showTutorial && <Tutorial />}
 
+          {/* Settings Modal */}
+          {showSettings && (
+            <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-md w-full'}`}>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-bold">Settings</h2>
+                  <button onClick={() => setShowSettings(false)} className="p-2 hover:bg-white/10 transition-colors touch-target">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Username</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        className="flex-1 px-3 py-2 bg-black/50 border border-white/20 focus:border-purple-400 focus:outline-none"
+                      />
+                      <button 
+                        onClick={async () => {
+                          if (!currentUser) {
+                            addToast('Please log in', 'error');
+                            return;
+                          }
+                          
+                          try {
+                            const { error } = await supabase
+                              .from('profiles')
+                              .update({ 
+                                username: username.trim(),
+                                display_name: username.trim() 
+                              })
+                              .eq('id', currentUser.id);
+                            
+                            if (error) {
+                              console.error('Error updating username:', error);
+                              addToast('Error updating username: ' + error.message, 'error');
+                            } else {
+                              addToast('Username updated successfully!', 'success');
+                              setShowSettings(false);
+                            }
+                          } catch (error) {
+                            console.error('Error updating username:', error);
+                            addToast('Error updating username', 'error');
+                          }
+                        }}
+                        className="px-4 py-2 bg-purple-600 hover:bg-purple-700 transition-colors"
+                      >
+                        Update
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">Can only be changed once every 30 days</p>
+                  </div>
+                  
+                  <div>
+                    <h3 className="font-medium mb-2">Email Preferences</h3>
+                    <label className="flex items-center gap-2">
+                      <input type="checkbox" className="rounded" />
+                      <span className="text-sm">Weekly ranking updates</span>
+                    </label>
+                  </div>
+                  
+                  <div>
+                    <h3 className="font-medium mb-2">Privacy</h3>
+                    <label className="flex items-center gap-2">
+                      <input type="checkbox" className="rounded" />
+                      <span className="text-sm">Make my rankings public</span>
+                    </label>
+                  </div>
+                  
+                  {isMobile && (
+                    <button 
+                      onClick={() => supabase.auth.signOut()}
+                      className="w-full py-3 bg-red-600/20 hover:bg-red-600/30 border border-red-400/50 transition-colors text-sm"
+                    >
+                      Sign Out
+                    </button>
+                  )}
+                  
+                  <div className="pt-4 border-t border-white/10">
+                    <div className="flex gap-2 text-sm">
+                      <a href="/terms" className="text-purple-400 hover:text-purple-300">Terms of Service</a>
+                      <span className="text-gray-500">•</span>
+                      <a href="/privacy" className="text-purple-400 hover:text-purple-300">Privacy Policy</a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Face-off Modal */}
-          {showFaceOff && faceOffs.length > 0 && (
+          {showFaceOff && !showProfile && faceOffs.length > 0 && (
             <div 
               className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4"
               onClick={() => setShowFaceOff(false)}
@@ -1060,40 +2214,265 @@ const TheCanon = ({ supabase }) => {
             </div>
           )}
 
-          {/* Settings Modal */}
-          {showSettings && (
+          {/* Prompt to Add to List Modal */}
+          {promptAddToList && selectedArtistToAdd && (
             <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-md w-full'}`}>
+              <div className="bg-slate-800 border border-white/20 p-6 max-w-md w-full">
+                <h2 className="text-xl font-bold mb-4">Start Your Greatest of All Time List!</h2>
+                <p className="text-gray-300 mb-6">
+                  You voted for <span className="font-bold">{selectedArtistToAdd.name}</span>! 
+                  Add them to your GOAT list to help settle The Canon.
+                </p>
+                <div className="bg-yellow-500/10 border border-yellow-400/50 p-4 rounded mb-6">
+                  <p className="text-sm text-yellow-300">
+                    Your GOAT list contributes to the official rankings. The more unique your picks, the more your voice counts!
+                  </p>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      quickAddToList(selectedArtistToAdd);
+                      setPromptAddToList(false);
+                      setActiveTab('mytop10');
+                    }}
+                    className="flex-1 py-2 bg-yellow-500/20 hover:bg-yellow-500/30 border border-yellow-400 transition-colors font-medium"
+                  >
+                    Add to My Top 10
+                  </button>
+                  <button
+                    onClick={() => setPromptAddToList(false)}
+                    className="flex-1 py-2 bg-white/10 hover:bg-white/20 border border-white/20 transition-colors"
+                  >
+                    Not Now
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Create Debate Modal */}
+          {showDebateModal && (
+            <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-lg w-full'} max-h-[80vh] overflow-y-auto`}>
+                <h2 className="text-xl font-bold mb-4">Start a Debate</h2>
+                
+                <input
+                  type="text"
+                  placeholder="Debate title..."
+                  value={debateTitle}
+                  onChange={(e) => setDebateTitle(e.target.value)}
+                  className="w-full px-4 py-2 bg-black/50 border border-white/20 focus:border-purple-400 focus:outline-none mb-4"
+                />
+                
+                <textarea
+                  placeholder="Make your case..."
+                  value={debateContent}
+                  onChange={(e) => setDebateContent(e.target.value)}
+                  className="w-full px-4 py-2 bg-black/50 border border-white/20 focus:border-purple-400 focus:outline-none h-32 mb-4"
+                />
+                
+                {/* Artist Tags */}
+                <div className="mb-4">
+                  <label className="text-sm font-medium mb-2 block">Tag Artists (optional)</label>
+                  
+                  {/* Selected tags */}
+                  {selectedArtistTags.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {selectedArtistTags.map(artist => (
+                        <span
+                          key={artist.id}
+                          className="bg-purple-500/20 text-purple-300 px-3 py-1 rounded-full text-sm flex items-center gap-2"
+                        >
+                          <ArtistAvatar artist={artist} /> {artist.name}
+                          <button
+                            onClick={() => setSelectedArtistTags(prev => prev.filter(a => a.id !== artist.id))}
+                            className="hover:text-white"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* Tag search */}
+                  <div className="relative tag-search-container">
+                    <input
+                      type="text"
+                      placeholder="Search artists to tag..."
+                      value={tagSearchQuery}
+                      onChange={(e) => {
+                        setTagSearchQuery(e.target.value);
+                        setShowTagSearch(true);
+                      }}
+                      onFocus={() => setShowTagSearch(true)}
+                      className="w-full px-4 py-2 bg-black/50 border border-white/20 focus:border-purple-400 focus:outline-none"
+                    />
+                    
+                    {showTagSearch && tagSearchQuery && (
+                      <div className="absolute top-full mt-1 w-full bg-slate-700 border border-white/20 max-h-48 overflow-y-auto z-10">
+                        {searchArtists(tagSearchQuery).map(artist => (
+                          <button
+                            key={artist.id}
+                            onClick={() => {
+                              if (!selectedArtistTags.find(a => a.id === artist.id)) {
+                                setSelectedArtistTags([...selectedArtistTags, artist]);
+                              }
+                              setTagSearchQuery('');
+                              setShowTagSearch(false);
+                            }}
+                            className="w-full p-2 hover:bg-white/10 flex items-center gap-2 text-left"
+                          >
+                            <span className="text-xl"><ArtistAvatar artist={artist} /></span>
+                            <span>{artist.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="flex gap-3">
+                  <button
+                    onClick={createDebate}
+                    className="flex-1 py-2 bg-purple-600 hover:bg-purple-700 transition-colors font-medium"
+                  >
+                    Post Debate
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowDebateModal(false);
+                      setDebateTitle('');
+                      setDebateContent('');
+                      setSelectedArtistTags([]);
+                    }}
+                    className="flex-1 py-2 bg-white/10 hover:bg-white/20 border border-white/20 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Reply Modal */}
+          {showReplyModal && replyingTo && (
+            <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-lg w-full'}`}>
+                <h2 className="text-xl font-bold mb-4">Reply to Debate</h2>
+                
+                <div className="bg-black/30 p-3 mb-4 rounded">
+                  <p className="text-sm text-gray-400">Replying to:</p>
+                  <p className="font-bold">{replyingTo.title}</p>
+                </div>
+                
+                <textarea
+                  value={replyContent}
+                  onChange={(e) => setReplyContent(e.target.value)}
+                  placeholder="Share your thoughts..."
+                  className="w-full px-4 py-2 bg-black/50 border border-white/20 focus:border-purple-400 focus:outline-none h-32 mb-4"
+                />
+                
+                <div className="flex gap-3">
+                  <button
+                    onClick={postReply}
+                    className="flex-1 py-2 bg-purple-600 hover:bg-purple-700 transition-colors font-medium"
+                  >
+                    Post Reply
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowReplyModal(false);
+                      setReplyContent('');
+                      setReplyingTo(null);
+                    }}
+                    className="flex-1 py-2 bg-white/10 hover:bg-white/20 border border-white/20 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Report Modal */}
+          <ReportModal
+            isOpen={showReportModal}
+            onClose={() => {
+              setShowReportModal(false);
+              setReportContent(null);
+            }}
+            contentType={reportContent?.type}
+            contentId={reportContent?.id}
+            supabase={supabase}
+            onSuccess={() => console.log('Report submitted')}
+          />
+
+          {/* Top 100 Modal */}
+          {showTop100Modal && (
+            <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-4xl w-full'} max-h-[80vh] flex flex-col`}>
                 <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-xl font-bold">Settings</h2>
-                  <button onClick={() => setShowSettings(false)} className="p-2 hover:bg-white/10 transition-colors touch-target">
+                  <h2 className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold tracking-tight flex items-center gap-2`}>
+                    <Trophy className={`${isMobile ? 'w-5 h-5' : 'w-6 h-6'} text-yellow-400`} />
+                    THE CANON TOP 100+
+                  </h2>
+                  <button onClick={() => setShowTop100Modal(false)} className="p-2 hover:bg-white/10 transition-colors touch-target">
                     <X className="w-5 h-5" />
                   </button>
                 </div>
                 
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Username</label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={username}
-                        onChange={(e) => setUsername(e.target.value)}
-                        className="flex-1 px-3 py-2 bg-black/50 border border-white/20 focus:border-purple-400 focus:outline-none"
-                      />
-                      <button className="px-4 py-2 bg-purple-600 hover:bg-purple-700 transition-colors">
-                        Update
-                      </button>
-                    </div>
+                <div className="flex-1 overflow-y-auto" onScroll={handleScroll}>
+                  <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'} gap-4`}>
+                    {fullRankings.slice(0, loadedRankings).map((item) => (
+                      <div 
+                        key={item.rank} 
+                        className={`flex items-center gap-3 p-3 bg-black/30 border cursor-pointer hover:bg-white/5 ${
+                          item.trend === 'hot' ? 'border-orange-400/50 bg-orange-500/5' : 'border-white/10'
+                        }`}
+                        onClick={() => setShowArtistCard(item.artist)}
+                      >
+                        <div className="w-12 text-center">
+                          <span className={`${isMobile ? 'text-lg' : 'text-xl'} font-bold text-gray-400`}>#{item.rank}</span>
+                        </div>
+                        
+                        <div className="w-8">
+                          {item.trend === 'up' && <ArrowUp className="w-4 h-4 text-green-400" />}
+                          {item.trend === 'down' && <ArrowDown className="w-4 h-4 text-red-400" />}
+                          {item.trend === 'hot' && <Flame className="w-4 h-4 text-orange-400" />}
+                        </div>
+                        
+                        <div className="text-2xl"><ArtistAvatar artist={item.artist} /></div>
+                        
+                        <div className="flex-1">
+                          <p className="font-bold">{item.artist.name}</p>
+                          <p className="text-sm text-gray-400">{item.artist.era}</p>
+                        </div>
+                        
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              quickAddToList(item.artist);
+                            }}
+                            className="p-1.5 hover:bg-white/10 border border-white/10 transition-colors touch-target"
+                            title="Add to My Top 10"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                          <div className="text-right">
+                            <p className="text-sm font-medium">{item.canonScore}</p>
+                            <p className="text-xs text-gray-500">{item.votes.toLocaleString()} votes</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                   
-                  {isMobile && (
-                    <button 
-                      onClick={() => supabase.auth.signOut()}
-                      className="w-full py-3 bg-red-600/20 hover:bg-red-600/30 border border-red-400/50 transition-colors text-sm"
-                    >
-                      Sign Out
-                    </button>
+                  {loadedRankings < 150 && (
+                    <div className="text-center py-8 text-gray-500">
+                      Scroll for more...
+                    </div>
                   )}
                 </div>
               </div>
@@ -1143,10 +2522,239 @@ const TheCanon = ({ supabase }) => {
 
           {/* Main Content */}
           <main className="max-w-7xl mx-auto px-4 py-6">
-            {activeTab === 'mytop10' ? (
+            {activeTab === 'foryou' ? (
               <div className="space-y-6">
-                {/* All-Time List */}
+                {/* Add Debate Button */}
+                <button
+                  onClick={() => setShowDebateModal(true)}
+                  className="w-full py-3 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-400/50 transition-colors font-medium flex items-center justify-center gap-2"
+                >
+                  <MessageCircle className="w-5 h-5" />
+                  Start a Debate
+                </button>
+                
+                {/* Top Section - Hot Debates + All-Time Top 10 */}
+                <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-3'} gap-6`}>
+                  {/* Hot Debates - Left Side */}
+                  <div className={isMobile ? '' : 'lg:col-span-2'}>
+                    <h2 className="text-lg font-bold tracking-tight mb-4">HOT DEBATES</h2>
+                    
+                    {/* Your Debates Section */}
+                    {realDebates.filter(d => d.isOwn).length > 0 && (
+                      <div className="mb-6">
+                        <h3 className="text-md font-bold tracking-tight mb-3 text-purple-400">YOUR DEBATES</h3>
+                        <div className="space-y-4">
+                          {realDebates.filter(d => d.isOwn).map((debate) => (
+                            <div key={debate.id} className="bg-slate-800/50 border border-purple-400/30 p-4">
+                              <div className="flex gap-3">
+                                <div className="text-2xl">{debate.avatar}</div>
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="font-bold">{debate.user}</span>
+                                    <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-0.5">Your debate</span>
+                                    {debate.hot && <Flame className="w-4 h-4 text-orange-500" />}
+                                    <span className="text-gray-500 text-sm ml-auto">{debate.timestamp}</span>
+                                  </div>
+                                  <h4 className="font-bold mb-1">{debate.title}</h4>
+                                  <p className="mb-2 leading-relaxed">{debate.content}</p>
+                                  
+                                  {/* Artist Tags */}
+                                  {debate.artistTags.length > 0 && (
+                                    <div className="flex gap-2 mb-3">
+                                      {debate.artistTags.map((artistId) => {
+                                        const artist = allArtists.find(a => a.id === artistId);
+                                        return artist ? (
+                                          <span key={artistId} className="text-xs bg-purple-500/20 text-purple-300 px-2 py-1 rounded-full">
+                                            <ArtistAvatar artist={artist} /> {artist.name}
+                                          </span>
+                                        ) : null;
+                                      })}
+                                    </div>
+                                  )}
+                                  
+                                  <div className="flex items-center gap-4">
+                                    <button 
+                                      onClick={() => toggleLike(debate.id)}
+                                      className={`flex items-center gap-1 text-sm transition-colors ${
+                                        userLikes.has(debate.id) 
+                                          ? 'text-purple-400' 
+                                          : 'hover:text-purple-400'
+                                      }`}
+                                    >
+                                      <Heart 
+                                        className={`w-4 h-4 ${userLikes.has(debate.id) ? 'fill-current' : ''}`} 
+                                      />
+                                      {debate.likes}
+                                    </button>
+                                    <button 
+                                      onClick={() => {
+                                        setReplyingTo(debate);
+                                        setShowReplyModal(true);
+                                      }}
+                                      className="flex items-center gap-1 text-sm hover:text-purple-400 transition-colors"
+                                    >
+                                      <MessageCircle className="w-4 h-4" />
+                                      {debate.replies}
+                                    </button>
+                                    <button className="flex items-center gap-1 text-sm hover:text-purple-400 transition-colors">
+                                      <Share2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* All Debates */}
+                    <div className="space-y-4">
+                      {/* Show real debates first */}
+                      {realDebates.filter(d => !d.isOwn).map((debate) => (
+                        <div key={debate.id} className="bg-slate-800/50 border border-white/10 p-4">
+                          <div className="flex gap-3">
+                            <div className="text-2xl">{debate.avatar}</div>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-bold">{debate.user}</span>
+                                {debate.hot && <Flame className="w-4 h-4 text-orange-500" />}
+                                <span className="text-gray-500 text-sm ml-auto">{debate.timestamp}</span>
+                              </div>
+                              <h4 className="font-bold mb-1">{debate.title}</h4>
+                              <p className="mb-2 leading-relaxed">{debate.content}</p>
+                              
+                              {/* Artist Tags */}
+                              {debate.artistTags.length > 0 && (
+                                <div className="flex gap-2 mb-3">
+                                  {debate.artistTags.map((artistId) => {
+                                    const artist = allArtists.find(a => a.id === artistId);
+                                    return artist ? (
+                                      <span key={artistId} className="text-xs bg-purple-500/20 text-purple-300 px-2 py-1 rounded-full">
+                                        <ArtistAvatar artist={artist} /> {artist.name}
+                                      </span>
+                                    ) : null;
+                                  })}
+                                </div>
+                              )}
+                              
+                              <div className="flex items-center gap-4">
+                                <button 
+                                  onClick={() => toggleLike(debate.id)}
+                                  className={`flex items-center gap-1 text-sm transition-colors ${
+                                    userLikes.has(debate.id) 
+                                      ? 'text-purple-400' 
+                                      : 'hover:text-purple-400'
+                                  }`}
+                                >
+                                  <Heart 
+                                    className={`w-4 h-4 ${userLikes.has(debate.id) ? 'fill-current' : ''}`} 
+                                  />
+                                  {debate.likes}
+                                </button>
+                                <button 
+                                  onClick={() => {
+                                    setReplyingTo(debate);
+                                    setShowReplyModal(true);
+                                  }}
+                                  className="flex items-center gap-1 text-sm hover:text-purple-400 transition-colors"
+                                >
+                                  <MessageCircle className="w-4 h-4" />
+                                  {debate.replies}
+                                </button>
+                                <button className="flex items-center gap-1 text-sm hover:text-purple-400 transition-colors">
+                                  <Share2 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setReportContent({ type: 'debate', id: debate.id });
+                                    setShowReportModal(true);
+                                  }}
+                                  className="flex items-center gap-1 text-sm hover:text-red-400 transition-colors ml-auto"
+                                >
+                                  <AlertCircle className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  {/* All-Time Top 10 - Right Side (Compact) - Desktop Only */}
+                  {!isMobile && (
+                    <div className="lg:col-span-1">
+                      <div className="bg-slate-800/50 border-2 border-yellow-400/50 p-3">
+                        <div className="flex items-center justify-between mb-3">
+                          <h3 className="font-bold text-sm tracking-tight flex items-center gap-1.5">
+                            <Trophy className="w-3.5 h-3.5 text-yellow-400" />
+                            GREATEST OF ALL TIME
+                          </h3>
+                          <button 
+                            onClick={() => setShowTop100Modal(true)}
+                            className="text-xs text-yellow-400 hover:text-yellow-300"
+                          >
+                            Top 100 →
+                          </button>
+                        </div>
+                        
+                        <div className="space-y-1">
+                          {fullRankings.slice(0, 10).map((item, idx) => (
+                            <div 
+                              key={idx} 
+                              className={`flex items-center gap-2 px-2 py-1 text-xs cursor-pointer hover:bg-white/5 ${
+                                item.trend === 'hot' ? 'bg-orange-500/10 border-l-2 border-orange-400' : ''
+                              }`}
+                              onClick={() => setShowArtistCard(item.artist)}
+                            >
+                              <div className="w-8 text-center">
+                                <span className="font-bold text-gray-500">#{item.rank}</span>
+                              </div>
+                              
+                              <div className="w-4">
+                                {item.trend === 'up' && <ArrowUp className="w-3 h-3 text-green-400" />}
+                                {item.trend === 'down' && <ArrowDown className="w-3 h-3 text-red-400" />}
+                                {item.trend === 'hot' && <Flame className="w-3 h-3 text-orange-400" />}
+                              </div>
+                              
+                              <div className="text-lg"><ArtistAvatar artist={item.artist} /></div>
+                              
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium truncate">{item.artist.name}</p>
+                              </div>
+                              
+                              <div className="flex items-center gap-1">
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    quickAddToList(item.artist);
+                                  }}
+                                  className="p-0.5 hover:bg-white/10 rounded"
+                                  title="Add to My Top 10"
+                                >
+                                  <Plus className="w-3 h-3" />
+                                </button>
+                                <span className="text-gray-500 text-xs">{item.canonScore}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        
+                        <div className="mt-3 pt-3 border-t border-white/10 flex justify-between text-xs text-gray-400">
+                          <span>{userLists.filter(l => l.isAllTime).length > 0 ? '1 voter' : '0 voters'}</span>
+                          <span>Avg unique: 6.8</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : activeTab === 'mytop10' ? (
+              <div className="space-y-6">
+                {/* All-Time List Section */}
                 {!hasAllTimeList ? (
+                  // Show create prompt only if no all-time list exists
                   <div className="bg-yellow-500/10 border-2 border-yellow-400/50 p-6 text-center">
                     <Trophy className="w-12 h-12 text-yellow-400 mx-auto mb-3" />
                     <h2 className="text-xl font-bold mb-2">Create Your Greatest of All Time List</h2>
@@ -1161,144 +2769,350 @@ const TheCanon = ({ supabase }) => {
                     </button>
                   </div>
                 ) : (
-                  <div>
-                    {userLists
-                      .filter(list => list.isAllTime)
-                      .map(list => {
-                        const uniqueness = calculateUniqueness(list);
-                        const displayCount = Math.min(list.artists.length, 20);
+                  // Show existing all-time list
+                  userLists
+                    .filter(list => list.isAllTime)
+                    .map(list => {
+                      const uniqueness = calculateUniqueness(list);
+                      const displayCount = Math.min(list.artists.length, 20);
+                      
+                      return (
+                        <div key={list.id} className="bg-yellow-500/5 border-2 border-yellow-400/50 p-4" data-list-id={list.id}>
+                          {/* List header */}
+                          <div className="flex justify-between items-start mb-4">
+                            <div>
+                              <h3 className="text-xl font-bold flex items-center gap-2">
+                                <Trophy className="w-5 h-5 text-yellow-400" />
+                                Greatest of All Time
+                              </h3>
+                              <p className="text-sm text-gray-400">{list.created}</p>
+                              <p className="text-sm text-yellow-400 mt-1">
+                                Unique Score: {uniqueness.score}/{list.artists.length} • 
+                                Your voice weight: {uniqueness.percentage}%
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => shareList(list)}
+                              className="p-2 hover:bg-white/10 border border-white/10 transition-colors"
+                            >
+                              <Share2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                          
+                          {/* Search Bar */}
+                          <div className="relative mb-4" ref={searchRef}>
+                            <div className="relative">
+                              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                              <input
+                                type="text"
+                                value={searchQuery}
+                                onChange={(e) => {
+                                  setSearchQuery(e.target.value);
+                                  setShowSearchResults(true);
+                                }}
+                                onFocus={() => setShowSearchResults(true)}
+                                placeholder="Search artists to add..."
+                                className="w-full pl-10 pr-4 py-2 bg-black/50 border border-white/20 focus:border-purple-400/50 focus:outline-none"
+                              />
+                            </div>
+                            
+                            {/* Search Results */}
+                            {showSearchResults && searchQuery && searchResults.length > 0 && (
+                              <div className="absolute top-full mt-2 w-full bg-slate-800 border border-white/20 shadow-xl max-h-64 overflow-y-auto z-10">
+                                {searchResults.map((artist) => (
+                                  <div
+                                    key={artist.id}
+                                    className="p-3 hover:bg-white/10 transition-colors flex items-center gap-3 cursor-pointer"
+                                    onClick={() => addArtistToList(artist, list.id)}
+                                  >
+                                    <span className="text-2xl"><ArtistAvatar artist={artist} /></span>
+                                    <div className="flex-1">
+                                      <p className="font-medium">{artist.name}</p>
+                                      <p className="text-sm text-gray-400">{artist.era} • Canon Score: {artist.canonScore}</p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* Empty state */}
+                          {list.artists.length === 0 && (
+                            <div
+                              data-drop-index="0"
+                              className="border-2 border-dashed border-gray-600 p-12 text-center text-gray-400"
+                            >
+                              {isMobile ? 'Search and tap artists to add them' : 'Search artists or drag them here'}
+                            </div>
+                          )}
+                          
+                          {/* Artist List */}
+                          <div className="space-y-2">
+                            {list.artists.slice(0, displayCount).map((artist, index) => (
+                              <div key={artist.id}>
+                                {/* Drop indicator */}
+                                {dragOverIndex === index && draggedFromList === list.id && (
+                                  <div className="h-1 bg-purple-400 rounded transition-all duration-200" />
+                                )}
+                                
+                                <div
+                                  data-drop-index={index}
+                                  className={`flex items-center gap-3 p-3 bg-black/30 border border-white/10 ${
+                                    isMobile ? '' : 'cursor-move hover:bg-white/10'
+                                  } transition-all duration-200 ${
+                                    draggedItem?.artist.id === artist.id ? 'opacity-50' : ''
+                                  } ${isMobile ? 'draggable-item' : ''}`}
+                                  {...(isMobile ? {
+                                    onTouchStart: (e) => mobileDrag.handleTouchStart(e, { artist, listId: list.id }),
+                                    onTouchMove: mobileDrag.handleTouchMove,
+                                    onTouchEnd: mobileDrag.handleTouchEnd
+                                  } : {
+                                    draggable: true,
+                                    onDragStart: (e) => handleDragStart(e, artist, list.id),
+                                    onDragEnd: handleDragEnd,
+                                    onDragEnter: (e) => handleDragEnter(e, index),
+                                    onDragOver: handleDragOver,
+                                    onDrop: (e) => handleDrop(e, index, list.id)
+                                  })}
+                                >
+                                  <div className={`drag-handle ${isMobile ? 'touch-target flex items-center justify-center w-12 h-12' : ''}`}>
+                                    <GripVertical className="w-5 h-5 text-gray-400" />
+                                  </div>
+                                  <span className="text-xl font-bold text-gray-500 w-8">#{index + 1}</span>
+                                  <ArtistAvatar artist={artist} />
+                                  <div 
+                                    className="flex-1 min-w-0"
+                                    onClick={(e) => {
+                                      if (!isMobile || !mobileDrag.isDragging) {
+                                        e.stopPropagation();
+                                        setShowArtistCard(artist);
+                                      }
+                                    }}
+                                  >
+                                    <p className="font-medium truncate">{artist.name}</p>
+                                    <p className="text-sm text-gray-400">{artist.era}</p>
+                                  </div>
+                                  {checkPioneerStatus(artist.id) && (
+                                    <span className="text-xs bg-yellow-500/20 text-yellow-300 px-2 py-1 rounded">
+                                      🏆 Pioneer
+                                    </span>
+                                  )}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      removeArtistFromList(artist.id, list.id);
+                                    }}
+                                    className="p-2 hover:bg-white/10 transition-colors touch-target rounded"
+                                  >
+                                    <X className="w-4 h-4 text-gray-400" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                            
+                            {/* Drop zone at end */}
+                            {dragOverIndex === list.artists.length && draggedFromList === list.id && (
+                              <div className="h-1 bg-purple-400 rounded transition-all duration-200" />
+                            )}
+                            
+                            <div
+                              data-drop-index={list.artists.length}
+                              className="h-2"
+                            />
+                          </div>
+                          
+                          {/* Show More Button */}
+                          {list.artists.length > 20 && (
+                            <button className="w-full mt-3 py-2 bg-white/10 hover:bg-white/20 border border-white/20 transition-colors text-sm">
+                              Show All {list.artists.length}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })
+                )}
+
+                {/* Other Category Lists */}
+                <div>
+                  <h2 className="text-lg font-bold mb-3">OTHER RANKINGS</h2>
+                  <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'} gap-4`}>
+                    {rankingCategories
+                      .filter(cat => !cat.locked)
+                      .map(category => {
+                        const existingList = userLists.find(l => l.category === category.id);
+                        
+                        if (!existingList) {
+                          return (
+                            <button
+                              key={category.id}
+                              onClick={() => createNewList(category.id)}
+                              className="p-4 bg-white/5 hover:bg-white/10 border border-white/10 transition-colors text-left"
+                            >
+                              <h3 className="font-bold mb-1">{category.name}</h3>
+                              <p className="text-sm text-gray-400">Click to create this ranking</p>
+                            </button>
+                          );
+                        }
                         
                         return (
-                          <div key={list.id} className="bg-yellow-500/5 border-2 border-yellow-400/50 p-4" data-list-id={list.id}>
-                            <div className="flex justify-between items-start mb-4">
-                              <div>
-                                <h3 className="text-xl font-bold flex items-center gap-2">
-                                  <Trophy className="w-5 h-5 text-yellow-400" />
-                                  Greatest of All Time
-                                </h3>
-                                <p className="text-sm text-gray-400">{list.created}</p>
-                                <p className="text-sm text-yellow-400 mt-1">
-                                  Unique Score: {uniqueness.score}/{list.artists.length} • 
-                                  Your voice weight: {uniqueness.percentage}%
-                                </p>
-                              </div>
+                          <div key={category.id} className="bg-white/5 border border-white/10 p-4" data-list-id={existingList.id}>
+                            <div className="flex justify-between items-start mb-3">
+                              <h3 className="font-bold">{existingList.title}</h3>
                               <button
-                                onClick={() => shareList(list)}
-                                className="p-2 hover:bg-white/10 border border-white/10 transition-colors"
+                                onClick={() => shareList(existingList)}
+                                className="p-1 hover:bg-white/10 transition-colors"
                               >
-                                <Share2 className="w-4 h-4" />
+                                <Share2 className="w-3 h-3" />
                               </button>
                             </div>
-                            
-                            {/* Search Bar */}
-                            <div className="relative mb-4" ref={searchRef}>
-                              <div className="relative">
-                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                                <input
-                                  type="text"
-                                  value={searchQuery}
-                                  onChange={(e) => {
-                                    setSearchQuery(e.target.value);
-                                    setShowSearchResults(true);
-                                  }}
-                                  onFocus={() => setShowSearchResults(true)}
-                                  placeholder="Search artists to add..."
-                                  className="w-full pl-10 pr-4 py-2 bg-black/50 border border-white/20 focus:border-purple-400/50 focus:outline-none"
-                                />
-                              </div>
-                              
-                              {/* Search Results */}
-                              {showSearchResults && searchQuery && searchResults.length > 0 && (
-                                <div className="absolute top-full mt-2 w-full bg-slate-800 border border-white/20 shadow-xl max-h-64 overflow-y-auto z-10">
-                                  {searchResults.map((artist) => (
-                                    <div
-                                      key={artist.id}
-                                      className="p-3 hover:bg-white/10 transition-colors flex items-center gap-3 cursor-pointer"
-                                      onClick={() => addArtistToList(artist, list.id)}
-                                    >
-                                      <span className="text-2xl"><ArtistAvatar artist={artist} /></span>
-                                      <div className="flex-1">
-                                        <p className="font-medium">{artist.name}</p>
-                                        <p className="text-sm text-gray-400">{artist.era} • Canon Score: {artist.canonScore}</p>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
+                            {/* Add Search Bar for existing category lists */}
+                            <div className="relative mb-3">
+                              <input
+                                type="text"
+                                placeholder="Add artists..."
+                                className="w-full px-3 py-1.5 text-sm bg-black/50 border border-white/20 focus:border-purple-400/50 focus:outline-none rounded"
+                                onFocus={(e) => {
+                                  e.currentTarget.placeholder = 'Search artists...';
+                                  // You can implement a separate search state per list if needed
+                                }}
+                                onChange={(e) => {
+                                  if (e.target.value.length > 1) {
+                                    const results = searchArtists(e.target.value);
+                                    // Show results dropdown
+                                  }
+                                }}
+                              />
                             </div>
-                            
-                            {/* Artist List */}
-                            <div className="space-y-2">
-                              {list.artists.slice(0, displayCount).map((artist, index) => (
-                                <div key={artist.id}>
-                                  {dragOverIndex === index && draggedFromList === list.id && (
-                                    <div className="h-1 bg-purple-400 rounded transition-all duration-200" />
-                                  )}
-                                  
-                                  <div
-                                    data-drop-index={index}
-                                    className={`flex items-center gap-3 p-3 bg-black/30 border border-white/10 ${
-                                      isMobile ? '' : 'cursor-move hover:bg-white/10'
-                                    } transition-all duration-200 ${
-                                      draggedItem?.artist.id === artist.id ? 'opacity-50' : ''
-                                    } ${isMobile ? 'draggable-item' : ''}`}
-                                    {...(isMobile ? {
-                                      onTouchStart: (e) => mobileDrag.handleTouchStart(e, { artist, listId: list.id }),
-                                      onTouchMove: mobileDrag.handleTouchMove,
-                                      onTouchEnd: mobileDrag.handleTouchEnd
-                                    } : {
-                                      draggable: true,
-                                      onDragStart: (e) => handleDragStart(e, artist, list.id),
-                                      onDragEnd: handleDragEnd,
-                                      onDragEnter: (e) => handleDragEnter(e, index),
-                                      onDragOver: handleDragOver,
-                                      onDrop: (e) => handleDrop(e, index, list.id)
-                                    })}
-                                  >
-                                    <div className={`${isMobile ? 'drag-handle touch-target flex items-center justify-center w-10' : ''}`}>
-                                      <GripVertical className="w-4 h-4 text-gray-500" />
-                                    </div>
-                                    <span className="text-xl font-bold text-gray-500">#{index + 1}</span>
-                                    <ArtistAvatar artist={artist} />
-                                    <div 
-                                      className="flex-1 min-w-0"
-                                      onClick={(e) => {
-                                        if (!isMobile || !mobileDrag.isDragging) {
-                                          e.stopPropagation();
-                                          setShowArtistCard(artist);
-                                        }
-                                      }}
-                                    >
-                                      <p className="font-medium truncate">{artist.name}</p>
-                                      <p className="text-sm text-gray-400">{artist.era}</p>
-                                    </div>
-                                    {checkPioneerStatus(artist.id) && (
-                                      <span className="text-xs bg-yellow-500/20 text-yellow-300 px-2 py-1 rounded">
-                                        🏆 Pioneer
-                                      </span>
-                                    )}
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        removeArtistFromList(artist.id, list.id);
-                                      }}
-                                      className="p-1 hover:bg-white/10 transition-colors touch-target"
-                                    >
-                                      <X className="w-4 h-4 text-gray-400" />
-                                    </button>
-                                  </div>
+                            <div className="space-y-1">
+                              {existingList.artists.slice(0, 5).map((artist, idx) => (
+                                <div key={artist.id} className="flex items-center gap-2 text-sm">
+                                  <span className="text-gray-500">#{idx + 1}</span>
+                                  <span><ArtistAvatar artist={artist} /></span>
+                                  <span className="truncate">{artist.name}</span>
                                 </div>
                               ))}
                             </div>
+                            {existingList.artists.length > 5 && (
+                              <p className="text-xs text-gray-400 mt-2">
+                                +{existingList.artists.length - 5} more
+                              </p>
+                            )}
                           </div>
                         );
                       })}
                   </div>
-                )}
+                </div>
               </div>
             ) : (
-              <div>
-                <p className="text-gray-400">Content for {activeTab} tab</p>
+              <div className="space-y-6">
+                {/* My People Tab Content */}
+                {/* Friend Search Section */}
+                <div>
+                  <h2 className="text-lg font-bold mb-3">Find Friends</h2>
+                  <div className="relative friend-search-container">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        type="text"
+                        value={friendSearchQuery}
+                        onChange={(e) => {
+                          setFriendSearchQuery(e.target.value);
+                          if (e.target.value.length > 1) {
+                            searchFriends(e.target.value);
+                            setShowFriendSearch(true);
+                          } else {
+                            setFriendSearchResults([]);
+                            setShowFriendSearch(false);
+                          }
+                        }}
+                        onFocus={() => friendSearchQuery && setShowFriendSearch(true)}
+                        placeholder="Search by username..."
+                        className="w-full pl-10 pr-4 py-2 bg-black/50 border border-white/20 focus:border-purple-400/50 focus:outline-none"
+                      />
+                    </div>
+                    
+                    {/* Friend Search Results */}
+                    {showFriendSearch && friendSearchResults.length > 0 && (
+                      <div className="absolute top-full mt-2 w-full bg-slate-800 border border-white/20 shadow-xl max-h-64 overflow-y-auto z-10">
+                        {friendSearchResults.map((user) => (
+                          <div
+                            key={user.id}
+                            className="p-3 hover:bg-white/10 transition-colors flex items-center justify-between"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 bg-purple-500/20 rounded-full flex items-center justify-center">
+                                <User className="w-5 h-5 text-purple-400" />
+                              </div>
+                              <div>
+                                <p className="font-medium">{user.username || user.display_name}</p>
+                                <p className="text-sm text-gray-400">User</p>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => sendFriendRequest(user.id)}
+                              className="px-3 py-1 bg-purple-600 hover:bg-purple-700 transition-colors text-sm rounded"
+                            >
+                              Add Friend
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Friend Requests */}
+                {friendRequests.length > 0 && (
+                  <div>
+                    <h2 className="text-lg font-bold mb-3">Friend Requests</h2>
+                    <div className="space-y-2">
+                      {friendRequests.map(request => (
+                        <div key={request.id} className="bg-slate-800/50 border border-white/10 p-4 flex items-center justify-between">
+                          <div>
+                            <p className="font-bold">{request.user.username}</p>
+                            <p className="text-sm text-gray-400">Wants to be your friend</p>
+                          </div>
+                          <button
+                            onClick={() => acceptFriendRequest(request.id)}
+                            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 transition-colors text-sm"
+                          >
+                            Accept
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Friends List */}
+                <div>
+                  <h2 className="text-lg font-bold mb-3">Your Friends ({friends.length})</h2>
+                  {friends.length > 0 ? (
+                    <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'} gap-4`}>
+                      {friends.map(friend => (
+                        <div key={friend.id} className="bg-slate-800/50 border border-white/10 p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-bold">{friend.username}</p>
+                              <p className="text-sm text-gray-400">Friend since recently</p>
+                            </div>
+                            <button className="px-3 py-1 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-400/50 transition-colors text-sm">
+                              View Rankings
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-gray-400">No friends yet. Search for users above to add them!</p>
+                  )}
+                </div>
+
+                {/* Friend Activity Feed */}
+                <div>
+                  <h2 className="text-lg font-bold mb-3">Friend Activity</h2>
+                  <p className="text-gray-400">Coming soon: See what your friends are ranking and debating!</p>
+                </div>
               </div>
             )}
           </main>
@@ -1316,13 +3130,6 @@ const TheCanon = ({ supabase }) => {
 
         {/* Artist Card Modal */}
         {showArtistCard && <ArtistCard artist={showArtistCard} onClose={() => setShowArtistCard(null)} />}
-        
-        {/* Saving Status */}
-        {savingStatus && (
-          <div className="fixed top-20 right-4 bg-green-500 text-white px-4 py-2 rounded shadow-lg z-50">
-            {savingStatus}
-          </div>
-        )}
       </div>
     </ErrorBoundary>
   );
