@@ -3141,7 +3141,7 @@ const TheCanon = ({ supabase }) => {
                         </div>
                         
                         <div className={`mt-3 pt-3 border-t border-white/10 flex justify-between text-gray-400 ${isMobile ? 'text-sm' : 'text-xs'}`}>
-                          <span>{userLists.filter(l => l.isAllTime).length > 0 ? '1 voter' : '0 voters'}</span>
+                          <span>{userLists.some(l => l.isAllTime) ? '1 voter' : '0 voters'}</span>
                           <span>Avg unique: 6.8</span>
                         </div>
                       </div>
@@ -3240,9 +3240,10 @@ const TheCanon = ({ supabase }) => {
                     </button>
                   </div>
                 ) : (
-                  // Show existing all-time list
+                  // Show existing all-time list - only show the first one to prevent duplicates
                   userLists
                     .filter(list => list.isAllTime)
+                    .slice(0, 1)
                     .map((list, index) => {
                       console.log('Rendering GOAT list:', { index, listId: list.id, title: list.title, isAllTime: list.isAllTime });
                       const uniqueness = calculateUniqueness(list);
