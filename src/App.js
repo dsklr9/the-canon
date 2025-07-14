@@ -43,4 +43,6 @@ function App() {
   );
 }
 
+console.log("DEPLOYED VERSION: v6");
+
 export default App;
