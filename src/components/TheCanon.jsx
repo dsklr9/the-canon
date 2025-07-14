@@ -1703,10 +1703,12 @@ const TheCanon = ({ supabase }) => {
 
   // List management functions
   const updateListAndSave = useCallback((listId, newArtists) => {
+    console.log('updateListAndSave called:', { listId, newArtistsCount: newArtists.length });
     const updatedLists = userLists.map(l => 
       l.id === listId ? { ...l, artists: newArtists } : l
     );
     setUserLists(updatedLists);
+    console.log('userLists updated, new length:', updatedLists.find(l => l.id === listId)?.artists.length);
     
     const listToSave = updatedLists.find(l => l.id === listId);
     if (listToSave) {
@@ -1813,9 +1815,12 @@ const TheCanon = ({ supabase }) => {
       
       if (draggedIndex !== -1 && draggedIndex !== targetIndex) {
         console.log('Reordering within list:', { draggedIndex, targetIndex });
+        console.log('Before reorder:', newArtists.map(a => a.name));
         const [removed] = newArtists.splice(draggedIndex, 1);
         const adjustedIndex = draggedIndex < targetIndex ? targetIndex - 1 : targetIndex;
         newArtists.splice(adjustedIndex, 0, removed);
+        console.log('After reorder:', newArtists.map(a => a.name));
+        console.log('Calling updateListAndSave...');
         updateListAndSave(listId, newArtists);
         console.log('Mobile reorder complete - list should update');
       } else {
