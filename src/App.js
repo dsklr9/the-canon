@@ -50,20 +50,6 @@ function AppContent() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
-      
-      // Handle auto-friend functionality after login
-      if (session) {
-        const autoFriendId = sessionStorage.getItem('autoFriendId');
-        const returnUrl = sessionStorage.getItem('returnUrl');
-        
-        if (autoFriendId && returnUrl) {
-          handleAutoFriend(session.user.id, autoFriendId);
-          navigate(returnUrl);
-          // Clean up sessionStorage
-          sessionStorage.removeItem('autoFriendId');
-          sessionStorage.removeItem('returnUrl');
-        }
-      }
     });
 
     // Listen for login/logout
@@ -71,24 +57,10 @@ function AppContent() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
-      
-      // Handle auto-friend functionality after login
-      if (session) {
-        const autoFriendId = sessionStorage.getItem('autoFriendId');
-        const returnUrl = sessionStorage.getItem('returnUrl');
-        
-        if (autoFriendId && returnUrl) {
-          handleAutoFriend(session.user.id, autoFriendId);
-          navigate(returnUrl);
-          // Clean up sessionStorage
-          sessionStorage.removeItem('autoFriendId');
-          sessionStorage.removeItem('returnUrl');
-        }
-      }
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate]);
+  }, []);
 
   if (loading) {
     return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white">Loading...</div>;

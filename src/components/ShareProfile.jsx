@@ -13,11 +13,19 @@ const ShareProfile = ({ supabase, currentSession }) => {
   const [friendAdded, setFriendAdded] = useState(false);
 
   useEffect(() => {
+    console.log('ShareProfile: Component mounted, userId:', userId);
+    console.log('ShareProfile: currentSession:', currentSession);
     fetchUserData();
   }, [userId]);
 
   const fetchUserData = async () => {
     try {
+      console.log('ShareProfile: Fetching user data for userId:', userId);
+      
+      if (!userId) {
+        throw new Error('No userId provided');
+      }
+      
       // Get user profile
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
@@ -25,6 +33,8 @@ const ShareProfile = ({ supabase, currentSession }) => {
         .eq('id', userId)
         .single();
 
+      console.log('ShareProfile: Profile query result:', { profile, profileError });
+      
       if (profileError) throw profileError;
 
       setUserData(profile);
@@ -50,9 +60,11 @@ const ShareProfile = ({ supabase, currentSession }) => {
       updateMetaTags(profile, goatData.slice(0, 5));
 
     } catch (err) {
-      console.error('Error fetching user data:', err);
+      console.error('ShareProfile: Error fetching user data:', err);
+      console.error('ShareProfile: Error details:', err.message, err.stack);
       setError('User not found');
     } finally {
+      console.log('ShareProfile: Finished fetching user data');
       setLoading(false);
     }
   };
@@ -145,6 +157,7 @@ const ShareProfile = ({ supabase, currentSession }) => {
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" />
           <p className="text-gray-400">Loading profile...</p>
+          <p className="text-gray-600 text-sm mt-2">User ID: {userId}</p>
         </div>
       </div>
     );
@@ -156,7 +169,8 @@ const ShareProfile = ({ supabase, currentSession }) => {
         <div className="text-center max-w-md">
           <Crown className="w-16 h-16 mx-auto mb-4 text-yellow-500" />
           <h1 className="text-2xl font-bold mb-2">The Canon</h1>
-          <p className="text-gray-400 mb-6">{error}</p>
+          <p className="text-gray-400 mb-2">{error}</p>
+          <p className="text-gray-600 text-sm mb-6">User ID: {userId}</p>
           <button
             onClick={handleEnterApp}
             className="px-6 py-2 bg-purple-600 hover:bg-purple-700 transition-colors rounded-lg"

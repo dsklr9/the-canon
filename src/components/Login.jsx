@@ -19,12 +19,6 @@ const Login = () => {
 
   const handleGoogleLogin = async () => {
     try {
-      // Store auto-friend data in sessionStorage for after OAuth redirect
-      if (autoFriendId && returnUrl) {
-        sessionStorage.setItem('autoFriendId', autoFriendId);
-        sessionStorage.setItem('returnUrl', returnUrl);
-      }
-      
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
