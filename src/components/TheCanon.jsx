@@ -1758,11 +1758,24 @@ const TheCanon = ({ supabase }) => {
       return;
     }
 
-    const dropZone = dropTarget.closest('[data-list-id]');
-    if (!dropZone) return;
+    // First try to find a drop index directly
+    const dropIndexElement = dropTarget.closest('[data-drop-index]');
+    if (!dropIndexElement) {
+      setDraggedItem(null);
+      setDragOverIndex(null);
+      return;
+    }
+
+    // Then find the list container
+    const dropZone = dropIndexElement.closest('[data-list-id]');
+    if (!dropZone) {
+      setDraggedItem(null);
+      setDragOverIndex(null);
+      return;
+    }
 
     const listId = dropZone.dataset.listId;
-    const targetIndex = parseInt(dropTarget.dataset.dropIndex || '0');
+    const targetIndex = parseInt(dropIndexElement.dataset.dropIndex || '0');
 
     const list = userLists.find(l => l.id === listId);
     if (!list) return;
@@ -3188,7 +3201,7 @@ const TheCanon = ({ supabase }) => {
                                 
                                 <div
                                   data-drop-index={index}
-                                  className={`flex items-center gap-3 p-3 bg-black/30 border border-white/10 ${
+                                  className={`flex items-center ${isMobile ? 'gap-2 p-2' : 'gap-3 p-3'} bg-black/30 border border-white/10 ${
                                     isMobile ? '' : 'cursor-move hover:bg-white/10'
                                   } transition-all duration-200 ${
                                     draggedItem?.artist.id === artist.id ? 'opacity-50' : ''
@@ -3206,11 +3219,11 @@ const TheCanon = ({ supabase }) => {
                                     onDrop: (e) => handleDrop(e, index, list.id)
                                   })}
                                 >
-                                  <div className={`drag-handle ${isMobile ? 'touch-target flex items-center justify-center w-12 h-12' : ''}`}>
-                                    <GripVertical className="w-5 h-5 text-gray-400" />
+                                  <div className={`drag-handle ${isMobile ? 'touch-target flex items-center justify-center w-8 h-8' : ''}`}>
+                                    <GripVertical className={`${isMobile ? 'w-4 h-4' : 'w-5 h-5'} text-gray-400`} />
                                   </div>
-                                  <span className="text-xl font-bold text-gray-500 w-8">#{index + 1}</span>
-                                  <ArtistAvatar artist={artist} />
+                                  <span className={`font-black text-gray-300 ${isMobile ? 'text-sm w-6 text-center' : 'text-xl w-8'}`}>#{index + 1}</span>
+                                  <ArtistAvatar artist={artist} size={isMobile ? 'w-8 h-8' : 'w-10 h-10'} />
                                   <div 
                                     className="flex-1 min-w-0"
                                     onClick={(e) => {
@@ -3220,8 +3233,8 @@ const TheCanon = ({ supabase }) => {
                                       }
                                     }}
                                   >
-                                    <p className="font-medium truncate">{artist.name}</p>
-                                    <p className="text-sm text-gray-400">{artist.era}</p>
+                                    <p className={`font-medium truncate ${isMobile ? 'text-sm' : ''}`}>{artist.name}</p>
+                                    <p className={`text-gray-400 ${isMobile ? 'text-xs' : 'text-sm'}`}>{artist.era}</p>
                                   </div>
                                   {checkPioneerStatus(artist.id) && (
                                     <span className="text-xs bg-yellow-500/20 text-yellow-300 px-2 py-1 rounded">
@@ -3233,7 +3246,7 @@ const TheCanon = ({ supabase }) => {
                                       e.stopPropagation();
                                       removeArtistFromList(artist.id, list.id);
                                     }}
-                                    className="p-2 hover:bg-white/10 transition-colors touch-target rounded"
+                                    className={`${isMobile ? 'p-1' : 'p-2'} hover:bg-white/10 transition-colors touch-target rounded`}
                                   >
                                     <X className="w-4 h-4 text-gray-400" />
                                   </button>
@@ -3341,7 +3354,7 @@ const TheCanon = ({ supabase }) => {
                                   
                                   <div
                                     data-drop-index={index}
-                                    className={`flex items-center gap-3 p-2 bg-black/30 border border-white/10 ${
+                                    className={`flex items-center ${isMobile ? 'gap-1 p-1.5' : 'gap-3 p-2'} bg-black/30 border border-white/10 ${
                                       isMobile ? '' : 'cursor-move hover:bg-white/10'
                                     } transition-all duration-200 ${
                                       draggedItem?.artist.id === artist.id ? 'opacity-50' : ''
@@ -3358,12 +3371,12 @@ const TheCanon = ({ supabase }) => {
                                       onDrop: (e) => handleDrop(e, index, existingList.id),
                                     })}
                                   >
-                                    <div className={`drag-handle ${isMobile ? 'touch-target flex items-center justify-center w-8 h-8' : ''}`}>
-                                      <GripVertical className="w-4 h-4 text-gray-400" />
+                                    <div className={`drag-handle ${isMobile ? 'touch-target flex items-center justify-center w-6 h-6' : ''}`}>
+                                      <GripVertical className={`${isMobile ? 'w-3 h-3' : 'w-4 h-4'} text-gray-400`} />
                                     </div>
-                                    <span className="text-gray-500 text-sm">#{index + 1}</span>
-                                    <ArtistAvatar artist={artist} size="w-6 h-6" />
-                                    <span className="truncate flex-1 text-sm">{artist.name}</span>
+                                    <span className={`text-gray-400 font-bold ${isMobile ? 'text-xs w-4 text-center' : 'text-sm'}`}>#{index + 1}</span>
+                                    <ArtistAvatar artist={artist} size={isMobile ? 'w-6 h-6' : 'w-8 h-8'} />
+                                    <span className={`truncate flex-1 ${isMobile ? 'text-xs' : 'text-sm'}`}>{artist.name}</span>
                                     <button
                                       onClick={() => {
                                         const newArtists = existingList.artists.filter(a => a.id !== artist.id);
