@@ -1753,12 +1753,32 @@ const TheCanon = ({ supabase }) => {
   }, []);
 
   const handleMobileDragMove = useCallback((touch) => {
+    // Check if we have a dragged element to temporarily hide
+    const draggedElement = document.querySelector('.draggable-item[style*="transform"]');
+    let originalDisplay, originalPointerEvents;
+    
+    if (draggedElement) {
+      originalDisplay = draggedElement.style.display;
+      originalPointerEvents = draggedElement.style.pointerEvents;
+      draggedElement.style.display = 'none';
+      draggedElement.style.pointerEvents = 'none';
+    }
+    
     const element = document.elementFromPoint(touch.clientX, touch.clientY);
     const dropTarget = element?.closest('[data-drop-index]');
+    
+    // Restore the dragged element
+    if (draggedElement) {
+      draggedElement.style.display = originalDisplay;
+      draggedElement.style.pointerEvents = originalPointerEvents;
+    }
     
     if (dropTarget) {
       const index = parseInt(dropTarget.dataset.dropIndex);
       setDragOverIndex(index);
+    } else {
+      // Clear drag over index if not over a valid drop target
+      setDragOverIndex(null);
     }
   }, []);
 
