@@ -6,18 +6,13 @@ import { ReportModal, useRateLimit, filterContent } from './ModerationComponents
 // Add CSS styles to prevent viewport issues
 const globalStyles = `
   @media (max-width: 768px) {
+    /* Normal mobile styles - allow scrolling */
     body {
-      position: fixed;
       width: 100%;
-      height: 100%;
-      overflow: hidden;
     }
     
     #root {
-      position: fixed;
       width: 100%;
-      height: 100%;
-      overflow: hidden;
     }
     
     /* Prevent text selection on drag handles */
@@ -1752,7 +1747,10 @@ const TheCanon = ({ supabase }) => {
   }, []);
 
   const handleMobileDragEnd = useCallback((data, dropTarget) => {
+    console.log('Mobile drag end:', { draggedItem, dropTarget });
+    
     if (!draggedItem || !dropTarget) {
+      console.log('No dragged item or drop target');
       setDraggedItem(null);
       setDragOverIndex(null);
       return;
@@ -1760,7 +1758,9 @@ const TheCanon = ({ supabase }) => {
 
     // First try to find a drop index directly
     const dropIndexElement = dropTarget.closest('[data-drop-index]');
+    console.log('Drop index element:', dropIndexElement);
     if (!dropIndexElement) {
+      console.log('No drop index element found');
       setDraggedItem(null);
       setDragOverIndex(null);
       return;
@@ -1768,7 +1768,9 @@ const TheCanon = ({ supabase }) => {
 
     // Then find the list container
     const dropZone = dropIndexElement.closest('[data-list-id]');
+    console.log('Drop zone:', dropZone);
     if (!dropZone) {
+      console.log('No drop zone found');
       setDraggedItem(null);
       setDragOverIndex(null);
       return;
@@ -1776,6 +1778,7 @@ const TheCanon = ({ supabase }) => {
 
     const listId = dropZone.dataset.listId;
     const targetIndex = parseInt(dropIndexElement.dataset.dropIndex || '0');
+    console.log('Drop info:', { listId, targetIndex, draggedItem });
 
     const list = userLists.find(l => l.id === listId);
     if (!list) return;
@@ -3244,6 +3247,7 @@ const TheCanon = ({ supabase }) => {
                                   <div 
                                     className="flex-1 min-w-0"
                                     onClick={(e) => {
+                                      console.log('Artist name clicked:', artist.name);
                                       e.stopPropagation();
                                       setShowArtistCard(artist);
                                     }}
