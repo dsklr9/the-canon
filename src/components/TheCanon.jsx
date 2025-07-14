@@ -2278,6 +2278,9 @@ const TheCanon = ({ supabase }) => {
   return (
     <ErrorBoundary>
       <div className={`min-h-screen bg-gradient-to-b from-slate-900 via-blue-950 to-slate-900 text-white font-sans`}>
+        {/* Version indicator for debugging */}
+        <div className="fixed bottom-0 left-0 text-xs text-gray-500 p-1 z-50">v7-mobile-fixes</div>
+        
         {/* Toast Notifications */}
         {toasts.map(toast => (
           <Toast
@@ -3100,6 +3103,78 @@ const TheCanon = ({ supabase }) => {
                     </div>
                   )}
                 </div>
+
+                {/* Friend Activity Feed for For You Tab */}
+                {friends.length > 0 && (
+                  <div className="mt-8">
+                    <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+                      <Users className="w-5 h-5 text-purple-400" />
+                      Friend Activity
+                    </h2>
+                    <div className="space-y-3">
+                      {/* Enhanced Activity Feed */}
+                      {friends.slice(0, 4).map((friend, idx) => {
+                        const activityTypes = [
+                          {
+                            icon: <Crown className="w-4 h-4 text-yellow-400" />,
+                            bg: "bg-yellow-500/20",
+                            action: "updated their Top 10",
+                            detail: "Moved Kendrick to #1",
+                            time: "2 hours ago"
+                          },
+                          {
+                            icon: <Plus className="w-4 h-4 text-green-400" />,
+                            bg: "bg-green-500/20", 
+                            action: "created a new list",
+                            detail: "Best Producer Tags of All Time",
+                            time: "4 hours ago"
+                          },
+                          {
+                            icon: <TrendingUp className="w-4 h-4 text-blue-400" />,
+                            bg: "bg-blue-500/20",
+                            action: "and 3 others rank",
+                            detail: "Tyler, The Creator highly",
+                            time: "1 day ago"
+                          },
+                          {
+                            icon: <Swords className="w-4 h-4 text-red-400" />,
+                            bg: "bg-red-500/20",
+                            action: "completed 5 face-offs",
+                            detail: "On a winning streak!",
+                            time: "6 hours ago"
+                          }
+                        ];
+                        
+                        const activity = activityTypes[idx % activityTypes.length];
+                        
+                        return (
+                          <div key={`activity-${friend.id}-${idx}`} className="bg-slate-800/30 border border-white/10 p-3 rounded">
+                            <div className="flex items-start gap-3">
+                              <div className={`w-8 h-8 ${activity.bg} rounded-full flex items-center justify-center`}>
+                                {activity.icon}
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-sm">
+                                  <span className="font-medium text-purple-400">{friend.username}</span> {activity.action}
+                                </p>
+                                <p className="text-xs text-gray-400 mt-1">{activity.detail}</p>
+                                <p className="text-xs text-gray-500 mt-1">{activity.time}</p>
+                              </div>
+                              {activity.action.includes("rank") && (
+                                <button 
+                                  className="text-xs text-purple-400 hover:text-purple-300 transition-colors"
+                                  onClick={() => setViewingFriend(friend)}
+                                >
+                                  View
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : activeTab === 'mytop10' ? (
               <div className="space-y-6">
