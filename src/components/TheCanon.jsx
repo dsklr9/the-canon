@@ -3243,7 +3243,8 @@ const TheCanon = ({ supabase }) => {
                   // Show existing all-time list
                   userLists
                     .filter(list => list.isAllTime)
-                    .map(list => {
+                    .map((list, index) => {
+                      console.log('Rendering GOAT list:', { index, listId: list.id, title: list.title, isAllTime: list.isAllTime });
                       const uniqueness = calculateUniqueness(list);
                       const displayCount = Math.min(list.artists.length, 20);
                       
@@ -3446,6 +3447,9 @@ const TheCanon = ({ supabase }) => {
                       .filter(cat => !cat.locked)
                       .map(category => {
                         const existingList = userLists.find(l => l.category === category.id);
+                        if (existingList) {
+                          console.log('Rendering Other Rankings list:', { category: category.id, listId: existingList.id, title: existingList.title, isAllTime: existingList.isAllTime });
+                        }
                         
                         if (!existingList) {
                           return (
