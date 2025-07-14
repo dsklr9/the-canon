@@ -207,7 +207,9 @@ const useMobileDrag = (onDragStart, onDragEnd, onDragMove) => {
       mainContainer.style.touchAction = 'none';
     }
     
-    setDraggedElement({ element: e.currentTarget, data });
+    // Find the draggable item container (parent with draggable-item class)
+    const draggableItem = e.currentTarget.closest('.draggable-item') || e.currentTarget.closest('[data-drop-index]');
+    setDraggedElement({ element: draggableItem, data });
   }, []);
 
   const handleTouchMove = useCallback((e) => {
@@ -3223,22 +3225,41 @@ const TheCanon = ({ supabase }) => {
                                   >
                                     <GripVertical className={`${isMobile ? 'w-4 h-4' : 'w-5 h-5'} text-gray-400`} />
                                   </div>
-                                  <span className={`font-black text-gray-300 ${isMobile ? 'text-sm w-6 text-center' : 'text-xl w-8'}`}>#{index + 1}</span>
-                                  <ArtistAvatar artist={artist} size={isMobile ? 'w-8 h-8' : 'w-10 h-10'} />
+                                  <span 
+                                    className={`font-black text-gray-300 ${isMobile ? 'text-sm w-6 text-center' : 'text-xl w-8'} cursor-pointer`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setShowArtistCard(artist);
+                                    }}
+                                  >#{index + 1}</span>
+                                  <div 
+                                    className="cursor-pointer"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setShowArtistCard(artist);
+                                    }}
+                                  >
+                                    <ArtistAvatar artist={artist} size={isMobile ? 'w-8 h-8' : 'w-10 h-10'} />
+                                  </div>
                                   <div 
                                     className="flex-1 min-w-0"
                                     onClick={(e) => {
-                                      if (!isMobile || !mobileDrag.isDragging) {
-                                        e.stopPropagation();
-                                        setShowArtistCard(artist);
-                                      }
+                                      e.stopPropagation();
+                                      setShowArtistCard(artist);
                                     }}
                                   >
                                     <p className={`font-medium truncate ${isMobile ? 'text-sm' : ''}`}>{artist.name}</p>
                                     <p className={`text-gray-400 ${isMobile ? 'text-xs' : 'text-sm'}`}>{artist.era}</p>
                                   </div>
                                   {checkPioneerStatus(artist.id) && (
-                                    <span className="text-lg" title="Pioneer Pick - Tap for details">
+                                    <span 
+                                      className="text-lg cursor-pointer" 
+                                      title="Pioneer Pick - Tap for details"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowArtistCard(artist);
+                                      }}
+                                    >
                                       🏆
                                     </span>
                                   )}
@@ -3378,9 +3399,29 @@ const TheCanon = ({ supabase }) => {
                                     >
                                       <GripVertical className={`${isMobile ? 'w-3 h-3' : 'w-4 h-4'} text-gray-400`} />
                                     </div>
-                                    <span className={`text-gray-400 font-bold ${isMobile ? 'text-xs w-4 text-center' : 'text-sm'}`}>#{index + 1}</span>
-                                    <ArtistAvatar artist={artist} size={isMobile ? 'w-6 h-6' : 'w-8 h-8'} />
-                                    <span className={`truncate flex-1 ${isMobile ? 'text-xs' : 'text-sm'}`}>{artist.name}</span>
+                                    <span 
+                                      className={`text-gray-400 font-bold ${isMobile ? 'text-xs w-4 text-center' : 'text-sm'} cursor-pointer`}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowArtistCard(artist);
+                                      }}
+                                    >#{index + 1}</span>
+                                    <div 
+                                      className="cursor-pointer"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowArtistCard(artist);
+                                      }}
+                                    >
+                                      <ArtistAvatar artist={artist} size={isMobile ? 'w-6 h-6' : 'w-8 h-8'} />
+                                    </div>
+                                    <span 
+                                      className={`truncate flex-1 ${isMobile ? 'text-xs' : 'text-sm'} cursor-pointer`}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowArtistCard(artist);
+                                      }}
+                                    >{artist.name}</span>
                                     <button
                                       onClick={() => {
                                         const newArtists = existingList.artists.filter(a => a.id !== artist.id);
