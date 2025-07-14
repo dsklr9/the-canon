@@ -984,23 +984,45 @@ const TheCanon = ({ supabase }) => {
         setFriends([]);
       }
 
-      // Load pending requests
+      // Load pending requests - simplified approach without join
       console.log('Loading friend requests for user:', currentUser.id);
       const { data: requests, error: requestsError } = await supabase
         .from('friendships')
-        .select(`
-          *,
-          profiles!friendships_user_id_fkey(id, username, display_name)
-        `)
+        .select('*')
         .eq('friend_id', currentUser.id)
         .eq('status', 'pending');
 
       console.log('Friend requests query result:', { requests, requestsError });
-
-      if (requests) {
-        setFriendRequests(requests);
-        console.log('Set friend requests:', requests);
+      
+      // If we have requests, fetch the sender profiles separately
+      if (requests && requests.length > 0) {
+        const senderIds = requests.map(r => r.user_id);
+        const { data: senderProfiles, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, username, display_name')
+          .in('id', senderIds);
+          
+        console.log('Sender profiles:', { senderProfiles, profilesError });
+        
+        // Combine the requests with profile data
+        const requestsWithProfiles = requests.map(request => ({
+          ...request,
+          profiles: senderProfiles?.find(p => p.id === request.user_id)
+        }));
+        
+        console.log('Requests with profiles:', requestsWithProfiles);
+        setFriendRequests(requestsWithProfiles);
+      } else {
+        setFriendRequests([]);
       }
+      
+      // Debug: Also check for any friendships involving this user
+      const { data: allFriendships } = await supabase
+        .from('friendships')
+        .select('*')
+        .or(`user_id.eq.${currentUser.id},friend_id.eq.${currentUser.id}`);
+        
+      console.log('All friendships for current user:', allFriendships);
     } catch (error) {
       console.error('Error loading friends:', error);
     }
@@ -1686,8 +1708,18 @@ const TheCanon = ({ supabase }) => {
         });
         
         if (friendship.status === 'pending') {
-          addToast('Friend request already sent', 'info');
-          return;
+          // Check if it's a request FROM them TO us
+          if (friendship.user_id === friendId && friendship.friend_id === currentUser.id) {
+            console.log('They already sent YOU a friend request!');
+            addToast('This person already sent you a friend request! Check your pending requests.', 'info');
+            // Reload friends to make sure UI is updated
+            loadFriends();
+            return;
+          } else {
+            // It's a request FROM us TO them
+            addToast('Friend request already sent', 'info');
+            return;
+          }
         } else if (friendship.status === 'accepted') {
           addToast('You are already friends', 'info');
           return;
