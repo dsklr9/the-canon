@@ -323,9 +323,9 @@ const useEnhancedRateLimit = (supabase) => {
   
   const checkFaceOffLimit = useCallback(() => {
     const now = Date.now();
-    const hourInMs = 60 * 60 * 1000;
+    const fiveMinutesInMs = 5 * 60 * 1000; // Reduced from 1 hour to 5 minutes
     
-    if (now - lastFaceOffTime < hourInMs) {
+    if (now - lastFaceOffTime < fiveMinutesInMs) {
       return false;
     }
     
@@ -413,6 +413,7 @@ const TheCanon = ({ supabase }) => {
   const [rankingComments, setRankingComments] = useState({});
   const [showCommentModal, setShowCommentModal] = useState(false);
   const [commentingOn, setCommentingOn] = useState(null);
+  const [headToHeadRecords, setHeadToHeadRecords] = useState({});
   
   // Additional states for friend search
   const [friendSearchQuery, setFriendSearchQuery] = useState('');
@@ -1126,10 +1127,16 @@ const TheCanon = ({ supabase }) => {
 
   // Generate face-offs when notable artists are loaded
   useEffect(() => {
+    console.log('Face-off generation check:', {
+      notableArtistsCount: notableArtists.length,
+      showTutorial,
+      canDoFaceOff: checkFaceOffLimit()
+    });
     if (notableArtists.length >= 2 && !showTutorial && checkFaceOffLimit()) {
       const newFaceOff = generateFaceOff();
       if (newFaceOff) {
         setFaceOffs([newFaceOff]);
+        console.log('Face-off generated:', newFaceOff);
       }
     }
   }, [notableArtists, showTutorial, checkFaceOffLimit]);
@@ -2029,12 +2036,36 @@ const TheCanon = ({ supabase }) => {
     setDailyFaceOffsCompleted(prev => prev + 1);
     
     if (faceOffs[currentFaceOff]) {
-      saveFaceOffVote(
-        faceOffs[currentFaceOff].artist1.id,
-        faceOffs[currentFaceOff].artist2.id,
-        winnerId,
-        convictionLevel
-      );
+      const currentFaceOffData = faceOffs[currentFaceOff];
+      const artist1Id = currentFaceOffData.artist1.id;
+      const artist2Id = currentFaceOffData.artist2.id;
+      const loserId = winnerId === artist1Id ? artist2Id : artist1Id;
+      
+      // Update head-to-head records
+      const matchupKey = [artist1Id, artist2Id].sort().join('-');
+      setHeadToHeadRecords(prev => {
+        const current = prev[matchupKey] || { 
+          [artist1Id]: { wins: 0, losses: 0 },
+          [artist2Id]: { wins: 0, losses: 0 }
+        };
+        
+        return {
+          ...prev,
+          [matchupKey]: {
+            ...current,
+            [winnerId]: {
+              wins: current[winnerId].wins + 1,
+              losses: current[winnerId].losses
+            },
+            [loserId]: {
+              wins: current[loserId].wins,
+              losses: current[loserId].losses + 1
+            }
+          }
+        };
+      });
+      
+      saveFaceOffVote(artist1Id, artist2Id, winnerId, convictionLevel);
     }
     
     const hasAllTimeList = userLists.some(list => list.isAllTime);
@@ -2059,6 +2090,28 @@ const TheCanon = ({ supabase }) => {
   const toggleComments = (debateId) => {
     setExpandedComments(prev => ({ ...prev, [debateId]: !prev[debateId] }));
   };
+
+  // Get head-to-head win percentage
+  const getHeadToHeadPercentage = useCallback((artist1Id, artist2Id) => {
+    const matchupKey = [artist1Id, artist2Id].sort().join('-');
+    const record = headToHeadRecords[matchupKey];
+    
+    if (!record || (!record[artist1Id]?.wins && !record[artist1Id]?.losses)) {
+      return null; // No previous matchups
+    }
+    
+    const artist1Stats = record[artist1Id] || { wins: 0, losses: 0 };
+    const totalGames = artist1Stats.wins + artist1Stats.losses;
+    
+    if (totalGames === 0) return null;
+    
+    const winPercentage = Math.round((artist1Stats.wins / totalGames) * 100);
+    return {
+      artist1WinPercentage: winPercentage,
+      artist2WinPercentage: 100 - winPercentage,
+      totalGames
+    };
+  }, [headToHeadRecords]);
 
   // UI helper functions
   const getTabName = () => {
@@ -2323,9 +2376,6 @@ const TheCanon = ({ supabase }) => {
   return (
     <ErrorBoundary>
       <div className={`min-h-screen bg-gradient-to-b from-slate-900 via-blue-950 to-slate-900 text-white font-sans`}>
-        {/* Version indicator for debugging */}
-        <div className="fixed bottom-0 left-0 text-xs text-gray-500 p-1 z-50">v7-mobile-fixes</div>
-        
         {/* Toast Notifications */}
         {toasts.map(toast => (
           <Toast
@@ -2544,6 +2594,24 @@ const TheCanon = ({ supabase }) => {
                 <div className="text-center mb-4">
                   <p className="text-gray-400">Who's the better MC?</p>
                   <p className="text-sm text-purple-400 mt-1">Face-off {dailyFaceOffsCompleted + 1}/10 today</p>
+                  
+                  {/* Head-to-head stats */}
+                  {(() => {
+                    const h2h = getHeadToHeadPercentage(faceOffs[0].artist1.id, faceOffs[0].artist2.id);
+                    if (h2h) {
+                      return (
+                        <div className="mt-3 text-xs text-gray-300">
+                          <p className="mb-1">Head-to-Head Record ({h2h.totalGames} previous matchups)</p>
+                          <div className="flex justify-center items-center gap-4">
+                            <span className="text-blue-400">{faceOffs[0].artist1.name}: {h2h.artist1WinPercentage}%</span>
+                            <span className="text-gray-500">vs</span>
+                            <span className="text-red-400">{faceOffs[0].artist2.name}: {h2h.artist2WinPercentage}%</span>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 mb-6">
