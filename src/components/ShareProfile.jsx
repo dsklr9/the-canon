@@ -40,13 +40,14 @@ const ShareProfile = ({ supabase, currentSession }) => {
 
       if (listsError) throw listsError;
 
+      let goatData = [];
       if (lists && lists.length > 0) {
-        const goatData = lists[0].list_data || [];
+        goatData = lists[0].list_data || [];
         setGoatList(goatData.slice(0, 5)); // Top 5 for preview
       }
 
       // Update document meta tags for social sharing
-      updateMetaTags(profile, goatData?.slice(0, 5) || []);
+      updateMetaTags(profile, goatData.slice(0, 5));
 
     } catch (err) {
       console.error('Error fetching user data:', err);
