@@ -1694,6 +1694,19 @@ const TheCanon = ({ supabase }) => {
     }
   }, [searchArtists]);
 
+  // List management functions
+  const updateListAndSave = useCallback((listId, newArtists) => {
+    const updatedLists = userLists.map(l => 
+      l.id === listId ? { ...l, artists: newArtists } : l
+    );
+    setUserLists(updatedLists);
+    
+    const listToSave = updatedLists.find(l => l.id === listId);
+    if (listToSave) {
+      saveRankingToDatabase(listToSave);
+    }
+  }, [userLists]);
+
   // Add artist to other list
   const addArtistToOtherList = useCallback((listId, artist) => {
     const list = userLists.find(l => l.id === listId);
@@ -1836,19 +1849,6 @@ const TheCanon = ({ supabase }) => {
     setDraggedItem(null);
     setDragOverIndex(null);
   }, [draggedItem, userLists]);
-
-  // List management functions
-  const updateListAndSave = useCallback((listId, newArtists) => {
-    const updatedLists = userLists.map(l => 
-      l.id === listId ? { ...l, artists: newArtists } : l
-    );
-    setUserLists(updatedLists);
-    
-    const listToSave = updatedLists.find(l => l.id === listId);
-    if (listToSave) {
-      saveRankingToDatabase(listToSave);
-    }
-  }, [userLists]);
 
   const addArtistToList = useCallback((artist, listId) => {
     const list = userLists.find(l => l.id === listId);
