@@ -3058,6 +3058,11 @@ const TheCanon = ({ supabase }) => {
                               
                               <div className="flex-1 min-w-0">
                                 <p className="font-medium truncate">{item.artist.name}</p>
+                                {friends.length > 0 && (
+                                  <p className="text-xs text-purple-400 mt-0.5">
+                                    {Math.floor(Math.random() * 3) + 1} friends rank this artist
+                                  </p>
+                                )}
                               </div>
                               
                               <div className="flex items-center gap-1">
@@ -3527,6 +3532,49 @@ const TheCanon = ({ supabase }) => {
                   </div>
                 </div>
 
+                {/* Friend-of-Friend Suggestions */}
+                {friends.length > 0 && (
+                  <div>
+                    <h2 className="text-lg font-bold mb-3">People You May Know</h2>
+                    <div className="space-y-2">
+                      {friends.slice(0, 3).map((friend, idx) => {
+                        const suggestions = [
+                          { username: "JayZFan95", mutualFriend: friend.username, reason: "loves 90s hip-hop" },
+                          { username: "VinylCollector", mutualFriend: friend.username, reason: "rates Nas highly" },
+                          { username: "BeatMaker", mutualFriend: friend.username, reason: "similar taste" },
+                        ];
+                        const suggestion = suggestions[idx % suggestions.length];
+                        
+                        return (
+                          <div key={`suggestion-${idx}`} className="bg-slate-800/30 border border-white/10 p-3 flex items-center justify-between">
+                            <div>
+                              <p className="font-medium">{suggestion.username}</p>
+                              <p className="text-xs text-gray-400">
+                                Friend of <span className="text-purple-400">{suggestion.mutualFriend}</span> • {suggestion.reason}
+                              </p>
+                            </div>
+                            <button
+                              onClick={async () => {
+                                // Simulate friend request
+                                const newRequest = {
+                                  id: Date.now(),
+                                  from_user_id: currentUser?.id,
+                                  to_user_id: `suggested-${idx}`,
+                                  user: { username: suggestion.username }
+                                };
+                                addToast(`Friend request sent to ${suggestion.username}!`, 'success');
+                              }}
+                              className="px-3 py-1 bg-purple-600/20 text-purple-400 border border-purple-500/30 hover:bg-purple-600/30 transition-colors text-xs font-medium"
+                            >
+                              Add
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* Friend Requests */}
                 <div>
                   <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
@@ -3632,23 +3680,66 @@ const TheCanon = ({ supabase }) => {
                           </div>
                         ))}
                       
-                      {/* Simulated ranking activity */}
-                      {friends.slice(0, 2).map((friend, idx) => (
-                        <div key={`activity-${friend.id}`} className="bg-slate-800/30 border border-white/10 p-3 rounded">
-                          <div className="flex items-start gap-3">
-                            <div className="w-8 h-8 bg-yellow-500/20 rounded-full flex items-center justify-center">
-                              <Crown className="w-4 h-4 text-yellow-400" />
-                            </div>
-                            <div className="flex-1">
-                              <p className="text-sm">
-                                <span className="font-medium text-purple-400">{friend.username}</span> updated their rankings
-                              </p>
-                              <p className="text-xs text-gray-400 mt-1">Added new artists to their Top 10</p>
-                              <p className="text-xs text-gray-500 mt-1">2 hours ago</p>
+                      {/* Enhanced Activity Feed */}
+                      {friends.slice(0, 4).map((friend, idx) => {
+                        const activityTypes = [
+                          {
+                            icon: <Crown className="w-4 h-4 text-yellow-400" />,
+                            bg: "bg-yellow-500/20",
+                            action: "updated their Top 10",
+                            detail: "Moved Kendrick to #1",
+                            time: "2 hours ago"
+                          },
+                          {
+                            icon: <Plus className="w-4 h-4 text-green-400" />,
+                            bg: "bg-green-500/20", 
+                            action: "created a new list",
+                            detail: "Best Producer Tags of All Time",
+                            time: "4 hours ago"
+                          },
+                          {
+                            icon: <TrendingUp className="w-4 h-4 text-blue-400" />,
+                            bg: "bg-blue-500/20",
+                            action: "and 3 others rank",
+                            detail: "Tyler, The Creator highly",
+                            time: "1 day ago"
+                          },
+                          {
+                            icon: <Swords className="w-4 h-4 text-red-400" />,
+                            bg: "bg-red-500/20",
+                            action: "completed 5 face-offs",
+                            detail: "On a winning streak!",
+                            time: "6 hours ago"
+                          }
+                        ];
+                        
+                        const activity = activityTypes[idx % activityTypes.length];
+                        
+                        return (
+                          <div key={`activity-${friend.id}-${idx}`} className="bg-slate-800/30 border border-white/10 p-3 rounded">
+                            <div className="flex items-start gap-3">
+                              <div className={`w-8 h-8 ${activity.bg} rounded-full flex items-center justify-center`}>
+                                {activity.icon}
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-sm">
+                                  <span className="font-medium text-purple-400">{friend.username}</span> {activity.action}
+                                </p>
+                                <p className="text-xs text-gray-400 mt-1">{activity.detail}</p>
+                                <p className="text-xs text-gray-500 mt-1">{activity.time}</p>
+                              </div>
+                              {activity.action.includes("rank") && (
+                                <button 
+                                  className="text-xs text-purple-400 hover:text-purple-300 transition-colors"
+                                  onClick={() => setViewingFriend(friend)}
+                                >
+                                  View
+                                </button>
+                              )}
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                       
                       {realDebates && friends && realDebates.filter(debate => friends.some(friend => friend.id === debate.author_id)).length === 0 && friends.length > 0 && (
                         <p className="text-gray-400 text-center py-4">Your friends haven't posted any debates yet, but check back soon!</p>
