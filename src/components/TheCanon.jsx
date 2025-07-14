@@ -3261,7 +3261,15 @@ const TheCanon = ({ supabase }) => {
                     <button
                       onClick={() => {
                         setShowChallengeModal(false);
-                        setShowFaceOff(true);
+                        // Generate a new face-off for the challenge
+                        const newFaceOff = generateFaceOff();
+                        if (newFaceOff) {
+                          setFaceOffs([newFaceOff]);
+                          setCurrentFaceOff(0);
+                          setShowFaceOff(true);
+                        } else {
+                          addToast('Unable to generate face-off. Try again later.', 'error');
+                        }
                       }}
                       className="flex-1 py-2 bg-purple-600 hover:bg-purple-700 transition-colors text-sm font-medium rounded"
                     >
