@@ -947,7 +947,7 @@ const TheCanon = ({ supabase }) => {
         .from('friendships')
         .select(`
           *,
-          user:user_id(id, username, display_name)
+          profiles!user_id(id, username, display_name)
         `)
         .eq('friend_id', currentUser.id)
         .eq('status', 'pending');
@@ -3797,7 +3797,7 @@ const TheCanon = ({ supabase }) => {
                       {friendRequests.map(request => (
                         <div key={request.id} className="bg-slate-800/50 border border-white/10 p-4 flex items-center justify-between">
                           <div>
-                            <p className="font-bold">{request.user.username}</p>
+                            <p className="font-bold">{request.profiles?.username || 'Unknown User'}</p>
                             <p className="text-sm text-gray-400">Wants to be your friend</p>
                           </div>
                           <div className="flex gap-2">

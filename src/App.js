@@ -20,8 +20,8 @@ function AppContent() {
       const { data: existingFriendship } = await supabase
         .from('friendships')
         .select('*')
-        .or(`requester_id.eq.${currentUserId},accepter_id.eq.${currentUserId}`)
-        .or(`requester_id.eq.${friendId},accepter_id.eq.${friendId}`)
+        .or(`user_id.eq.${currentUserId},friend_id.eq.${currentUserId}`)
+        .or(`user_id.eq.${friendId},friend_id.eq.${friendId}`)
         .single();
 
       if (existingFriendship) {
@@ -33,8 +33,8 @@ function AppContent() {
       const { error } = await supabase
         .from('friendships')
         .insert({
-          requester_id: currentUserId,
-          accepter_id: friendId,
+          user_id: currentUserId,
+          friend_id: friendId,
           status: 'pending'
         });
 
