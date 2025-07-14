@@ -1,6 +1,6 @@
 // Part 1 of 5 - TheCanon Mobile Complete with v5 Integration
 import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
-import { Heart, MessageCircle, Share2, TrendingUp, Users, Zap, Trophy, Flame, Star, ChevronDown, X, Check, Shuffle, Timer, Search, Plus, GripVertical, User, Edit2, Save, ArrowUp, ArrowDown, Swords, Crown, Settings, Copy, BarChart3, Sparkles, Target, Gift, AlertCircle, Loader2, Filter, Clock, Award, TrendingDown, Users2 } from 'lucide-react';
+import { Heart, MessageCircle, Share2, TrendingUp, Users, Zap, Trophy, Flame, Star, ChevronDown, X, Check, Shuffle, Timer, Search, Plus, GripVertical, User, Edit2, Save, ArrowUp, ArrowDown, Swords, Crown, Settings, Copy, BarChart3, Sparkles, Target, Gift, AlertCircle, Loader2, Filter, Clock, Award, TrendingDown, Users2, Bell } from 'lucide-react';
 import { ReportModal, useRateLimit, filterContent } from './ModerationComponents';
 
 // Add CSS styles to prevent viewport issues
@@ -27,6 +27,12 @@ const globalStyles = `
       -ms-user-select: none;
       user-select: none;
       -webkit-touch-callout: none;
+      touch-action: none;
+      cursor: grab;
+    }
+    
+    .drag-handle:active {
+      cursor: grabbing;
     }
     
     /* Prevent text selection on draggable items */
@@ -36,6 +42,8 @@ const globalStyles = `
       -ms-user-select: none;
       user-select: none;
       -webkit-touch-callout: none;
+      touch-action: none;
+      position: relative;
     }
     
     /* Improve touch targets */
@@ -146,76 +154,122 @@ const useIsMobile = () => {
   return isMobile;
 };
 
-// Enhanced mobile drag handler with fixes
+// Enhanced mobile drag handler with improved scroll prevention
 const useMobileDrag = (onDragStart, onDragEnd, onDragMove) => {
   const [isDragging, setIsDragging] = useState(false);
   const [draggedElement, setDraggedElement] = useState(null);
   const touchStartY = useRef(0);
   const touchCurrentY = useRef(0);
-  const dragThreshold = 10; // pixels before drag starts
-  const scrollLockRef = useRef(null);
+  const touchStartX = useRef(0);
+  const initialScrollY = useRef(0);
+  const dragThreshold = 8; // Reduced threshold for better responsiveness
+  const allowScrollDirection = useRef(null);
 
   const handleTouchStart = useCallback((e, data) => {
-    // Only handle touches on the drag handle itself
-    if (!e.target.closest('.drag-handle')) return;
+    // Only handle touches on the drag handle or draggable item itself
+    const isDragTarget = e.target.closest('.drag-handle') || e.target.closest('.draggable-item');
+    if (!isDragTarget) return;
     
+    // Immediately prevent default to stop any scroll behavior
     e.preventDefault();
     e.stopPropagation();
     
-    // More aggressive scroll locking
-    document.body.style.overflow = 'hidden';
-    document.body.style.position = 'fixed';
-    document.body.style.touchAction = 'none';
-    document.body.style.width = '100%';
-    
-    // Also lock the main container
-    const mainContainer = document.querySelector('main');
-    if (mainContainer) {
-        mainContainer.style.overflow = 'hidden';
-        mainContainer.style.touchAction = 'none';
-    }
-    
+    // Store initial touch position and scroll position
     touchStartY.current = e.touches[0].clientY;
     touchCurrentY.current = e.touches[0].clientY;
+    touchStartX.current = e.touches[0].clientX;
+    initialScrollY.current = window.scrollY;
+    allowScrollDirection.current = null;
+    
+    // Aggressive scroll prevention - apply immediately
+    document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${initialScrollY.current}px`;
+    document.body.style.touchAction = 'none';
+    document.body.style.width = '100%';
+    document.body.style.userSelect = 'none';
+    
+    // Also lock all scrollable containers
+    const scrollableElements = document.querySelectorAll('[style*="overflow"]');
+    scrollableElements.forEach(el => {
+      el.style.touchAction = 'none';
+      el.style.overflowY = 'hidden';
+    });
+    
+    // Find main scrollable container and lock it
+    const mainContainer = document.querySelector('main') || document.querySelector('[class*="overflow"]');
+    if (mainContainer) {
+      mainContainer.style.overflow = 'hidden';
+      mainContainer.style.touchAction = 'none';
+    }
+    
     setDraggedElement({ element: e.currentTarget, data });
-}, []);
+  }, []);
 
   const handleTouchMove = useCallback((e) => {
     if (!draggedElement) return;
     
+    // Always prevent default to stop scrolling
     e.preventDefault();
     e.stopPropagation();
     
     touchCurrentY.current = e.touches[0].clientY;
+    const touchCurrentX = e.touches[0].clientX;
     
-    const distance = Math.abs(touchCurrentY.current - touchStartY.current);
+    const deltaY = Math.abs(touchCurrentY.current - touchStartY.current);
+    const deltaX = Math.abs(touchCurrentX - touchStartX.current);
     
-    if (!isDragging && distance > dragThreshold) {
-      setIsDragging(true);
-      onDragStart && onDragStart(draggedElement.data);
-      
-      // Add visual feedback
-      draggedElement.element.style.opacity = '0.7';
-      draggedElement.element.style.transform = 'scale(1.02)';
-      draggedElement.element.style.zIndex = '1000';
-      draggedElement.element.style.position = 'relative';
+    // Only start dragging if we've moved enough and it's primarily vertical
+    if (!isDragging && deltaY > dragThreshold) {
+      // Ensure we're moving more vertically than horizontally for drag
+      if (deltaY > deltaX * 0.7) {
+        setIsDragging(true);
+        onDragStart && onDragStart(draggedElement.data);
+        
+        // Add visual feedback with more pronounced effects
+        draggedElement.element.style.opacity = '0.8';
+        draggedElement.element.style.transform = 'scale(1.05)';
+        draggedElement.element.style.zIndex = '9999';
+        draggedElement.element.style.position = 'relative';
+        draggedElement.element.style.boxShadow = '0 8px 24px rgba(0,0,0,0.3)';
+        draggedElement.element.style.transition = 'none';
+      }
     }
     
     if (isDragging && onDragMove) {
       // Move the element with the touch
       const moveY = touchCurrentY.current - touchStartY.current;
-      draggedElement.element.style.transform = `translateY(${moveY}px) scale(1.02)`;
+      draggedElement.element.style.transform = `translateY(${moveY}px) scale(1.05)`;
       
       onDragMove(e.touches[0]);
     }
   }, [draggedElement, isDragging, onDragStart, onDragMove]);
 
   const handleTouchEnd = useCallback((e) => {
-    // Re-enable page scrolling
+    // Restore scroll position and re-enable scrolling
+    const scrollY = initialScrollY.current;
     document.body.style.overflow = '';
     document.body.style.position = '';
+    document.body.style.top = '';
     document.body.style.touchAction = '';
     document.body.style.width = '';
+    document.body.style.userSelect = '';
+    
+    // Restore scroll position immediately
+    window.scrollTo(0, scrollY);
+    
+    // Re-enable all previously locked containers
+    const scrollableElements = document.querySelectorAll('[style*="touch-action"]');
+    scrollableElements.forEach(el => {
+      el.style.touchAction = '';
+      el.style.overflowY = '';
+    });
+    
+    const mainContainer = document.querySelector('main') || document.querySelector('[class*="overflow"]');
+    if (mainContainer) {
+      mainContainer.style.overflow = '';
+      mainContainer.style.touchAction = '';
+    }
     
     if (isDragging && draggedElement) {
       // Reset visual feedback
@@ -223,13 +277,8 @@ const useMobileDrag = (onDragStart, onDragEnd, onDragMove) => {
       draggedElement.element.style.transform = '';
       draggedElement.element.style.zIndex = '';
       draggedElement.element.style.position = '';
-
-      // Re-enable main container
-    const mainContainer = document.querySelector('main');
-    if (mainContainer) {
-        mainContainer.style.overflow = '';
-        mainContainer.style.touchAction = '';
-    }
+      draggedElement.element.style.boxShadow = '';
+      draggedElement.element.style.transition = '';
       
       // Find drop target
       const touch = e.changedTouches[0];
@@ -242,6 +291,8 @@ const useMobileDrag = (onDragStart, onDragEnd, onDragMove) => {
     setDraggedElement(null);
     touchStartY.current = 0;
     touchCurrentY.current = 0;
+    touchStartX.current = 0;
+    allowScrollDirection.current = null;
   }, [isDragging, draggedElement, onDragEnd]);
 
   return {
@@ -290,7 +341,11 @@ const TheCanon = ({ supabase }) => {
   const [draggedFromList, setDraggedFromList] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [otherListSearchQueries, setOtherListSearchQueries] = useState({});
+  const [otherListSearchResults, setOtherListSearchResults] = useState({});
   const [editingRanking, setEditingRanking] = useState(null);
+  const [viewingFriend, setViewingFriend] = useState(null);
+  const [friendRankings, setFriendRankings] = useState([]);
   const [draggedItem, setDraggedItem] = useState(null);
   const [showTop100Modal, setShowTop100Modal] = useState(false);
   const [loadedRankings, setLoadedRankings] = useState(100);
@@ -383,17 +438,35 @@ const TheCanon = ({ supabase }) => {
     return <span className="text-2xl">{emoji}</span>;
   });
 
-  // Prevent viewport dragging on iOS
+  // Prevent viewport dragging on iOS and enhance touch handling
   useEffect(() => {
     if (isMobile) {
-      // Prevent viewport dragging
+      // Enhanced touch prevention for drag operations
       const preventDefaultTouch = (e) => {
+        // Prevent multi-touch gestures
         if (e.touches.length > 1) {
+          e.preventDefault();
+          return;
+        }
+        
+        // Check if touch is on a draggable element
+        const target = e.target.closest('.draggable-item, .drag-handle');
+        if (target) {
+          // Let our custom drag handler deal with it
+          return;
+        }
+      };
+      
+      // Also prevent scroll bounce on iOS
+      const preventScrollBounce = (e) => {
+        const target = e.target.closest('.draggable-item, .drag-handle');
+        if (target) {
           e.preventDefault();
         }
       };
       
       document.addEventListener('touchmove', preventDefaultTouch, { passive: false });
+      document.addEventListener('touchstart', preventScrollBounce, { passive: false });
       
       // Set viewport meta tag
       let viewport = document.querySelector('meta[name="viewport"]');
@@ -406,6 +479,7 @@ const TheCanon = ({ supabase }) => {
       
       return () => {
         document.removeEventListener('touchmove', preventDefaultTouch);
+        document.removeEventListener('touchstart', preventScrollBounce);
       };
     }
   }, [isMobile]);
@@ -508,6 +582,32 @@ const TheCanon = ({ supabase }) => {
       mounted = false;
     };
   }, []); // Empty dependency array - runs once on mount
+
+  // Real-time subscription for friend requests
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const friendRequestsSubscription = supabase
+      .channel('friend_requests')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'friendships',
+          filter: `friend_id=eq.${currentUser.id}`
+        },
+        (payload) => {
+          // Reload friends when friendship data changes
+          loadFriends();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      friendRequestsSubscription.unsubscribe();
+    };
+  }, [currentUser]);
 
   // Get current user
   const getCurrentUser = async () => {
@@ -1450,6 +1550,59 @@ const TheCanon = ({ supabase }) => {
     }
   };
 
+  // Decline friend request
+  const declineFriendRequest = async (requestId) => {
+    try {
+      const { error } = await supabase
+        .from('friendships')
+        .delete()
+        .eq('id', requestId);
+
+      if (error) throw error;
+      
+      loadFriends();
+      addToast('Friend request declined', 'success');
+    } catch (error) {
+      console.error('Error declining friend request:', error);
+      addToast('Error declining request', 'error');
+    }
+  };
+
+  // Load friend's rankings
+  const loadFriendRankings = async (friendId) => {
+    try {
+      const { data: rankings, error } = await supabase
+        .from('user_rankings')
+        .select(`
+          *,
+          ranking_artists (
+            *,
+            artists (*)
+          )
+        `)
+        .eq('user_id', friendId)
+        .order('updated_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Format rankings similar to userLists
+      const formattedRankings = rankings.map(ranking => ({
+        id: ranking.id,
+        title: ranking.list_title,
+        category: ranking.list_type,
+        isAllTime: ranking.is_all_time,
+        artists: ranking.ranking_artists
+          .sort((a, b) => a.position - b.position)
+          .map(ra => ra.artists)
+      }));
+
+      setFriendRankings(formattedRankings);
+    } catch (error) {
+      console.error('Error loading friend rankings:', error);
+      addToast('Error loading friend rankings', 'error');
+    }
+  };
+
   // Search for friends
   const searchFriends = async (query) => {
     if (!query || query.length < 2) {
@@ -1521,6 +1674,45 @@ const TheCanon = ({ supabase }) => {
   }, [allArtists]);
 
   const searchResults = useMemo(() => searchArtists(searchQuery), [searchQuery, searchArtists]);
+
+  // Handle search for other lists
+  const handleOtherListSearch = useCallback((listId, query) => {
+    setOtherListSearchQueries(prev => ({ ...prev, [listId]: query }));
+    if (query && query.length > 1) {
+      const results = searchArtists(query);
+      setOtherListSearchResults(prev => ({ ...prev, [listId]: results }));
+    } else {
+      setOtherListSearchResults(prev => ({ ...prev, [listId]: [] }));
+    }
+  }, [searchArtists]);
+
+  // Add artist to other list
+  const addArtistToOtherList = useCallback((listId, artist) => {
+    const list = userLists.find(l => l.id === listId);
+    if (!list || list.artists.find(a => a.id === artist.id)) return;
+    
+    const newArtists = [...list.artists, artist];
+    updateListAndSave(listId, newArtists);
+    
+    // Clear search for this list
+    setOtherListSearchQueries(prev => ({ ...prev, [listId]: '' }));
+    setOtherListSearchResults(prev => ({ ...prev, [listId]: [] }));
+  }, [userLists, updateListAndSave]);
+
+  // Check how many friends rank an artist
+  const getFriendCountForArtist = useCallback((artistId) => {
+    if (!friends.length) return 0;
+    
+    // Check in loaded friend rankings or user lists for a quick approximation
+    let count = 0;
+    friends.forEach(friend => {
+      // This is a simplified check - in a real app you'd want to cache this data
+      if (friendRankings.some(ranking => ranking.artists.some(a => a.id === artistId))) {
+        count++;
+      }
+    });
+    return count;
+  }, [friends, friendRankings]);
 
   // Mobile drag handlers
   const handleMobileDragStart = useCallback((artist, listId) => {
@@ -1863,6 +2055,7 @@ const TheCanon = ({ supabase }) => {
   // Enhanced Artist Card Component
   const ArtistCard = ({ artist, onClose }) => {
     const [artistStats, setArtistStats] = useState(null);
+    const [friendsWhoRankArtist, setFriendsWhoRankArtist] = useState([]);
     
     useEffect(() => {
       // Load artist stats
@@ -1875,8 +2068,46 @@ const TheCanon = ({ supabase }) => {
         
         if (data) setArtistStats(data);
       };
+      
+      // Find friends who also rank this artist
+      const findFriendsWithArtist = async () => {
+        if (friends.length === 0) return;
+        
+        try {
+          const { data: friendRankings, error } = await supabase
+            .from('ranking_artists')
+            .select(`
+              position,
+              user_rankings!inner (
+                user_id,
+                list_title,
+                profiles!inner (
+                  id,
+                  username,
+                  display_name
+                )
+              )
+            `)
+            .eq('artist_id', artist.id)
+            .in('user_rankings.user_id', friends.map(f => f.id));
+            
+          if (error) throw error;
+          
+          const friendsWithArtist = friendRankings.map(ranking => ({
+            friend: ranking.user_rankings.profiles,
+            listTitle: ranking.user_rankings.list_title,
+            position: ranking.position
+          }));
+          
+          setFriendsWhoRankArtist(friendsWithArtist);
+        } catch (error) {
+          console.error('Error finding friends with artist:', error);
+        }
+      };
+      
       loadStats();
-    }, [artist.id]);
+      findFriendsWithArtist();
+    }, [artist.id, friends]);
     
     return (
       <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
@@ -1919,6 +2150,37 @@ const TheCanon = ({ supabase }) => {
                 </div>
               </div>
             </div>
+            
+            {/* Friends Who Rank This Artist */}
+            {friendsWhoRankArtist.length > 0 && (
+              <div className="bg-purple-500/10 border border-purple-400/30 p-4 rounded">
+                <h3 className="font-bold mb-3 flex items-center gap-2">
+                  <Users className="w-4 h-4 text-purple-400" />
+                  Your Friends Also Rank {artist.name}
+                </h3>
+                <div className="space-y-2">
+                  {friendsWhoRankArtist.slice(0, 5).map((item, idx) => (
+                    <div key={idx} className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-6 h-6 bg-purple-500/20 rounded-full flex items-center justify-center">
+                          <User className="w-3 h-3 text-purple-400" />
+                        </div>
+                        <span className="text-sm font-medium text-purple-300">{item.friend.username}</span>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-gray-400">{item.listTitle}</p>
+                        <p className="text-xs font-bold">#{item.position}</p>
+                      </div>
+                    </div>
+                  ))}
+                  {friendsWhoRankArtist.length > 5 && (
+                    <p className="text-xs text-gray-400 text-center pt-2">
+                      +{friendsWhoRankArtist.length - 5} more friends rank this artist
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
             
             {/* Similar Artists */}
             <div className="bg-black/30 border border-white/10 p-4 rounded">
@@ -2026,6 +2288,19 @@ const TheCanon = ({ supabase }) => {
                       <Zap className="w-4 h-4 text-purple-400" />
                       <span className="text-sm font-medium">{dailyPowerVotes} Power Votes</span>
                     </div>
+                  )}
+                  
+                  {friendRequests.length > 0 && (
+                    <button 
+                      onClick={() => setActiveTab('mypeople')}
+                      className={`relative p-2 hover:bg-white/10 border border-white/10 transition-colors ${isMobile ? 'touch-target' : ''}`}
+                      title={`${friendRequests.length} pending friend request${friendRequests.length > 1 ? 's' : ''}`}
+                    >
+                      <Bell className={`${isMobile ? 'w-4 h-4' : 'w-5 h-5'} text-yellow-400`} />
+                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center text-xs font-bold text-white">
+                        {friendRequests.length}
+                      </div>
+                    </button>
                   )}
                   
                   <button 
@@ -2530,6 +2805,11 @@ const TheCanon = ({ supabase }) => {
                   } ${isMobile ? 'text-sm' : ''}`}
                 >
                   MY PEOPLE
+                  {friendRequests.length > 0 && (
+                    <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-xs font-bold text-white">
+                      {friendRequests.length}
+                    </div>
+                  )}
                   {activeTab === 'mypeople' && (
                     <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white" />
                   )}
@@ -2700,43 +2980,45 @@ const TheCanon = ({ supabase }) => {
                     </div>
                   </div>
                   
-                  {/* All-Time Top 10 - Right Side (Compact) - Desktop Only */}
-                  {!isMobile && (
-                    <div className="lg:col-span-1">
+                  {/* All-Time Top 10 - Right Side (Compact) */}
+                  {fullRankings.length > 0 && (
+                    <div className={isMobile ? '' : 'lg:col-span-1'}>
                       <div className="bg-slate-800/50 border-2 border-yellow-400/50 p-3">
                         <div className="flex items-center justify-between mb-3">
-                          <h3 className="font-bold text-sm tracking-tight flex items-center gap-1.5">
-                            <Trophy className="w-3.5 h-3.5 text-yellow-400" />
-                            GREATEST OF ALL TIME
-                          </h3>
-                          <button 
-                            onClick={() => setShowTop100Modal(true)}
-                            className="text-xs text-yellow-400 hover:text-yellow-300"
-                          >
-                            Top 100 →
-                          </button>
-                        </div>
+                        <h3 className={`font-bold tracking-tight flex items-center gap-1.5 ${isMobile ? 'text-base' : 'text-sm'}`}>
+                          <Trophy className={`text-yellow-400 ${isMobile ? 'w-4 h-4' : 'w-3.5 h-3.5'}`} />
+                          GREATEST OF ALL TIME
+                        </h3>
+                        <button 
+                          onClick={() => setShowTop100Modal(true)}
+                          className={`text-yellow-400 hover:text-yellow-300 ${isMobile ? 'text-sm' : 'text-xs'}`}
+                        >
+                          Top 100 →
+                        </button>
+                      </div>
                         
                         <div className="space-y-1">
                           {fullRankings.slice(0, 10).map((item, idx) => (
                             <div 
                               key={idx} 
-                              className={`flex items-center gap-2 px-2 py-1 text-xs cursor-pointer hover:bg-white/5 ${
+                              className={`flex items-center gap-2 px-2 py-1 ${isMobile ? 'text-sm' : 'text-xs'} cursor-pointer hover:bg-white/5 ${
                                 item.trend === 'hot' ? 'bg-orange-500/10 border-l-2 border-orange-400' : ''
                               }`}
                               onClick={() => setShowArtistCard(item.artist)}
                             >
-                              <div className="w-8 text-center">
+                              <div className={`text-center ${isMobile ? 'w-10' : 'w-8'}`}>
                                 <span className="font-bold text-gray-500">#{item.rank}</span>
                               </div>
                               
-                              <div className="w-4">
-                                {item.trend === 'up' && <ArrowUp className="w-3 h-3 text-green-400" />}
-                                {item.trend === 'down' && <ArrowDown className="w-3 h-3 text-red-400" />}
-                                {item.trend === 'hot' && <Flame className="w-3 h-3 text-orange-400" />}
+                              <div className={isMobile ? 'w-5' : 'w-4'}>
+                                {item.trend === 'up' && <ArrowUp className={`text-green-400 ${isMobile ? 'w-4 h-4' : 'w-3 h-3'}`} />}
+                                {item.trend === 'down' && <ArrowDown className={`text-red-400 ${isMobile ? 'w-4 h-4' : 'w-3 h-3'}`} />}
+                                {item.trend === 'hot' && <Flame className={`text-orange-400 ${isMobile ? 'w-4 h-4' : 'w-3 h-3'}`} />}
                               </div>
                               
-                              <div className="text-lg"><ArtistAvatar artist={item.artist} /></div>
+                              <div className={isMobile ? 'text-xl' : 'text-lg'}>
+                                <ArtistAvatar artist={item.artist} size={isMobile ? 'w-8 h-8' : 'w-6 h-6'} />
+                              </div>
                               
                               <div className="flex-1 min-w-0">
                                 <p className="font-medium truncate">{item.artist.name}</p>
@@ -2748,18 +3030,18 @@ const TheCanon = ({ supabase }) => {
                                     e.stopPropagation();
                                     quickAddToList(item.artist);
                                   }}
-                                  className="p-0.5 hover:bg-white/10 rounded"
+                                  className={`hover:bg-white/10 rounded ${isMobile ? 'p-1 touch-target' : 'p-0.5'}`}
                                   title="Add to My Top 10"
                                 >
-                                  <Plus className="w-3 h-3" />
+                                  <Plus className={isMobile ? 'w-4 h-4' : 'w-3 h-3'} />
                                 </button>
-                                <span className="text-gray-500 text-xs">{item.canonScore}</span>
+                                <span className={`text-gray-500 ${isMobile ? 'text-sm' : 'text-xs'}`}>{item.canonScore}</span>
                               </div>
                             </div>
                           ))}
                         </div>
                         
-                        <div className="mt-3 pt-3 border-t border-white/10 flex justify-between text-xs text-gray-400">
+                        <div className={`mt-3 pt-3 border-t border-white/10 flex justify-between text-gray-400 ${isMobile ? 'text-sm' : 'text-xs'}`}>
                           <span>{userLists.filter(l => l.isAllTime).length > 0 ? '1 voter' : '0 voters'}</span>
                           <span>Avg unique: 6.8</span>
                         </div>
@@ -2837,19 +3119,30 @@ const TheCanon = ({ supabase }) => {
                             {/* Search Results */}
                             {showSearchResults && searchQuery && searchResults.length > 0 && (
                               <div className="absolute top-full mt-2 w-full bg-slate-800 border border-white/20 shadow-xl max-h-64 overflow-y-auto z-10">
-                                {searchResults.map((artist) => (
-                                  <div
-                                    key={artist.id}
-                                    className="p-3 hover:bg-white/10 transition-colors flex items-center gap-3 cursor-pointer"
-                                    onClick={() => addArtistToList(artist, list.id)}
-                                  >
-                                    <span className="text-2xl"><ArtistAvatar artist={artist} /></span>
-                                    <div className="flex-1">
-                                      <p className="font-medium">{artist.name}</p>
-                                      <p className="text-sm text-gray-400">{artist.era} • Canon Score: {artist.canonScore}</p>
+                                {searchResults.map((artist) => {
+                                  const friendCount = getFriendCountForArtist(artist.id);
+                                  return (
+                                    <div
+                                      key={artist.id}
+                                      className="p-3 hover:bg-white/10 transition-colors flex items-center gap-3 cursor-pointer"
+                                      onClick={() => addArtistToList(artist, list.id)}
+                                    >
+                                      <span className="text-2xl"><ArtistAvatar artist={artist} /></span>
+                                      <div className="flex-1">
+                                        <p className="font-medium">{artist.name}</p>
+                                        <div className="flex items-center gap-2">
+                                          <p className="text-sm text-gray-400">{artist.era} • Canon Score: {artist.canonScore}</p>
+                                          {friendCount > 0 && (
+                                            <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-1 rounded flex items-center gap-1">
+                                              <Users className="w-3 h-3" />
+                                              {friendCount} friend{friendCount > 1 ? 's' : ''}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
                                     </div>
-                                  </div>
-                                ))}
+                                  );
+                                })}
                               </div>
                             )}
                           </div>
@@ -2987,34 +3280,107 @@ const TheCanon = ({ supabase }) => {
                             <div className="relative mb-3">
                               <input
                                 type="text"
-                                placeholder="Add artists..."
+                                placeholder="Search artists..."
+                                value={otherListSearchQueries[existingList.id] || ''}
                                 className="w-full px-3 py-1.5 text-sm bg-black/50 border border-white/20 focus:border-purple-400/50 focus:outline-none rounded"
-                                onFocus={(e) => {
-                                  e.currentTarget.placeholder = 'Search artists...';
-                                  // You can implement a separate search state per list if needed
-                                }}
-                                onChange={(e) => {
-                                  if (e.target.value.length > 1) {
-                                    const results = searchArtists(e.target.value);
-                                    // Show results dropdown
-                                  }
+                                onChange={(e) => handleOtherListSearch(existingList.id, e.target.value)}
+                                onBlur={() => {
+                                  // Delay clearing to allow click on search results
+                                  setTimeout(() => {
+                                    setOtherListSearchResults(prev => ({ ...prev, [existingList.id]: [] }));
+                                  }, 150);
                                 }}
                               />
+                              
+                              {/* Search Results Dropdown */}
+                              {otherListSearchResults[existingList.id] && otherListSearchResults[existingList.id].length > 0 && (
+                                <div className="absolute top-full mt-1 w-full bg-slate-800 border border-white/20 shadow-xl max-h-48 overflow-y-auto z-20">
+                                  {otherListSearchResults[existingList.id].map((artist) => (
+                                    <div
+                                      key={artist.id}
+                                      className="p-3 hover:bg-white/10 transition-colors flex items-center gap-3 cursor-pointer"
+                                      onClick={() => addArtistToOtherList(existingList.id, artist)}
+                                    >
+                                      <ArtistAvatar artist={artist} size="w-8 h-8" />
+                                      <div>
+                                        <p className="font-medium">{artist.name}</p>
+                                        <p className="text-xs text-gray-400">{artist.genre || 'Artist'}</p>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                             <div className="space-y-1">
-                              {existingList.artists.slice(0, 5).map((artist, idx) => (
-                                <div key={artist.id} className="flex items-center gap-2 text-sm">
-                                  <span className="text-gray-500">#{idx + 1}</span>
-                                  <span><ArtistAvatar artist={artist} /></span>
-                                  <span className="truncate">{artist.name}</span>
+                              {existingList.artists.map((artist, index) => (
+                                <div key={artist.id}>
+                                  {/* Drop indicator */}
+                                  {dragOverIndex === index && draggedFromList === existingList.id && (
+                                    <div className="h-1 bg-purple-400 rounded transition-all duration-200" />
+                                  )}
+                                  
+                                  <div
+                                    data-drop-index={index}
+                                    className={`flex items-center gap-3 p-2 bg-black/30 border border-white/10 ${
+                                      isMobile ? '' : 'cursor-move hover:bg-white/10'
+                                    } transition-all duration-200 ${
+                                      draggedItem?.artist.id === artist.id ? 'opacity-50' : ''
+                                    } ${isMobile ? 'draggable-item' : ''}`}
+                                    {...(isMobile ? {
+                                      onTouchStart: (e) => mobileDrag.handleTouchStart(e, { artist, listId: existingList.id }),
+                                      onTouchMove: mobileDrag.handleTouchMove,
+                                      onTouchEnd: mobileDrag.handleTouchEnd,
+                                    } : {
+                                      draggable: true,
+                                      onDragStart: (e) => handleDragStart(e, artist, existingList.id),
+                                      onDragOver: handleDragOver,
+                                      onDragEnter: (e) => handleDragEnter(e, index),
+                                      onDrop: (e) => handleDrop(e, index, existingList.id),
+                                    })}
+                                  >
+                                    <div className={`drag-handle ${isMobile ? 'touch-target flex items-center justify-center w-8 h-8' : ''}`}>
+                                      <GripVertical className="w-4 h-4 text-gray-400" />
+                                    </div>
+                                    <span className="text-gray-500 text-sm">#{index + 1}</span>
+                                    <ArtistAvatar artist={artist} size="w-6 h-6" />
+                                    <span className="truncate flex-1 text-sm">{artist.name}</span>
+                                    <button
+                                      onClick={() => {
+                                        const newArtists = existingList.artists.filter(a => a.id !== artist.id);
+                                        updateListAndSave(existingList.id, newArtists);
+                                      }}
+                                      className="p-1 hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-colors"
+                                      title="Remove artist"
+                                    >
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                  </div>
                                 </div>
                               ))}
+                              
+                              {/* Drop indicator at the end */}
+                              {dragOverIndex === existingList.artists.length && draggedFromList === existingList.id && (
+                                <div className="h-1 bg-purple-400 rounded transition-all duration-200" />
+                              )}
+                              
+                              {/* Drop zone at the end */}
+                              <div
+                                data-drop-index={existingList.artists.length}
+                                className={`${existingList.artists.length === 0 ? 
+                                  'border-2 border-dashed border-gray-600 p-6 text-center text-gray-400 text-sm' : 
+                                  'h-4 border border-dashed border-transparent hover:border-gray-600 transition-colors'
+                                }`}
+                                {...(!isMobile ? {
+                                  onDragOver: handleDragOver,
+                                  onDragEnter: (e) => handleDragEnter(e, existingList.artists.length),
+                                  onDrop: (e) => handleDrop(e, existingList.artists.length, existingList.id),
+                                } : {})}
+                              >
+                                {existingList.artists.length === 0 && (
+                                  isMobile ? 'Search and tap artists to add them' : 'Search artists or drag them here'
+                                )}
+                              </div>
                             </div>
-                            {existingList.artists.length > 5 && (
-                              <p className="text-xs text-gray-400 mt-2">
-                                +{existingList.artists.length - 5} more
-                              </p>
-                            )}
                           </div>
                         );
                       })}
@@ -3080,9 +3446,16 @@ const TheCanon = ({ supabase }) => {
                 </div>
 
                 {/* Friend Requests */}
-                {friendRequests.length > 0 && (
-                  <div>
-                    <h2 className="text-lg font-bold mb-3">Friend Requests</h2>
+                <div>
+                  <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
+                    Friend Requests
+                    {friendRequests.length > 0 && (
+                      <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full font-bold">
+                        {friendRequests.length}
+                      </span>
+                    )}
+                  </h2>
+                  {friendRequests.length > 0 ? (
                     <div className="space-y-2">
                       {friendRequests.map(request => (
                         <div key={request.id} className="bg-slate-800/50 border border-white/10 p-4 flex items-center justify-between">
@@ -3090,17 +3463,29 @@ const TheCanon = ({ supabase }) => {
                             <p className="font-bold">{request.user.username}</p>
                             <p className="text-sm text-gray-400">Wants to be your friend</p>
                           </div>
-                          <button
-                            onClick={() => acceptFriendRequest(request.id)}
-                            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 transition-colors text-sm"
-                          >
-                            Accept
-                          </button>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => acceptFriendRequest(request.id)}
+                              className="px-4 py-2 bg-green-600 hover:bg-green-700 transition-colors text-sm rounded"
+                            >
+                              Accept
+                            </button>
+                            <button
+                              onClick={() => declineFriendRequest(request.id)}
+                              className="px-4 py-2 bg-red-600 hover:bg-red-700 transition-colors text-sm rounded"
+                            >
+                              Decline
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <div className="bg-slate-800/30 border border-white/10 p-4 text-center text-gray-400">
+                      No pending friend requests
+                    </div>
+                  )}
+                </div>
 
                 {/* Friends List */}
                 <div>
@@ -3114,7 +3499,13 @@ const TheCanon = ({ supabase }) => {
                               <p className="font-bold">{friend.username}</p>
                               <p className="text-sm text-gray-400">Friend since recently</p>
                             </div>
-                            <button className="px-3 py-1 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-400/50 transition-colors text-sm">
+                            <button 
+                              onClick={() => {
+                                setViewingFriend(friend);
+                                loadFriendRankings(friend.id);
+                              }}
+                              className="px-3 py-1 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-400/50 transition-colors text-sm"
+                            >
                               View Rankings
                             </button>
                           </div>
@@ -3128,12 +3519,130 @@ const TheCanon = ({ supabase }) => {
 
                 {/* Friend Activity Feed */}
                 <div>
-                  <h2 className="text-lg font-bold mb-3">Friend Activity</h2>
-                  <p className="text-gray-400">Coming soon: See what your friends are ranking and debating!</p>
+                  <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
+                    Friend Activity
+                    {friends.length > 0 && (
+                      <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-1 rounded">
+                        {friends.length} friend{friends.length > 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </h2>
+                  {friends.length > 0 ? (
+                    <div className="space-y-3">
+                      {/* Friend Debates */}
+                      {debates
+                        .filter(debate => friends.some(friend => friend.id === debate.author_id))
+                        .slice(0, 3)
+                        .map(debate => (
+                          <div key={debate.id} className="bg-slate-800/30 border border-white/10 p-3 rounded">
+                            <div className="flex items-start gap-3">
+                              <div className="w-8 h-8 bg-purple-500/20 rounded-full flex items-center justify-center">
+                                <MessageCircle className="w-4 h-4 text-purple-400" />
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-sm">
+                                  <span className="font-medium text-purple-400">{debate.author}</span> posted a debate
+                                </p>
+                                <p className="text-xs text-gray-400 truncate mt-1">{debate.content}</p>
+                                <p className="text-xs text-gray-500 mt-1">{getRelativeTime(debate.timestamp)}</p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      
+                      {/* Simulated ranking activity */}
+                      {friends.slice(0, 2).map((friend, idx) => (
+                        <div key={`activity-${friend.id}`} className="bg-slate-800/30 border border-white/10 p-3 rounded">
+                          <div className="flex items-start gap-3">
+                            <div className="w-8 h-8 bg-yellow-500/20 rounded-full flex items-center justify-center">
+                              <Crown className="w-4 h-4 text-yellow-400" />
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-sm">
+                                <span className="font-medium text-purple-400">{friend.username}</span> updated their rankings
+                              </p>
+                              <p className="text-xs text-gray-400 mt-1">Added new artists to their Top 10</p>
+                              <p className="text-xs text-gray-500 mt-1">2 hours ago</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      
+                      {debates.filter(debate => friends.some(friend => friend.id === debate.author_id)).length === 0 && friends.length > 0 && (
+                        <p className="text-gray-400 text-center py-4">Your friends haven't posted any debates yet, but check back soon!</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center py-6">
+                      <Users className="w-12 h-12 mx-auto mb-3 text-gray-500" />
+                      <p className="text-gray-400">Add friends to see their activity!</p>
+                      <p className="text-xs text-gray-500 mt-1">Friend activity includes rankings, debates, and more</p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
           </main>
+
+          {/* Friend Rankings Modal */}
+          {viewingFriend && (
+            <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-4xl w-full'} max-h-[80vh] flex flex-col`}>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className={`font-bold tracking-tight flex items-center gap-2 ${isMobile ? 'text-xl' : 'text-2xl'}`}>
+                    <User className={`${isMobile ? 'w-5 h-5' : 'w-6 h-6'} text-purple-400`} />
+                    {viewingFriend.username}'s Rankings
+                  </h2>
+                  <button 
+                    onClick={() => {
+                      setViewingFriend(null);
+                      setFriendRankings([]);
+                    }}
+                    className="p-2 hover:bg-white/10 transition-colors touch-target"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto">
+                  {friendRankings.length > 0 ? (
+                    <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'} gap-4`}>
+                      {friendRankings.map(list => (
+                        <div key={list.id} className="bg-slate-700/50 border border-white/10 p-4">
+                          <div className="flex justify-between items-start mb-3">
+                            <h3 className="font-bold flex items-center gap-2">
+                              {list.isAllTime && <Crown className="w-4 h-4 text-yellow-400" />}
+                              {list.title}
+                            </h3>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            {list.artists.slice(0, 10).map((artist, idx) => (
+                              <div key={artist.id} className="flex items-center gap-3 text-sm">
+                                <span className="text-gray-500 w-6">#{idx + 1}</span>
+                                <ArtistAvatar artist={artist} size="w-6 h-6" />
+                                <span className="truncate">{artist.name}</span>
+                              </div>
+                            ))}
+                            {list.artists.length > 10 && (
+                              <p className="text-xs text-gray-400 mt-2">
+                                +{list.artists.length - 10} more artists
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-gray-400">
+                      <User className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                      <p>{viewingFriend.username} hasn't created any rankings yet.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Floating Action Buttons */}
           <div className={`fixed ${isMobile ? 'bottom-20 right-4' : 'bottom-6 right-6'} flex flex-col gap-3`}>
