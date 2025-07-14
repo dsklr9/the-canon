@@ -407,6 +407,7 @@ const TheCanon = ({ supabase }) => {
   const [faceOffFilters, setFaceOffFilters] = useState({ era: 'all', region: 'all' });
   const [battleHistory, setBattleHistory] = useState([]);
   const [dailyChallenge, setDailyChallenge] = useState(null);
+  const [showChallengeModal, setShowChallengeModal] = useState(false);
   const [userBadges, setUserBadges] = useState([]);
   const [hotTakes, setHotTakes] = useState([]);
   const [collaborativeLists, setCollaborativeLists] = useState([]);
@@ -615,6 +616,7 @@ const TheCanon = ({ supabase }) => {
         },
         (payload) => {
           // Reload friends when friendship data changes
+          console.log('Friend request real-time update:', payload);
           loadFriends();
         }
       )
@@ -943,7 +945,8 @@ const TheCanon = ({ supabase }) => {
       }
 
       // Load pending requests
-      const { data: requests } = await supabase
+      console.log('Loading friend requests for user:', currentUser.id);
+      const { data: requests, error: requestsError } = await supabase
         .from('friendships')
         .select(`
           *,
@@ -952,8 +955,11 @@ const TheCanon = ({ supabase }) => {
         .eq('friend_id', currentUser.id)
         .eq('status', 'pending');
 
+      console.log('Friend requests query result:', { requests, requestsError });
+
       if (requests) {
         setFriendRequests(requests);
+        console.log('Set friend requests:', requests);
       }
     } catch (error) {
       console.error('Error loading friends:', error);
@@ -2391,7 +2397,10 @@ const TheCanon = ({ supabase }) => {
 
         {/* Daily Challenge Banner */}
         {dailyChallenge && !showTutorial && (
-          <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white py-2 px-4 text-center">
+          <div 
+            className="bg-gradient-to-r from-purple-600 to-pink-600 text-white py-2 px-4 text-center cursor-pointer hover:from-purple-700 hover:to-pink-700 transition-colors"
+            onClick={() => setShowChallengeModal(true)}
+          >
             <p className="text-sm font-medium flex items-center justify-center gap-2">
               <Target className="w-4 h-4" />
               Today's Challenge: {dailyChallenge.title} 
@@ -2932,6 +2941,73 @@ const TheCanon = ({ supabase }) => {
                       Scroll for more...
                     </div>
                   )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Daily Challenge Modal */}
+          {showChallengeModal && dailyChallenge && (
+            <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-lg w-full'} max-h-[80vh] overflow-y-auto`}>
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-xl font-bold flex items-center gap-2">
+                    <Target className="w-5 h-5 text-purple-400" />
+                    Today's Challenge
+                  </h2>
+                  <button
+                    onClick={() => setShowChallengeModal(false)}
+                    className="text-gray-400 hover:text-white transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                
+                <div className="bg-gradient-to-r from-purple-600/20 to-pink-600/20 border border-purple-500/30 rounded-lg p-4 mb-4">
+                  <h3 className="font-semibold text-purple-300 mb-2">{dailyChallenge.title}</h3>
+                  <p className="text-sm text-gray-300 mb-3">{dailyChallenge.description}</p>
+                  
+                  <div className="flex items-center gap-2 text-sm text-yellow-400">
+                    <Trophy className="w-4 h-4" />
+                    <span className="font-medium">Bonus: +3 points per vote</span>
+                  </div>
+                </div>
+                
+                <div className="space-y-3">
+                  <div>
+                    <h4 className="font-medium text-purple-300 mb-2">How it works:</h4>
+                    <ul className="text-sm text-gray-300 space-y-1">
+                      <li>• Face-offs will focus on {dailyChallenge.title.toLowerCase()}</li>
+                      <li>• Each vote earns you 3 bonus points instead of 1</li>
+                      <li>• Challenge resets daily at midnight</li>
+                      <li>• Participate to climb the leaderboard faster!</li>
+                    </ul>
+                  </div>
+                  
+                  <div className="bg-slate-700/50 rounded-lg p-3">
+                    <p className="text-sm text-gray-400">
+                      <strong>Pro tip:</strong> Use high conviction votes (75%+) during daily challenges 
+                      to maximize your bonus points and show your expertise!
+                    </p>
+                  </div>
+                  
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      onClick={() => {
+                        setShowChallengeModal(false);
+                        setActiveTab('faceoffs');
+                      }}
+                      className="flex-1 py-2 bg-purple-600 hover:bg-purple-700 transition-colors text-sm font-medium rounded"
+                    >
+                      Start Challenge
+                    </button>
+                    <button
+                      onClick={() => setShowChallengeModal(false)}
+                      className="px-4 py-2 bg-slate-600 hover:bg-slate-700 transition-colors text-sm rounded"
+                    >
+                      Close
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
