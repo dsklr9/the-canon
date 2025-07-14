@@ -3530,7 +3530,7 @@ const TheCanon = ({ supabase }) => {
                   {friends.length > 0 ? (
                     <div className="space-y-3">
                       {/* Friend Debates */}
-                      {debates
+                      {realDebates
                         .filter(debate => friends.some(friend => friend.id === debate.author_id))
                         .slice(0, 3)
                         .map(debate => (
@@ -3568,7 +3568,7 @@ const TheCanon = ({ supabase }) => {
                         </div>
                       ))}
                       
-                      {debates.filter(debate => friends.some(friend => friend.id === debate.author_id)).length === 0 && friends.length > 0 && (
+                      {realDebates.filter(debate => friends.some(friend => friend.id === debate.author_id)).length === 0 && friends.length > 0 && (
                         <p className="text-gray-400 text-center py-4">Your friends haven't posted any debates yet, but check back soon!</p>
                       )}
                     </div>
