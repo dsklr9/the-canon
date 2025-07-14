@@ -43,6 +43,6 @@ function App() {
   );
 }
 
-console.log("DEPLOYED VERSION: v6");
+console.log("DEPLOYED VERSION: v7-mobile-fixes");
 
 export default App;

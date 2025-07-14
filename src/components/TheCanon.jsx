@@ -1781,23 +1781,33 @@ const TheCanon = ({ supabase }) => {
     console.log('Drop info:', { listId, targetIndex, draggedItem });
 
     const list = userLists.find(l => l.id === listId);
-    if (!list) return;
+    if (!list) {
+      console.log('List not found:', listId);
+      return;
+    }
+
+    console.log('Processing drop on list:', list.title);
 
     if (draggedItem.listId === 'search') {
       if (!list.artists.find(a => a.id === draggedItem.artist.id)) {
         const newArtists = [...list.artists];
         newArtists.splice(targetIndex, 0, draggedItem.artist);
         updateListAndSave(listId, newArtists);
+        console.log('Added from search');
       }
     } else if (draggedItem.listId === listId) {
       const newArtists = [...list.artists];
       const draggedIndex = newArtists.findIndex(a => a.id === draggedItem.artist.id);
       
       if (draggedIndex !== -1 && draggedIndex !== targetIndex) {
+        console.log('Reordering within list:', { draggedIndex, targetIndex });
         const [removed] = newArtists.splice(draggedIndex, 1);
         const adjustedIndex = draggedIndex < targetIndex ? targetIndex - 1 : targetIndex;
         newArtists.splice(adjustedIndex, 0, removed);
         updateListAndSave(listId, newArtists);
+        console.log('Mobile reorder complete - list should update');
+      } else {
+        console.log('No reorder needed:', { draggedIndex, targetIndex });
       }
     }
     
@@ -2267,7 +2277,7 @@ const TheCanon = ({ supabase }) => {
 
   return (
     <ErrorBoundary>
-      <div className={`min-h-screen bg-gradient-to-b from-slate-900 via-blue-950 to-slate-900 text-white font-sans ${isMobile ? 'overflow-hidden fixed inset-0' : ''}`}>
+      <div className={`min-h-screen bg-gradient-to-b from-slate-900 via-blue-950 to-slate-900 text-white font-sans`}>
         {/* Toast Notifications */}
         {toasts.map(toast => (
           <Toast
@@ -3236,6 +3246,7 @@ const TheCanon = ({ supabase }) => {
                                   <span 
                                     className={`font-black text-gray-300 ${isMobile ? 'text-sm w-6 text-center' : 'text-xl w-8'} cursor-pointer`}
                                     onClick={(e) => {
+                                      console.log('Ranking number clicked:', artist.name);
                                       e.stopPropagation();
                                       setShowArtistCard(artist);
                                     }}
