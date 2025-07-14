@@ -618,7 +618,8 @@ const TheCanon = ({ supabase }) => {
         },
         (payload) => {
           console.log('Friend request real-time update (as recipient):', payload);
-          loadFriends();
+          console.log('Current user ID:', currentUser.id);
+          setTimeout(() => loadFriends(), 1000); // Small delay to ensure DB is updated
         }
       )
       .on(
@@ -631,7 +632,8 @@ const TheCanon = ({ supabase }) => {
         },
         (payload) => {
           console.log('Friend request real-time update (as sender):', payload);
-          loadFriends();
+          console.log('Current user ID:', currentUser.id);
+          setTimeout(() => loadFriends(), 1000); // Small delay to ensure DB is updated
         }
       )
       .subscribe();
@@ -1628,8 +1630,33 @@ const TheCanon = ({ supabase }) => {
   const sendFriendRequest = async (friendId) => {
     if (!currentUser) return;
 
+    // Prevent sending friend request to self
+    if (currentUser.id === friendId) {
+      addToast('You cannot send a friend request to yourself', 'error');
+      return;
+    }
+
     try {
       console.log('Sending friend request:', { from: currentUser.id, to: friendId });
+      
+      // Check if friendship already exists (in any direction)
+      const { data: existingFriendship } = await supabase
+        .from('friendships')
+        .select('id, status, user_id, friend_id')
+        .or(`and(user_id.eq.${currentUser.id},friend_id.eq.${friendId}),and(user_id.eq.${friendId},friend_id.eq.${currentUser.id})`);
+        
+      console.log('Existing friendship check:', existingFriendship);
+      
+      if (existingFriendship && existingFriendship.length > 0) {
+        const friendship = existingFriendship[0];
+        if (friendship.status === 'pending') {
+          addToast('Friend request already sent', 'info');
+          return;
+        } else if (friendship.status === 'accepted') {
+          addToast('You are already friends', 'info');
+          return;
+        }
+      }
       
       const { data, error } = await supabase
         .from('friendships')
@@ -1643,14 +1670,15 @@ const TheCanon = ({ supabase }) => {
       console.log('Friend request insert result:', { data, error });
 
       if (error) {
+        console.error('Database error details:', error);
         if (error.code === '23505') {
           addToast('Friend request already sent', 'info');
         } else {
-          throw error;
+          addToast(`Database error: ${error.message}`, 'error');
         }
       } else {
         addToast('Friend request sent!', 'success');
-        // Manually trigger reload for the recipient if they're the current user somehow
+        // Manually trigger reload
         loadFriends();
       }
     } catch (error) {
@@ -1662,14 +1690,20 @@ const TheCanon = ({ supabase }) => {
   // Accept friend request
   const acceptFriendRequest = async (requestId) => {
     try {
-      const { error } = await supabase
+      console.log('Accepting friend request:', requestId);
+      
+      const { data, error } = await supabase
         .from('friendships')
         .update({ status: 'accepted' })
-        .eq('id', requestId);
+        .eq('id', requestId)
+        .select();
+
+      console.log('Accept friend request result:', { data, error });
 
       if (error) throw error;
       
-      loadFriends();
+      // Reload friends to see the new friendship
+      await loadFriends();
       addToast('Friend request accepted!', 'success');
     } catch (error) {
       console.error('Error accepting friend request:', error);
@@ -1715,7 +1749,18 @@ const TheCanon = ({ supabase }) => {
 
       console.log('Friend rankings query result:', { rankings, error });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Database error loading friend rankings:', error);
+        addToast(`Database error: ${error.message}`, 'error');
+        return;
+      }
+
+      if (!rankings || rankings.length === 0) {
+        console.log('No rankings found for friend:', friendId);
+        setFriendRankings([]);
+        addToast('This friend hasn\'t created any rankings yet', 'info');
+        return;
+      }
 
       // Format rankings similar to userLists
       const formattedRankings = rankings.map(ranking => ({
@@ -1735,9 +1780,13 @@ const TheCanon = ({ supabase }) => {
 
       console.log('Formatted friend rankings:', formattedRankings);
       setFriendRankings(formattedRankings);
+      
+      if (formattedRankings.length === 0) {
+        addToast('This friend hasn\'t created any rankings yet', 'info');
+      }
     } catch (error) {
       console.error('Error loading friend rankings:', error);
-      addToast('Error loading friend rankings', 'error');
+      addToast(`Error loading friend rankings: ${error.message}`, 'error');
     }
   };
 
