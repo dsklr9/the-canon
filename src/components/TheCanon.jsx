@@ -434,19 +434,6 @@ const TheCanon = ({ supabase }) => {
   // Enhanced rate limiting
   const { checkRateLimit, checkFaceOffLimit } = useEnhancedRateLimit(supabase);
 
-  // Early validation after all hooks
-  if (!supabase) {
-    console.error('Supabase client not provided');
-    return (
-      <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center p-4">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Configuration Error</h1>
-          <p className="text-gray-400">Database connection not available</p>
-        </div>
-      </div>
-    );
-  }
-
   // Artist Avatar Component
   const ArtistAvatar = memo(({ artist, size = "w-8 h-8" }) => {
     const imageUrl = artist.avatar_url || (artist.avatar && artist.avatar.startsWith && artist.avatar.startsWith('http') ? artist.avatar : null);
@@ -2250,6 +2237,18 @@ const TheCanon = ({ supabase }) => {
   }
 
   // Main render
+  if (!supabase) {
+    console.error('Supabase client not provided');
+    return (
+      <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center p-4">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-4">Configuration Error</h1>
+          <p className="text-gray-400">Database connection not available</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <ErrorBoundary>
       <div className={`min-h-screen bg-gradient-to-b from-slate-900 via-blue-950 to-slate-900 text-white font-sans ${isMobile ? 'overflow-hidden fixed inset-0' : ''}`}>
