@@ -409,7 +409,6 @@ const TheCanon = ({ supabase }) => {
   const [dailyChallenge, setDailyChallenge] = useState(null);
   const [showChallengeModal, setShowChallengeModal] = useState(false);
   const [showBattleModal, setShowBattleModal] = useState(false);
-  const [expandedComments, setExpandedComments] = useState({});
   const [debateComments, setDebateComments] = useState({});
   const [userBadges, setUserBadges] = useState([]);
   const [hotTakes, setHotTakes] = useState([]);
