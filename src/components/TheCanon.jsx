@@ -602,7 +602,7 @@ const TheCanon = ({ supabase }) => {
     };
   }, []); // Empty dependency array - runs once on mount
 
-  // Real-time subscription for friend requests
+  // Real-time subscription for friend requests and friendships
   useEffect(() => {
     if (!currentUser) return;
 
@@ -617,8 +617,20 @@ const TheCanon = ({ supabase }) => {
           filter: `friend_id=eq.${currentUser.id}`
         },
         (payload) => {
-          // Reload friends when friendship data changes
-          console.log('Friend request real-time update:', payload);
+          console.log('Friend request real-time update (as recipient):', payload);
+          loadFriends();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'friendships',
+          filter: `user_id=eq.${currentUser.id}`
+        },
+        (payload) => {
+          console.log('Friend request real-time update (as sender):', payload);
           loadFriends();
         }
       )
@@ -928,22 +940,46 @@ const TheCanon = ({ supabase }) => {
     if (!currentUser) return;
 
     try {
-      // Load accepted friends
-      const { data: friendships } = await supabase
+      console.log('Loading friends for user:', currentUser.id);
+      
+      // Load accepted friends - simplified approach
+      const { data: friendships, error: friendshipsError } = await supabase
         .from('friendships')
         .select(`
-          *,
-          friend:friend_id(id, username, display_name),
-          user:user_id(id, username, display_name)
+          id,
+          user_id,
+          friend_id,
+          status,
+          created_at
         `)
         .or(`user_id.eq.${currentUser.id},friend_id.eq.${currentUser.id}`)
         .eq('status', 'accepted');
 
-      if (friendships) {
-        const friendList = friendships.map(f => 
-          f.user_id === currentUser.id ? f.friend : f.user
+      console.log('Friendships query result:', { friendships, friendshipsError });
+
+      if (friendships && friendships.length > 0) {
+        // Get all friend IDs
+        const friendIds = friendships.map(f => 
+          f.user_id === currentUser.id ? f.friend_id : f.user_id
         );
-        setFriends(friendList);
+        
+        console.log('Friend IDs:', friendIds);
+        
+        // Load friend profiles separately
+        const { data: friendProfiles, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, username, display_name')
+          .in('id', friendIds);
+          
+        console.log('Friend profiles:', { friendProfiles, profilesError });
+        
+        if (friendProfiles) {
+          setFriends(friendProfiles);
+        } else {
+          setFriends([]);
+        }
+      } else {
+        setFriends([]);
       }
 
       // Load pending requests
@@ -1662,17 +1698,22 @@ const TheCanon = ({ supabase }) => {
   // Load friend's rankings
   const loadFriendRankings = async (friendId) => {
     try {
+      console.log('Loading rankings for friend:', friendId);
+      
       const { data: rankings, error } = await supabase
-        .from('user_rankings')
+        .from('rankings')
         .select(`
           *,
-          ranking_artists (
-            *,
+          ranking_items (
+            position,
+            artist_id,
             artists (*)
           )
         `)
         .eq('user_id', friendId)
-        .order('updated_at', { ascending: false });
+        .order('created_at', { ascending: false });
+
+      console.log('Friend rankings query result:', { rankings, error });
 
       if (error) throw error;
 
@@ -1682,11 +1723,17 @@ const TheCanon = ({ supabase }) => {
         title: ranking.list_title,
         category: ranking.list_type,
         isAllTime: ranking.is_all_time,
-        artists: ranking.ranking_artists
+        artists: ranking.ranking_items
           .sort((a, b) => a.position - b.position)
-          .map(ra => ra.artists)
+          .map(item => ({
+            id: item.artists.id,
+            name: item.artists.name,
+            imageUrl: item.artists.image_url,
+            // Add other artist properties as needed
+          }))
       }));
 
+      console.log('Formatted friend rankings:', formattedRankings);
       setFriendRankings(formattedRankings);
     } catch (error) {
       console.error('Error loading friend rankings:', error);
