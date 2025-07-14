@@ -1627,6 +1627,34 @@ const TheCanon = ({ supabase }) => {
   };
 
   // Send friend request
+  // Debug function to clean up friendships (for development)
+  const debugCleanupFriendships = async () => {
+    if (!currentUser) return;
+    
+    try {
+      console.log('Cleaning up all friendships for current user...');
+      
+      const { data: deleted, error } = await supabase
+        .from('friendships')
+        .delete()
+        .or(`user_id.eq.${currentUser.id},friend_id.eq.${currentUser.id}`)
+        .select();
+        
+      console.log('Deleted friendships:', deleted);
+      
+      if (error) {
+        console.error('Error cleaning up friendships:', error);
+        addToast(`Cleanup error: ${error.message}`, 'error');
+      } else {
+        addToast(`Cleaned up ${deleted?.length || 0} friendship records`, 'success');
+        loadFriends(); // Reload to update UI
+      }
+    } catch (error) {
+      console.error('Error in cleanup:', error);
+      addToast('Error during cleanup', 'error');
+    }
+  };
+
   const sendFriendRequest = async (friendId) => {
     if (!currentUser) return;
 
@@ -1649,12 +1677,37 @@ const TheCanon = ({ supabase }) => {
       
       if (existingFriendship && existingFriendship.length > 0) {
         const friendship = existingFriendship[0];
+        console.log('Found existing friendship:', {
+          id: friendship.id,
+          status: friendship.status,
+          user_id: friendship.user_id,
+          friend_id: friendship.friend_id,
+          created_at: friendship.created_at
+        });
+        
         if (friendship.status === 'pending') {
           addToast('Friend request already sent', 'info');
           return;
         } else if (friendship.status === 'accepted') {
           addToast('You are already friends', 'info');
           return;
+        } else {
+          console.log('Unexpected friendship status:', friendship.status);
+          console.log('Attempting to delete corrupted friendship record...');
+          
+          // Delete the corrupted friendship record
+          const { error: deleteError } = await supabase
+            .from('friendships')
+            .delete()
+            .eq('id', friendship.id);
+          
+          if (deleteError) {
+            console.error('Error deleting corrupted friendship:', deleteError);
+            addToast(`Error cleaning up friendship: ${deleteError.message}`, 'error');
+            return;
+          }
+          
+          console.log('Deleted corrupted friendship, proceeding with new request...');
         }
       }
       
@@ -2731,6 +2784,25 @@ const TheCanon = ({ supabase }) => {
                     >
                       Sign Out
                     </button>
+                  )}
+                  
+                  {/* Debug Section (Development Only) */}
+                  {process.env.NODE_ENV === 'development' && (
+                    <div className="pt-4 border-t border-white/10">
+                      <h3 className="font-medium mb-2 text-red-400">Debug Functions</h3>
+                      <button
+                        onClick={() => {
+                          debugCleanupFriendships();
+                          setShowSettings(false);
+                        }}
+                        className="w-full py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-400/50 transition-colors text-sm mb-2"
+                      >
+                        🗑️ Clean Up All Friendships
+                      </button>
+                      <p className="text-xs text-gray-500">
+                        This will delete all friendship records for debugging
+                      </p>
+                    </div>
                   )}
                   
                   <div className="pt-4 border-t border-white/10">
