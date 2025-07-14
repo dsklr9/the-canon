@@ -1745,7 +1745,9 @@ const TheCanon = ({ supabase }) => {
   }, [friends, friendRankings]);
 
   // Mobile drag handlers
-  const handleMobileDragStart = useCallback((artist, listId) => {
+  const handleMobileDragStart = useCallback((data) => {
+    console.log('handleMobileDragStart called with:', data);
+    const { artist, listId } = data;
     setDraggedItem({ artist, listId });
     setDraggedFromList(listId);
   }, []);
