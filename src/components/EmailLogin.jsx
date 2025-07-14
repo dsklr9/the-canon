@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 
-const EmailLogin = ({ onBack }) => {
+const EmailLogin = ({ onBack, autoFriendId, returnUrl }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);

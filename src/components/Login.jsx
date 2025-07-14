@@ -1,16 +1,32 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import EmailLogin from './EmailLogin';
 
 const Login = () => {
   const [showEmailLogin, setShowEmailLogin] = useState(false);
+  const location = useLocation();
+  const [autoFriendId, setAutoFriendId] = useState(null);
+  const [returnUrl, setReturnUrl] = useState(null);
+
+  useEffect(() => {
+    // Check if we have state from navigation (auto-friend functionality)
+    if (location.state) {
+      setAutoFriendId(location.state.autoFriend);
+      setReturnUrl(location.state.returnUrl);
+    }
+  }, [location]);
 
   const handleGoogleLogin = async () => {
     try {
+      const redirectTo = returnUrl 
+        ? `${window.location.origin}?returnUrl=${encodeURIComponent(returnUrl)}&autoFriend=${autoFriendId}`
+        : window.location.origin;
+      
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.origin
+          redirectTo
         }
       });
       if (error) throw error;
@@ -24,7 +40,7 @@ const Login = () => {
       <div className="min-h-screen bg-gradient-to-b from-slate-900 via-blue-950 to-slate-900 flex items-center justify-center">
         <div className="bg-slate-800 border border-white/20 p-8 max-w-md w-full mx-4">
           <h1 className="text-3xl font-bold text-white text-center mb-8">THE CANON</h1>
-          <EmailLogin onBack={() => setShowEmailLogin(false)} />
+          <EmailLogin onBack={() => setShowEmailLogin(false)} autoFriendId={autoFriendId} returnUrl={returnUrl} />
         </div>
       </div>
     );
@@ -54,7 +70,10 @@ const Login = () => {
         </div>
         
         <p className="text-gray-500 text-sm text-center mt-6">
-          Join the community and start ranking the greatest rappers of all time
+          {autoFriendId 
+            ? "Sign in to add your friend and join the community"
+            : "Join the community and start ranking the greatest rappers of all time"
+          }
         </p>
       </div>
     </div>

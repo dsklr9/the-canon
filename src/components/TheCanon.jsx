@@ -1996,12 +1996,15 @@ const TheCanon = ({ supabase }) => {
   }, [hasAllTimeList, userLists, updateListAndSave]);
 
   const shareList = useCallback((list) => {
-    const shareUrl = `${window.location.origin}/user/${username}/${list.id}`;
-    const shareText = `Check out my ${list.title} on The Canon:\n${list.artists.slice(0, 5).map((a, i) => `${i + 1}. ${a.name}`).join('\n')}`;
+    const shareUrl = `${window.location.origin}/share/${currentUser.id}`;
+    const isGoatList = list.isAllTime || list.is_all_time;
+    const shareText = isGoatList 
+      ? `Check out my Greatest of All Time on The Canon:\n${list.artists.slice(0, 5).map((a, i) => `${i + 1}. ${a.name}`).join('\n')}`
+      : `Check out my ${list.title} on The Canon:\n${list.artists.slice(0, 5).map((a, i) => `${i + 1}. ${a.name}`).join('\n')}`;
     
     if (navigator.share) {
       navigator.share({
-        title: `${username}'s ${list.title}`,
+        title: `${username}'s ${isGoatList ? 'Greatest of All Time' : list.title}`,
         text: shareText,
         url: shareUrl
       });
@@ -2009,7 +2012,7 @@ const TheCanon = ({ supabase }) => {
       navigator.clipboard.writeText(`${shareText}\n\n${shareUrl}`);
       addToast('Link copied to clipboard!', 'success');
     }
-  }, [username]);
+  }, [currentUser, username]);
 
   const calculateUniqueness = useCallback((list) => {
     const uniquePicks = Math.floor(list.artists.length * 0.3);
