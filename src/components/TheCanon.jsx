@@ -81,9 +81,15 @@ class ErrorBoundary extends React.Component {
     if (this.state.hasError) {
       return (
         <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center p-4">
-          <div className="text-center">
+          <div className="text-center max-w-2xl">
             <h1 className="text-2xl font-bold mb-4">Something went wrong</h1>
             <p className="text-gray-400 mb-4">The Canon hit an unexpected error</p>
+            {this.state.error && (
+              <details className="text-left bg-slate-800 p-4 rounded mb-4 text-sm">
+                <summary className="cursor-pointer text-red-400 mb-2">Error Details</summary>
+                <pre className="text-gray-300 overflow-auto whitespace-pre-wrap">{this.state.error.toString()}</pre>
+              </details>
+            )}
             <button 
               onClick={() => window.location.reload()} 
               className="px-6 py-2 bg-purple-600 hover:bg-purple-700 transition-colors"
@@ -325,6 +331,8 @@ const useEnhancedRateLimit = (supabase) => {
 
 // Main Component
 const TheCanon = ({ supabase }) => {
+  console.log('TheCanon component initializing', { supabase: !!supabase });
+  
   // Core state - all state variables from v5
   const [activeTab, setActiveTab] = useState('foryou');
   const [showFaceOff, setShowFaceOff] = useState(false);
@@ -425,6 +433,19 @@ const TheCanon = ({ supabase }) => {
   
   // Enhanced rate limiting
   const { checkRateLimit, checkFaceOffLimit } = useEnhancedRateLimit(supabase);
+
+  // Early validation after all hooks
+  if (!supabase) {
+    console.error('Supabase client not provided');
+    return (
+      <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center p-4">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-4">Configuration Error</h1>
+          <p className="text-gray-400">Database connection not available</p>
+        </div>
+      </div>
+    );
+  }
 
   // Artist Avatar Component
   const ArtistAvatar = memo(({ artist, size = "w-8 h-8" }) => {
@@ -1622,7 +1643,7 @@ const TheCanon = ({ supabase }) => {
       // Filter out current user and existing friends
       const filteredUsers = users.filter(user => 
         user.id !== currentUser?.id && 
-        !friends.some(friend => friend.id === user.id)
+        !(friends && friends.some(friend => friend.id === user.id))
       );
 
       setFriendSearchResults(filteredUsers);
@@ -1701,13 +1722,13 @@ const TheCanon = ({ supabase }) => {
 
   // Check how many friends rank an artist
   const getFriendCountForArtist = useCallback((artistId) => {
-    if (!friends.length) return 0;
+    if (!friends || !friends.length || !friendRankings) return 0;
     
     // Check in loaded friend rankings or user lists for a quick approximation
     let count = 0;
     friends.forEach(friend => {
       // This is a simplified check - in a real app you'd want to cache this data
-      if (friendRankings.some(ranking => ranking.artists.some(a => a.id === artistId))) {
+      if (friendRankings.some(ranking => ranking.artists && ranking.artists.some(a => a.id === artistId))) {
         count++;
       }
     });
@@ -2071,7 +2092,7 @@ const TheCanon = ({ supabase }) => {
       
       // Find friends who also rank this artist
       const findFriendsWithArtist = async () => {
-        if (friends.length === 0) return;
+        if (!friends || friends.length === 0) return;
         
         try {
           const { data: friendRankings, error } = await supabase
@@ -3530,7 +3551,7 @@ const TheCanon = ({ supabase }) => {
                   {friends.length > 0 ? (
                     <div className="space-y-3">
                       {/* Friend Debates */}
-                      {realDebates
+                      {realDebates && friends && realDebates
                         .filter(debate => friends.some(friend => friend.id === debate.author_id))
                         .slice(0, 3)
                         .map(debate => (
@@ -3568,7 +3589,7 @@ const TheCanon = ({ supabase }) => {
                         </div>
                       ))}
                       
-                      {realDebates.filter(debate => friends.some(friend => friend.id === debate.author_id)).length === 0 && friends.length > 0 && (
+                      {realDebates && friends && realDebates.filter(debate => friends.some(friend => friend.id === debate.author_id)).length === 0 && friends.length > 0 && (
                         <p className="text-gray-400 text-center py-4">Your friends haven't posted any debates yet, but check back soon!</p>
                       )}
                     </div>
