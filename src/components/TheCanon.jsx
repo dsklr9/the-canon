@@ -281,9 +281,21 @@ const useMobileDrag = (onDragStart, onDragEnd, onDragMove) => {
       draggedElement.element.style.boxShadow = '';
       draggedElement.element.style.transition = '';
       
-      // Find drop target
+      // Find drop target by temporarily hiding the dragged element
       const touch = e.changedTouches[0];
+      const originalDisplay = draggedElement.element.style.display;
+      const originalPointerEvents = draggedElement.element.style.pointerEvents;
+      
+      // Temporarily hide the dragged element to get element underneath
+      draggedElement.element.style.display = 'none';
+      draggedElement.element.style.pointerEvents = 'none';
+      
       const dropTarget = document.elementFromPoint(touch.clientX, touch.clientY);
+      console.log('Drop target found:', dropTarget, 'at position:', touch.clientX, touch.clientY);
+      
+      // Restore the element visibility
+      draggedElement.element.style.display = originalDisplay;
+      draggedElement.element.style.pointerEvents = originalPointerEvents;
       
       onDragEnd && onDragEnd(draggedElement.data, dropTarget);
     }
