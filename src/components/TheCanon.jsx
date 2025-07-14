@@ -408,6 +408,9 @@ const TheCanon = ({ supabase }) => {
   const [battleHistory, setBattleHistory] = useState([]);
   const [dailyChallenge, setDailyChallenge] = useState(null);
   const [showChallengeModal, setShowChallengeModal] = useState(false);
+  const [showBattleModal, setShowBattleModal] = useState(false);
+  const [expandedComments, setExpandedComments] = useState({});
+  const [debateComments, setDebateComments] = useState({});
   const [userBadges, setUserBadges] = useState([]);
   const [hotTakes, setHotTakes] = useState([]);
   const [collaborativeLists, setCollaborativeLists] = useState([]);
@@ -1060,6 +1063,11 @@ const TheCanon = ({ supabase }) => {
       // Reload debates to show new reply count
       await loadDebates();
       
+      // Refresh comments for this debate if they're expanded
+      if (expandedComments[replyingTo.id]) {
+        loadDebateComments(replyingTo.id);
+      }
+      
       setShowReplyModal(false);
       setReplyContent('');
       setReplyingTo(null);
@@ -1068,6 +1076,55 @@ const TheCanon = ({ supabase }) => {
       console.error('Error posting reply:', error);
       addToast('Error posting reply', 'error');
     }
+  };
+
+  const loadDebateComments = async (debateId) => {
+    try {
+      const { data: comments, error } = await supabase
+        .from('debate_comments')
+        .select(`
+          id,
+          content,
+          created_at,
+          author_id,
+          profiles!author_id(username, display_name)
+        `)
+        .eq('debate_id', debateId)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+
+      const formattedComments = comments.map(comment => ({
+        id: comment.id,
+        content: comment.content,
+        author: comment.profiles?.username || comment.profiles?.display_name || 'Unknown',
+        timestamp: getRelativeTime(comment.created_at),
+        isOwn: currentUser && comment.author_id === currentUser.id
+      }));
+
+      setDebateComments(prev => ({
+        ...prev,
+        [debateId]: formattedComments
+      }));
+    } catch (error) {
+      console.error('Error loading comments:', error);
+    }
+  };
+
+  const toggleComments = (debateId) => {
+    setExpandedComments(prev => {
+      const newState = {
+        ...prev,
+        [debateId]: !prev[debateId]
+      };
+      
+      // Load comments if expanding and not already loaded
+      if (newState[debateId] && !debateComments[debateId]) {
+        loadDebateComments(debateId);
+      }
+      
+      return newState;
+    });
   };
 
   // Comment on ranking
@@ -3013,6 +3070,85 @@ const TheCanon = ({ supabase }) => {
             </div>
           )}
 
+          {/* Battle Modal */}
+          {showBattleModal && (
+            <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-lg w-full'} max-h-[80vh] overflow-y-auto`}>
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-xl font-bold flex items-center gap-2">
+                    <Swords className="w-5 h-5 text-red-400" />
+                    Challenge a Friend
+                  </h2>
+                  <button
+                    onClick={() => setShowBattleModal(false)}
+                    className="text-gray-400 hover:text-white transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Select Friend:</label>
+                    <select className="w-full px-3 py-2 bg-slate-700 border border-white/20 rounded focus:border-purple-400 focus:outline-none">
+                      <option value="">Choose a friend...</option>
+                      {friends.map(friend => (
+                        <option key={friend.id} value={friend.id}>{friend.username}</option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Face-off Type:</label>
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2">
+                        <input type="radio" name="battleType" value="random" className="text-purple-500" defaultChecked />
+                        <span className="text-sm">Random artists from database</span>
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input type="radio" name="battleType" value="custom" className="text-purple-500" />
+                        <span className="text-sm">Custom artist matchup</span>
+                      </label>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Message (optional):</label>
+                    <textarea 
+                      className="w-full px-3 py-2 bg-slate-700 border border-white/20 rounded focus:border-purple-400 focus:outline-none"
+                      rows="2"
+                      placeholder="Add a message with your challenge..."
+                    />
+                  </div>
+                  
+                  <div className="bg-slate-700/50 rounded-lg p-3">
+                    <p className="text-sm text-gray-400">
+                      <strong>Coming Soon:</strong> Send custom face-offs to your friends and see who knows hip-hop better!
+                    </p>
+                  </div>
+                  
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      onClick={() => {
+                        setShowBattleModal(false);
+                        addToast('Battle challenges coming soon!', 'info');
+                      }}
+                      className="flex-1 py-2 bg-red-600 hover:bg-red-700 transition-colors text-sm font-medium rounded"
+                    >
+                      Send Challenge
+                    </button>
+                    <button
+                      onClick={() => setShowBattleModal(false)}
+                      className="px-4 py-2 bg-slate-600 hover:bg-slate-700 transition-colors text-sm rounded"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Tab Navigation */}
           <div className={`sticky ${isMobile ? 'top-[60px]' : 'top-16'} z-40 bg-slate-900/70 backdrop-blur-xl border-b border-white/10`}>
             <div className="max-w-7xl mx-auto px-4">
@@ -3126,10 +3262,7 @@ const TheCanon = ({ supabase }) => {
                                       {debate.likes}
                                     </button>
                                     <button 
-                                      onClick={() => {
-                                        setReplyingTo(debate);
-                                        setShowReplyModal(true);
-                                      }}
+                                      onClick={() => toggleComments(debate.id)}
                                       className="flex items-center gap-1 text-sm hover:text-purple-400 transition-colors"
                                     >
                                       <MessageCircle className="w-4 h-4" />
@@ -3139,6 +3272,38 @@ const TheCanon = ({ supabase }) => {
                                       <Share2 className="w-4 h-4" />
                                     </button>
                                   </div>
+
+                                  {/* Reply button */}
+                                  <div className="mt-3 pt-3 border-t border-white/10">
+                                    <button 
+                                      onClick={() => {
+                                        setReplyingTo(debate);
+                                        setShowReplyModal(true);
+                                      }}
+                                      className="text-sm text-purple-400 hover:text-purple-300 transition-colors"
+                                    >
+                                      + Reply to this debate
+                                    </button>
+                                  </div>
+
+                                  {/* Comments Thread */}
+                                  {expandedComments[debate.id] && (
+                                    <div className="mt-4 pl-4 border-l-2 border-purple-500/30 space-y-3">
+                                      {debateComments[debate.id]?.length > 0 ? (
+                                        debateComments[debate.id].map((comment) => (
+                                          <div key={comment.id} className="bg-slate-700/30 p-3 rounded">
+                                            <div className="flex items-center gap-2 mb-1">
+                                              <span className="font-medium text-sm">{comment.author}</span>
+                                              <span className="text-xs text-gray-500">{comment.timestamp}</span>
+                                            </div>
+                                            <p className="text-sm text-gray-300">{comment.content}</p>
+                                          </div>
+                                        ))
+                                      ) : (
+                                        <p className="text-sm text-gray-500 italic">No comments yet. Be the first to reply!</p>
+                                      )}
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </div>
@@ -3192,10 +3357,7 @@ const TheCanon = ({ supabase }) => {
                                   {debate.likes}
                                 </button>
                                 <button 
-                                  onClick={() => {
-                                    setReplyingTo(debate);
-                                    setShowReplyModal(true);
-                                  }}
+                                  onClick={() => toggleComments(debate.id)}
                                   className="flex items-center gap-1 text-sm hover:text-purple-400 transition-colors"
                                 >
                                   <MessageCircle className="w-4 h-4" />
@@ -3214,6 +3376,38 @@ const TheCanon = ({ supabase }) => {
                                   <AlertCircle className="w-3 h-3" />
                                 </button>
                               </div>
+
+                              {/* Reply button */}
+                              <div className="mt-3 pt-3 border-t border-white/10">
+                                <button 
+                                  onClick={() => {
+                                    setReplyingTo(debate);
+                                    setShowReplyModal(true);
+                                  }}
+                                  className="text-sm text-purple-400 hover:text-purple-300 transition-colors"
+                                >
+                                  + Reply to this debate
+                                </button>
+                              </div>
+
+                              {/* Comments Thread */}
+                              {expandedComments[debate.id] && (
+                                <div className="mt-4 pl-4 border-l-2 border-purple-500/30 space-y-3">
+                                  {debateComments[debate.id]?.length > 0 ? (
+                                    debateComments[debate.id].map((comment) => (
+                                      <div key={comment.id} className="bg-slate-700/30 p-3 rounded">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <span className="font-medium text-sm">{comment.author}</span>
+                                          <span className="text-xs text-gray-500">{comment.timestamp}</span>
+                                        </div>
+                                        <p className="text-sm text-gray-300">{comment.content}</p>
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <p className="text-sm text-gray-500 italic">No comments yet. Be the first to reply!</p>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -4103,8 +4297,8 @@ const TheCanon = ({ supabase }) => {
           {/* Floating Action Buttons */}
           <div className={`fixed ${isMobile ? 'bottom-20 right-4' : 'bottom-6 right-6'} flex flex-col gap-3`}>
             <button 
-              onClick={() => setShowFaceOff(true)}
-              className="p-4 bg-purple-500 border border-purple-400 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all touch-target"
+              onClick={() => setShowBattleModal(true)}
+              className="p-4 bg-red-500 border border-red-400 shadow-lg hover:shadow-xl transform hover:scale-105 transition-all touch-target"
             >
               <Swords className="w-6 h-6" />
             </button>
