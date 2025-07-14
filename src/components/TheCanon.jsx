@@ -172,9 +172,7 @@ const useMobileDrag = (onDragStart, onDragEnd, onDragMove) => {
   const allowScrollDirection = useRef(null);
 
   const handleTouchStart = useCallback((e, data) => {
-    // Only handle touches on the drag handle or draggable item itself
-    const isDragTarget = e.target.closest('.drag-handle') || e.target.closest('.draggable-item');
-    if (!isDragTarget) return;
+    // Touch events are now directly on drag handle, so no need to check target
     
     // Immediately prevent default to stop any scroll behavior
     e.preventDefault();
@@ -3206,20 +3204,23 @@ const TheCanon = ({ supabase }) => {
                                   } transition-all duration-200 ${
                                     draggedItem?.artist.id === artist.id ? 'opacity-50' : ''
                                   } ${isMobile ? 'draggable-item' : ''}`}
-                                  {...(isMobile ? {
-                                    onTouchStart: (e) => mobileDrag.handleTouchStart(e, { artist, listId: list.id }),
-                                    onTouchMove: mobileDrag.handleTouchMove,
-                                    onTouchEnd: mobileDrag.handleTouchEnd
-                                  } : {
+                                  {...(!isMobile ? {
                                     draggable: true,
                                     onDragStart: (e) => handleDragStart(e, artist, list.id),
                                     onDragEnd: handleDragEnd,
                                     onDragEnter: (e) => handleDragEnter(e, index),
                                     onDragOver: handleDragOver,
                                     onDrop: (e) => handleDrop(e, index, list.id)
-                                  })}
+                                  } : {})}
                                 >
-                                  <div className={`drag-handle ${isMobile ? 'touch-target flex items-center justify-center w-8 h-8' : ''}`}>
+                                  <div 
+                                    className={`drag-handle ${isMobile ? 'touch-target flex items-center justify-center w-8 h-8' : ''}`}
+                                    {...(isMobile ? {
+                                      onTouchStart: (e) => mobileDrag.handleTouchStart(e, { artist, listId: list.id }),
+                                      onTouchMove: mobileDrag.handleTouchMove,
+                                      onTouchEnd: mobileDrag.handleTouchEnd
+                                    } : {})}
+                                  >
                                     <GripVertical className={`${isMobile ? 'w-4 h-4' : 'w-5 h-5'} text-gray-400`} />
                                   </div>
                                   <span className={`font-black text-gray-300 ${isMobile ? 'text-sm w-6 text-center' : 'text-xl w-8'}`}>#{index + 1}</span>
@@ -3237,8 +3238,8 @@ const TheCanon = ({ supabase }) => {
                                     <p className={`text-gray-400 ${isMobile ? 'text-xs' : 'text-sm'}`}>{artist.era}</p>
                                   </div>
                                   {checkPioneerStatus(artist.id) && (
-                                    <span className="text-xs bg-yellow-500/20 text-yellow-300 px-2 py-1 rounded">
-                                      🏆 Pioneer
+                                    <span className="text-lg" title="Pioneer Pick - Tap for details">
+                                      🏆
                                     </span>
                                   )}
                                   <button
@@ -3359,19 +3360,22 @@ const TheCanon = ({ supabase }) => {
                                     } transition-all duration-200 ${
                                       draggedItem?.artist.id === artist.id ? 'opacity-50' : ''
                                     } ${isMobile ? 'draggable-item' : ''}`}
-                                    {...(isMobile ? {
-                                      onTouchStart: (e) => mobileDrag.handleTouchStart(e, { artist, listId: existingList.id }),
-                                      onTouchMove: mobileDrag.handleTouchMove,
-                                      onTouchEnd: mobileDrag.handleTouchEnd,
-                                    } : {
+                                    {...(!isMobile ? {
                                       draggable: true,
                                       onDragStart: (e) => handleDragStart(e, artist, existingList.id),
                                       onDragOver: handleDragOver,
                                       onDragEnter: (e) => handleDragEnter(e, index),
                                       onDrop: (e) => handleDrop(e, index, existingList.id),
-                                    })}
+                                    } : {})}
                                   >
-                                    <div className={`drag-handle ${isMobile ? 'touch-target flex items-center justify-center w-6 h-6' : ''}`}>
+                                    <div 
+                                      className={`drag-handle ${isMobile ? 'touch-target flex items-center justify-center w-6 h-6' : ''}`}
+                                      {...(isMobile ? {
+                                        onTouchStart: (e) => mobileDrag.handleTouchStart(e, { artist, listId: existingList.id }),
+                                        onTouchMove: mobileDrag.handleTouchMove,
+                                        onTouchEnd: mobileDrag.handleTouchEnd,
+                                      } : {})}
+                                    >
                                       <GripVertical className={`${isMobile ? 'w-3 h-3' : 'w-4 h-4'} text-gray-400`} />
                                     </div>
                                     <span className={`text-gray-400 font-bold ${isMobile ? 'text-xs w-4 text-center' : 'text-sm'}`}>#{index + 1}</span>
