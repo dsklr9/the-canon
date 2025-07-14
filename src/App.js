@@ -53,15 +53,15 @@ function AppContent() {
       
       // Handle auto-friend functionality after login
       if (session) {
-        const urlParams = new URLSearchParams(window.location.search);
-        const autoFriendId = urlParams.get('autoFriend');
-        const returnUrl = urlParams.get('returnUrl');
+        const autoFriendId = sessionStorage.getItem('autoFriendId');
+        const returnUrl = sessionStorage.getItem('returnUrl');
         
         if (autoFriendId && returnUrl) {
           handleAutoFriend(session.user.id, autoFriendId);
           navigate(returnUrl);
-          // Clean up URL params
-          window.history.replaceState({}, document.title, window.location.pathname);
+          // Clean up sessionStorage
+          sessionStorage.removeItem('autoFriendId');
+          sessionStorage.removeItem('returnUrl');
         }
       }
     });
@@ -74,15 +74,15 @@ function AppContent() {
       
       // Handle auto-friend functionality after login
       if (session) {
-        const urlParams = new URLSearchParams(window.location.search);
-        const autoFriendId = urlParams.get('autoFriend');
-        const returnUrl = urlParams.get('returnUrl');
+        const autoFriendId = sessionStorage.getItem('autoFriendId');
+        const returnUrl = sessionStorage.getItem('returnUrl');
         
         if (autoFriendId && returnUrl) {
           handleAutoFriend(session.user.id, autoFriendId);
           navigate(returnUrl);
-          // Clean up URL params
-          window.history.replaceState({}, document.title, window.location.pathname);
+          // Clean up sessionStorage
+          sessionStorage.removeItem('autoFriendId');
+          sessionStorage.removeItem('returnUrl');
         }
       }
     });
