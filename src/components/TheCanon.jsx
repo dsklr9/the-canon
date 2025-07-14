@@ -162,14 +162,23 @@ const useMobileDrag = (onDragStart, onDragEnd, onDragMove) => {
     e.preventDefault();
     e.stopPropagation();
     
-    // Lock page scrolling
+    // More aggressive scroll locking
     document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
     document.body.style.touchAction = 'none';
+    document.body.style.width = '100%';
+    
+    // Also lock the main container
+    const mainContainer = document.querySelector('main');
+    if (mainContainer) {
+        mainContainer.style.overflow = 'hidden';
+        mainContainer.style.touchAction = 'none';
+    }
     
     touchStartY.current = e.touches[0].clientY;
     touchCurrentY.current = e.touches[0].clientY;
     setDraggedElement({ element: e.currentTarget, data });
-  }, []);
+}, []);
 
   const handleTouchMove = useCallback((e) => {
     if (!draggedElement) return;
@@ -204,7 +213,9 @@ const useMobileDrag = (onDragStart, onDragEnd, onDragMove) => {
   const handleTouchEnd = useCallback((e) => {
     // Re-enable page scrolling
     document.body.style.overflow = '';
+    document.body.style.position = '';
     document.body.style.touchAction = '';
+    document.body.style.width = '';
     
     if (isDragging && draggedElement) {
       // Reset visual feedback
@@ -212,6 +223,13 @@ const useMobileDrag = (onDragStart, onDragEnd, onDragMove) => {
       draggedElement.element.style.transform = '';
       draggedElement.element.style.zIndex = '';
       draggedElement.element.style.position = '';
+
+      // Re-enable main container
+    const mainContainer = document.querySelector('main');
+    if (mainContainer) {
+        mainContainer.style.overflow = '';
+        mainContainer.style.touchAction = '';
+    }
       
       // Find drop target
       const touch = e.changedTouches[0];
