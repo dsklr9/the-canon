@@ -2152,10 +2152,6 @@ const TheCanon = ({ supabase }) => {
     }, 300);
   };
 
-  const toggleComments = (debateId) => {
-    setExpandedComments(prev => ({ ...prev, [debateId]: !prev[debateId] }));
-  };
-
   // Get head-to-head win percentage
   const getHeadToHeadPercentage = useCallback((artist1Id, artist2Id) => {
     const matchupKey = [artist1Id, artist2Id].sort().join('-');
