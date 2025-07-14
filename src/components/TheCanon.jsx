@@ -1801,6 +1801,9 @@ const TheCanon = ({ supabase }) => {
     }
 
     console.log('Processing drop on list:', list.title);
+    console.log('draggedItem.listId:', draggedItem.listId);
+    console.log('target listId:', listId);
+    console.log('Are they equal?', draggedItem.listId === listId);
 
     if (draggedItem.listId === 'search') {
       if (!list.artists.find(a => a.id === draggedItem.artist.id)) {
@@ -1826,6 +1829,9 @@ const TheCanon = ({ supabase }) => {
       } else {
         console.log('No reorder needed:', { draggedIndex, targetIndex });
       }
+    } else {
+      console.log('No matching condition for draggedItem.listId:', draggedItem.listId);
+      console.log('Expected either "search" or', listId);
     }
     
     setDraggedItem(null);
