@@ -952,7 +952,7 @@ const TheCanon = ({ supabase }) => {
         .from('friendships')
         .select(`
           *,
-          profiles!user_id(id, username, display_name)
+          profiles!friendships_user_id_fkey(id, username, display_name)
         `)
         .eq('friend_id', currentUser.id)
         .eq('status', 'pending');
@@ -1086,7 +1086,7 @@ const TheCanon = ({ supabase }) => {
           content,
           created_at,
           author_id,
-          profiles!author_id(username, display_name)
+          profiles!debate_comments_author_id_fkey(username, display_name)
         `)
         .eq('debate_id', debateId)
         .order('created_at', { ascending: true });
@@ -1593,13 +1593,18 @@ const TheCanon = ({ supabase }) => {
     if (!currentUser) return;
 
     try {
-      const { error } = await supabase
+      console.log('Sending friend request:', { from: currentUser.id, to: friendId });
+      
+      const { data, error } = await supabase
         .from('friendships')
         .insert({
           user_id: currentUser.id,
           friend_id: friendId,
           status: 'pending'
-        });
+        })
+        .select();
+
+      console.log('Friend request insert result:', { data, error });
 
       if (error) {
         if (error.code === '23505') {
@@ -1609,6 +1614,8 @@ const TheCanon = ({ supabase }) => {
         }
       } else {
         addToast('Friend request sent!', 'success');
+        // Manually trigger reload for the recipient if they're the current user somehow
+        loadFriends();
       }
     } catch (error) {
       console.error('Error sending friend request:', error);
@@ -2498,6 +2505,13 @@ const TheCanon = ({ supabase }) => {
                     </div>
                   )}
                   
+                  {/* Debug friend requests */}
+                  {process.env.NODE_ENV === 'development' && (
+                    <div className="text-xs text-gray-400 px-2">
+                      FR: {friendRequests.length}
+                    </div>
+                  )}
+                  
                   {friendRequests.length > 0 && (
                     <button 
                       onClick={() => setActiveTab('mypeople')}
@@ -3047,7 +3061,7 @@ const TheCanon = ({ supabase }) => {
                     <button
                       onClick={() => {
                         setShowChallengeModal(false);
-                        setActiveTab('faceoffs');
+                        setShowFaceOff(true);
                       }}
                       className="flex-1 py-2 bg-purple-600 hover:bg-purple-700 transition-colors text-sm font-medium rounded"
                     >
