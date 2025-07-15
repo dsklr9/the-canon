@@ -619,7 +619,10 @@ const TheCanon = ({ supabase }) => {
         (payload) => {
           console.log('Friend request real-time update (as recipient):', payload);
           console.log('Current user ID:', currentUser.id);
-          setTimeout(() => loadFriends(), 1000); // Small delay to ensure DB is updated
+          setTimeout(() => {
+            console.log('Real-time: Reloading friends after recipient update...');
+            loadFriends();
+          }, 1500); // Slightly longer delay to ensure DB consistency
         }
       )
       .on(
@@ -633,7 +636,10 @@ const TheCanon = ({ supabase }) => {
         (payload) => {
           console.log('Friend request real-time update (as sender):', payload);
           console.log('Current user ID:', currentUser.id);
-          setTimeout(() => loadFriends(), 1000); // Small delay to ensure DB is updated
+          setTimeout(() => {
+            console.log('Real-time: Reloading friends after sender update...');
+            loadFriends();
+          }, 1500); // Slightly longer delay to ensure DB consistency
         }
       )
       .subscribe();
@@ -976,8 +982,10 @@ const TheCanon = ({ supabase }) => {
         console.log('Friend profiles:', { friendProfiles, profilesError });
         
         if (friendProfiles) {
+          console.log('Setting friends to:', friendProfiles);
           setFriends(friendProfiles);
         } else {
+          console.log('No friend profiles found, setting friends to empty array');
           setFriends([]);
         }
       } else {
@@ -1239,13 +1247,117 @@ const TheCanon = ({ supabase }) => {
     }
   }, [allArtistsFromDB]);
 
+  // Extended rankings for top 100
+  // Load all users' all-time lists for aggregation
+  const loadAllUserLists = useCallback(async () => {
+    try {
+      console.log('Loading all users\' all-time lists for aggregation...');
+      
+      const { data: allUserLists, error } = await supabase
+        .from('rankings')
+        .select(`
+          *,
+          ranking_items!inner(
+            position,
+            artist_id,
+            artists(id, name, era, popularity_score, heat_score)
+          )
+        `)
+        .eq('is_all_time', true);
+
+      if (error) throw error;
+      
+      console.log('All user lists loaded:', allUserLists);
+      return allUserLists || [];
+    } catch (error) {
+      console.error('Error loading all user lists:', error);
+      return [];
+    }
+  }, [supabase]);
+
+  const generateTop100 = useCallback(async () => {
+    const rankings = [];
+    const artistVotes = new Map(); // Track votes per artist
+    
+    // Load all users' all-time lists
+    const allUserLists = await loadAllUserLists();
+    
+    console.log('Generating Top 100 from', allUserLists.length, 'user lists');
+    
+    // Process each user's list
+    allUserLists.forEach(userList => {
+      if (userList.ranking_items && userList.ranking_items.length > 0) {
+        userList.ranking_items.forEach(item => {
+          const artist = item.artists;
+          if (artist) {
+            const artistId = artist.id;
+            const position = item.position;
+            
+            // Weight the vote based on position (higher positions get more points)
+            const points = Math.max(1, 11 - position); // Position 1 gets 10 points, position 10 gets 1 point
+            
+            if (!artistVotes.has(artistId)) {
+              artistVotes.set(artistId, {
+                artist: artist,
+                totalPoints: 0,
+                voteCount: 0,
+                positions: []
+              });
+            }
+            
+            const current = artistVotes.get(artistId);
+            current.totalPoints += points;
+            current.voteCount += 1;
+            current.positions.push(position);
+          }
+        });
+      }
+    });
+    
+    // Convert to rankings array and sort by total points
+    const sortedArtists = Array.from(artistVotes.values())
+      .sort((a, b) => b.totalPoints - a.totalPoints)
+      .slice(0, 100); // Top 100
+    
+    // Format as rankings
+    sortedArtists.forEach((item, index) => {
+      rankings.push({
+        rank: index + 1,
+        artist: item.artist,
+        lastWeek: index + 1,
+        trend: 'stable',
+        votes: item.voteCount,
+        totalPoints: item.totalPoints,
+        averagePosition: item.positions.reduce((a, b) => a + b, 0) / item.positions.length,
+        canonScore: item.artist.canonScore || item.artist.heat_score || 50
+      });
+    });
+    
+    // Add trending logic
+    rankings.forEach((item, idx) => {
+      if (Math.random() < 0.1) item.trend = 'up';
+      else if (Math.random() < 0.05) item.trend = 'down';
+      else if (Math.random() < 0.02) item.trend = 'hot';
+    });
+    
+    console.log('Generated Top 100 rankings:', rankings.slice(0, 10));
+    return rankings;
+  }, [loadAllUserLists]);
+
   // Generate rankings when artists are loaded
   useEffect(() => {
-    const hasAllTimeList = userLists.some(list => list.isAllTime);
-    if (allArtists.length > 0 && hasAllTimeList) {
-      setFullRankings(generateTop100());
+    if (allArtists.length > 0) {
+      const loadRankings = async () => {
+        try {
+          const rankings = await generateTop100();
+          setFullRankings(rankings);
+        } catch (error) {
+          console.error('Error generating Top 100:', error);
+        }
+      };
+      loadRankings();
     }
-  }, [allArtists, userLists]);
+  }, [allArtists, generateTop100]);
 
   // Generate face-offs when notable artists are loaded
   useEffect(() => {
@@ -1787,8 +1899,10 @@ const TheCanon = ({ supabase }) => {
 
       if (error) throw error;
       
+      console.log('Friend request accepted successfully, reloading friends...');
       // Reload friends to see the new friendship
       await loadFriends();
+      console.log('Friends reloaded after acceptance');
       addToast('Friend request accepted!', 'success');
     } catch (error) {
       console.error('Error accepting friend request:', error);
@@ -1903,35 +2017,6 @@ const TheCanon = ({ supabase }) => {
       addToast('Error searching users', 'error');
     }
   };
-
-  // Extended rankings for top 100
-  const generateTop100 = useCallback(() => {
-    const rankings = [];
-    
-    const allTimeList = userLists.find(l => l.isAllTime);
-    
-    if (allTimeList) {
-      allTimeList.artists.forEach((artist, index) => {
-        rankings.push({
-          rank: index + 1,
-          artist: artist,
-          lastWeek: index + 1,
-          trend: 'stable',
-          votes: 1,
-          canonScore: artist.canonScore || artist.heat_score || 50
-        });
-      });
-    }
-    
-    // Add trending logic
-    rankings.forEach((item, idx) => {
-      if (Math.random() < 0.1) item.trend = 'up';
-      else if (Math.random() < 0.05) item.trend = 'down';
-      else if (Math.random() < 0.02) item.trend = 'hot';
-    });
-    
-    return rankings;
-  }, [userLists]);
 
   // Search functionality with memoization
   const searchArtists = useCallback((query) => {
