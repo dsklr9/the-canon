@@ -19,10 +19,15 @@ const Login = () => {
 
   const handleGoogleLogin = async () => {
     try {
+      // Use production URL for redirect, fallback to current origin for local dev
+      const redirectUrl = process.env.NODE_ENV === 'production' 
+        ? 'https://the-canon.vercel.app'
+        : window.location.origin;
+        
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.origin
+          redirectTo: redirectUrl
         }
       });
       if (error) throw error;

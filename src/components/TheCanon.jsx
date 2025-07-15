@@ -1347,11 +1347,15 @@ const TheCanon = ({ supabase }) => {
 
   // Generate rankings when artists are loaded
   useEffect(() => {
+    console.log('Rankings generation effect triggered. allArtists.length:', allArtists.length);
     if (allArtists.length > 0) {
       const loadRankings = async () => {
         try {
+          console.log('Starting generateTop100...');
           const rankings = await generateTop100();
+          console.log('Generated rankings:', rankings.length, 'items');
           setFullRankings(rankings);
+          console.log('Set fullRankings to:', rankings.length, 'items');
         } catch (error) {
           console.error('Error generating Top 100:', error);
         }
