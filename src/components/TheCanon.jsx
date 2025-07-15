@@ -1099,39 +1099,15 @@ const TheCanon = ({ supabase }) => {
         });
       };
       
+      // Use base64 storage directly (simpler approach)
       let profilePictureUrl;
       
-      // Try Supabase storage first
       try {
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('profile-pictures')
-          .upload(fileName, file, {
-            cacheControl: '3600',
-            upsert: false
-          });
-        
-        if (uploadError) {
-          throw uploadError;
-        }
-        
-        // Get public URL
-        const { data: urlData } = supabase.storage
-          .from('profile-pictures')
-          .getPublicUrl(fileName);
-        
-        profilePictureUrl = urlData.publicUrl;
-        
-      } catch (storageError) {
-        console.warn('Storage upload failed, using base64 fallback:', storageError);
-        
-        // Fallback to base64 storage
-        try {
-          profilePictureUrl = await convertToBase64(file);
-        } catch (base64Error) {
-          console.error('Base64 conversion failed:', base64Error);
-          addToast('Error processing image', 'error');
-          return;
-        }
+        profilePictureUrl = await convertToBase64(file);
+      } catch (base64Error) {
+        console.error('Base64 conversion failed:', base64Error);
+        addToast('Error processing image', 'error');
+        return;
       }
       
       // Update user profile in database
@@ -2174,6 +2150,20 @@ const TheCanon = ({ supabase }) => {
     } catch (error) {
       console.error('Error declining friend request:', error);
       addToast('Error declining request', 'error');
+    }
+  };
+
+  // Handle username click to show user profile
+  const handleUsernameClick = async (userProfile) => {
+    try {
+      // Set the viewing friend
+      setViewingFriend(userProfile);
+      
+      // Load their rankings
+      await loadFriendRankings(userProfile.id);
+    } catch (error) {
+      console.error('Error loading user profile:', error);
+      addToast('Error loading user profile', 'error');
     }
   };
 
@@ -3974,7 +3964,12 @@ const TheCanon = ({ supabase }) => {
                                 />
                                 <div className="flex-1">
                                   <div className="flex items-center gap-2 mb-1">
-                                    <span className="font-bold">{debate.user}</span>
+                                    <button 
+                                      onClick={() => handleUsernameClick(debate.userProfile)}
+                                      className="font-bold hover:text-purple-400 transition-colors cursor-pointer"
+                                    >
+                                      {debate.user}
+                                    </button>
                                     <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-0.5">Your debate</span>
                                     {debate.hot && <Flame className="w-4 h-4 text-orange-500" />}
                                     <span className="text-gray-500 text-sm ml-auto">{debate.timestamp}</span>
@@ -4074,7 +4069,12 @@ const TheCanon = ({ supabase }) => {
                             />
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-1">
-                                <span className="font-bold">{debate.user}</span>
+                                <button 
+                                  onClick={() => handleUsernameClick(debate.userProfile)}
+                                  className="font-bold hover:text-purple-400 transition-colors cursor-pointer"
+                                >
+                                  {debate.user}
+                                </button>
                                 {debate.hot && <Flame className="w-4 h-4 text-orange-500" />}
                                 <span className="text-gray-500 text-sm ml-auto">{debate.timestamp}</span>
                               </div>
@@ -4856,18 +4856,19 @@ const TheCanon = ({ supabase }) => {
                         <div key={friend.id} className="bg-slate-800/50 border border-white/10 p-4">
                           <div className="flex items-center justify-between">
                             <div>
-                              <p className="font-bold">{friend.username}</p>
+                              <button 
+                                onClick={() => handleUsernameClick(friend)}
+                                className="font-bold hover:text-purple-400 transition-colors cursor-pointer text-left"
+                              >
+                                {friend.username}
+                              </button>
                               <p className="text-sm text-gray-400">Friend since recently</p>
                             </div>
-                            <button 
-                              onClick={() => {
-                                setViewingFriend(friend);
-                                loadFriendRankings(friend.id);
-                              }}
-                              className="px-3 py-1 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-400/50 transition-colors text-sm"
-                            >
-                              View Rankings
-                            </button>
+                            <UserAvatar 
+                              user={friend} 
+                              profilePicture={friend.profile_picture_url} 
+                              size="w-10 h-10" 
+                            />
                           </div>
                         </div>
                       ))}
