@@ -1252,50 +1252,70 @@ const TheCanon = ({ supabase }) => {
   // Load all users' all-time lists for aggregation
   const loadAllUserLists = useCallback(async () => {
     try {
-      console.log('Loading all users\' all-time lists for aggregation...');
+      console.log('📚 Loading all users\' all-time lists (SIMPLE APPROACH)...');
       
-      // First, let's debug what's in the rankings table
-      const { data: debugRankings, error: debugError } = await supabase
-        .from('rankings')
-        .select('id, user_id, list_title, list_type, is_all_time, created_at')
-        .order('created_at', { ascending: false })
-        .limit(10);
-        
-      console.log('🔍 DEBUG: Recent rankings in DB:', debugRankings);
-      console.log('🔍 DEBUG: All-time rankings count:', debugRankings?.filter(r => r.is_all_time)?.length || 0);
-      
-      // Try simple query first
-      const { data: simpleRankings, error: simpleError } = await supabase
+      // Step 1: Get all all-time rankings (simple query)
+      console.log('📋 Step 1: Loading all-time rankings...');
+      const { data: rankings, error: rankingsError } = await supabase
         .from('rankings')
         .select('*')
         .eq('is_all_time', true);
         
-      console.log('🔍 DEBUG: Simple rankings query:', { simpleRankings, simpleError });
-      
-      const { data: allUserLists, error } = await supabase
-        .from('rankings')
-        .select(`
-          *,
-          ranking_items(
-            position,
-            artist_id,
-            artists(id, name, era, popularity_score, heat_score)
-          )
-        `)
-        .eq('is_all_time', true);
-
-      console.log('🔍 DEBUG: Query error:', error);
-      console.log('🔍 DEBUG: Raw query result:', allUserLists);
-      
-      if (error) {
-        console.error('❌ Supabase query error:', error);
-        throw error;
+      if (rankingsError) {
+        console.error('❌ Error loading rankings:', rankingsError);
+        return [];
       }
       
-      console.log('All user lists loaded:', allUserLists);
-      return allUserLists || [];
+      console.log('✅ Loaded rankings:', rankings?.length || 0, 'total');
+      console.log('📋 Rankings:', rankings?.map(r => ({ id: r.id, title: r.list_title, userId: r.user_id })));
+      
+      if (!rankings || rankings.length === 0) {
+        console.log('❌ No all-time rankings found');
+        return [];
+      }
+      
+      // Step 2: Get all ranking items for these rankings
+      const rankingIds = rankings.map(r => r.id);
+      console.log('🎯 Step 2: Loading ranking items for', rankingIds.length, 'rankings...');
+      
+      const { data: rankingItems, error: itemsError } = await supabase
+        .from('ranking_items')
+        .select(`
+          *,
+          artists(id, name, era, popularity_score, heat_score)
+        `)
+        .in('ranking_id', rankingIds)
+        .order('position');
+        
+      if (itemsError) {
+        console.error('❌ Error loading ranking items:', itemsError);
+        // Still return rankings even if items fail
+      }
+      
+      console.log('✅ Loaded ranking items:', rankingItems?.length || 0, 'total items');
+      console.log('🎯 Items breakdown:', rankingIds.map(id => ({
+        rankingId: id,
+        itemCount: rankingItems?.filter(item => item.ranking_id === id).length || 0
+      })));
+      
+      // Step 3: Combine rankings with their items
+      console.log('🔄 Step 3: Combining rankings with items...');
+      const combinedLists = rankings.map(ranking => ({
+        ...ranking,
+        ranking_items: rankingItems?.filter(item => item.ranking_id === ranking.id) || []
+      }));
+      
+      console.log('✅ Combined lists:', combinedLists.length, 'total');
+      console.log('📊 Final breakdown:', combinedLists.map(list => ({
+        id: list.id,
+        title: list.list_title,
+        itemCount: list.ranking_items.length
+      })));
+      
+      return combinedLists;
+      
     } catch (error) {
-      console.error('Error loading all user lists:', error);
+      console.error('❌ Error in loadAllUserLists:', error);
       return [];
     }
   }, [supabase]);
