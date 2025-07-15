@@ -388,6 +388,10 @@ const TheCanon = ({ supabase }) => {
   const [selectedArtistTags, setSelectedArtistTags] = useState([]);
   const [tagSearchQuery, setTagSearchQuery] = useState('');
   const [showTagSearch, setShowTagSearch] = useState(false);
+  const [mentionedFriends, setMentionedFriends] = useState([]);
+  const [showMentionDropdown, setShowMentionDropdown] = useState(false);
+  const [mentionSearchQuery, setMentionSearchQuery] = useState('');
+  const [mentionCursorPosition, setMentionCursorPosition] = useState(null);
   
   // New social features state
   const [showReportModal, setShowReportModal] = useState(false);
@@ -865,6 +869,7 @@ const TheCanon = ({ supabase }) => {
         .select(`
           *,
           profiles!debates_author_id_fkey (
+            id,
             username,
             display_name,
             profile_picture_url
@@ -883,6 +888,7 @@ const TheCanon = ({ supabase }) => {
         
         return {
           id: debate.id,
+          authorId: debate.author_id,
           user: debate.profiles.username || debate.profiles.display_name,
           avatar: "🎤",
           profilePicture: debate.profiles.profile_picture_url,
@@ -1924,6 +1930,7 @@ const TheCanon = ({ supabase }) => {
           title: filteredTitle,
           content: filteredContent,
           artist_tags: selectedArtistTags.map(artist => artist.id),
+          mentioned_users: mentionedFriends,
           created_at: new Date().toISOString()
         })
         .select()
@@ -1937,6 +1944,8 @@ const TheCanon = ({ supabase }) => {
       setDebateTitle('');
       setDebateContent('');
       setSelectedArtistTags([]);
+      setMentionedFriends([]);
+      setShowMentionDropdown(false);
       
       addToast('Debate posted! 🔥', 'success');
       
@@ -2165,6 +2174,90 @@ const TheCanon = ({ supabase }) => {
       console.error('Error loading user profile:', error);
       addToast('Error loading user profile', 'error');
     }
+  };
+
+  // Handle @ mentions in debate content
+  const handleDebateContentChange = (e) => {
+    const text = e.target.value;
+    setDebateContent(text);
+    
+    // Check for @ mention
+    const cursorPos = e.target.selectionStart;
+    const lastAtSymbol = text.lastIndexOf('@', cursorPos);
+    
+    if (lastAtSymbol !== -1 && cursorPos - lastAtSymbol <= 20) {
+      const afterAt = text.substring(lastAtSymbol + 1, cursorPos);
+      const hasSpace = afterAt.includes(' ');
+      
+      if (!hasSpace && afterAt.length > 0) {
+        setMentionSearchQuery(afterAt);
+        setShowMentionDropdown(true);
+        setMentionCursorPosition(lastAtSymbol);
+      } else {
+        setShowMentionDropdown(false);
+      }
+    } else {
+      setShowMentionDropdown(false);
+    }
+  };
+
+  // Insert friend mention
+  const insertMention = (friend) => {
+    if (mentionCursorPosition !== null) {
+      const beforeMention = debateContent.substring(0, mentionCursorPosition);
+      const afterCursor = debateContent.substring(mentionCursorPosition + mentionSearchQuery.length + 1);
+      const newContent = `${beforeMention}@${friend.username} ${afterCursor}`;
+      
+      setDebateContent(newContent);
+      setMentionedFriends(prev => [...new Set([...prev, friend.id])]);
+      setShowMentionDropdown(false);
+      setMentionSearchQuery('');
+    }
+  };
+
+  // Render debate content with clickable mentions
+  const renderDebateContent = (content, mentionedUserIds = []) => {
+    // Find @ mentions in the content
+    const mentionRegex = /@(\w+)/g;
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+    
+    while ((match = mentionRegex.exec(content)) !== null) {
+      // Add text before mention
+      if (match.index > lastIndex) {
+        parts.push(content.substring(lastIndex, match.index));
+      }
+      
+      // Find friend by username
+      const username = match[1];
+      const friend = friends.find(f => f.username === username);
+      
+      if (friend) {
+        // Add clickable mention
+        parts.push(
+          <button
+            key={match.index}
+            onClick={() => handleUsernameClick(friend)}
+            className="text-purple-400 hover:text-purple-300 font-medium"
+          >
+            @{username}
+          </button>
+        );
+      } else {
+        // Just show as regular text if not a friend
+        parts.push(`@${username}`);
+      }
+      
+      lastIndex = match.index + match[0].length;
+    }
+    
+    // Add remaining text
+    if (lastIndex < content.length) {
+      parts.push(content.substring(lastIndex));
+    }
+    
+    return parts.length > 0 ? parts : content;
   };
 
   // Load friend's rankings
@@ -3410,12 +3503,45 @@ const TheCanon = ({ supabase }) => {
                   className="w-full px-4 py-2 bg-black/50 border border-white/20 focus:border-purple-400 focus:outline-none mb-4"
                 />
                 
-                <textarea
-                  placeholder="Make your case..."
-                  value={debateContent}
-                  onChange={(e) => setDebateContent(e.target.value)}
-                  className="w-full px-4 py-2 bg-black/50 border border-white/20 focus:border-purple-400 focus:outline-none h-32 mb-4"
-                />
+                <div className="relative">
+                  <textarea
+                    placeholder="Make your case... (use @ to mention friends)"
+                    value={debateContent}
+                    onChange={handleDebateContentChange}
+                    className="w-full px-4 py-2 bg-black/50 border border-white/20 focus:border-purple-400 focus:outline-none h-32 mb-4"
+                  />
+                  
+                  {/* Friend mention dropdown */}
+                  {showMentionDropdown && (
+                    <div className="absolute top-full left-0 w-full max-h-48 overflow-y-auto bg-slate-700 border border-white/20 shadow-lg z-10">
+                      {friends
+                        .filter(friend => 
+                          friend.username.toLowerCase().includes(mentionSearchQuery.toLowerCase())
+                        )
+                        .slice(0, 5)
+                        .map(friend => (
+                          <button
+                            key={friend.id}
+                            onClick={() => insertMention(friend)}
+                            className="w-full px-4 py-2 text-left hover:bg-white/10 flex items-center gap-2 transition-colors"
+                          >
+                            <UserAvatar 
+                              user={friend} 
+                              profilePicture={friend.profile_picture_url} 
+                              size="w-6 h-6" 
+                            />
+                            {friend.username}
+                          </button>
+                        ))
+                      }
+                      {friends.filter(friend => 
+                        friend.username.toLowerCase().includes(mentionSearchQuery.toLowerCase())
+                      ).length === 0 && (
+                        <p className="px-4 py-2 text-gray-400 text-sm">No friends found</p>
+                      )}
+                    </div>
+                  )}
+                </div>
                 
                 {/* Artist Tags */}
                 <div className="mb-4">
@@ -3491,6 +3617,8 @@ const TheCanon = ({ supabase }) => {
                       setDebateTitle('');
                       setDebateContent('');
                       setSelectedArtistTags([]);
+                      setMentionedFriends([]);
+                      setShowMentionDropdown(false);
                     }}
                     className="flex-1 py-2 bg-white/10 hover:bg-white/20 border border-white/20 transition-colors"
                   >
@@ -3975,7 +4103,7 @@ const TheCanon = ({ supabase }) => {
                                     <span className="text-gray-500 text-sm ml-auto">{debate.timestamp}</span>
                                   </div>
                                   <h4 className="font-bold mb-1">{debate.title}</h4>
-                                  <p className="mb-2 leading-relaxed">{debate.content}</p>
+                                  <p className="mb-2 leading-relaxed">{renderDebateContent(debate.content)}</p>
                                   
                                   {/* Artist Tags */}
                                   {debate.artistTags.length > 0 && (
@@ -4079,7 +4207,7 @@ const TheCanon = ({ supabase }) => {
                                 <span className="text-gray-500 text-sm ml-auto">{debate.timestamp}</span>
                               </div>
                               <h4 className="font-bold mb-1">{debate.title}</h4>
-                              <p className="mb-2 leading-relaxed">{debate.content}</p>
+                              <p className="mb-2 leading-relaxed">{renderDebateContent(debate.content)}</p>
                               
                               {/* Artist Tags */}
                               {debate.artistTags.length > 0 && (
