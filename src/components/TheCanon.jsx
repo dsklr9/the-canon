@@ -371,6 +371,8 @@ const TheCanon = ({ supabase }) => {
   const [userStreak, setUserStreak] = useState(0);
   const [userPoints, setUserPoints] = useState(0);
   const [userAchievements, setUserAchievements] = useState([]);
+  const [userProfilePicture, setUserProfilePicture] = useState(null);
+  const [uploadingProfilePicture, setUploadingProfilePicture] = useState(false);
   const [showArtistCard, setShowArtistCard] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState('all-time');
   const [dailyFaceOffsCompleted, setDailyFaceOffsCompleted] = useState(0);
@@ -460,6 +462,22 @@ const TheCanon = ({ supabase }) => {
     
     const emoji = artist.avatar && !artist.avatar.startsWith('http') ? artist.avatar : '🎤';
     return <span className="text-2xl">{emoji}</span>;
+  });
+
+  const UserAvatar = memo(({ user, size = "w-8 h-8", profilePicture = null }) => {
+    const imageUrl = profilePicture || user?.profile_picture_url;
+    
+    if (imageUrl) {
+      return <img src={imageUrl} alt={user?.username || 'User'} className={`${size} rounded-full object-cover`} loading="lazy" />;
+    }
+    
+    // Fallback to first letter of username in a circle
+    const initial = (user?.username || user?.display_name || 'U').charAt(0).toUpperCase();
+    return (
+      <div className={`${size} bg-purple-500 rounded-full flex items-center justify-center text-white font-bold`}>
+        {initial}
+      </div>
+    );
   });
 
   // Prevent viewport dragging on iOS and enhance touch handling
@@ -577,6 +595,7 @@ const TheCanon = ({ supabase }) => {
           setUsername(profile?.username || profile?.display_name || user.email.split('@')[0]);
           setUserStreak(profile?.login_streak || 0);
           setUserPoints(profile?.total_points || 0);
+          setUserProfilePicture(profile?.profile_picture_url || null);
           
           // Load all data in parallel for better performance
           await Promise.all([
@@ -847,7 +866,8 @@ const TheCanon = ({ supabase }) => {
           *,
           profiles!debates_author_id_fkey (
             username,
-            display_name
+            display_name,
+            profile_picture_url
           ),
           debate_likes (user_id),
           debate_comments (id)
@@ -865,6 +885,8 @@ const TheCanon = ({ supabase }) => {
           id: debate.id,
           user: debate.profiles.username || debate.profiles.display_name,
           avatar: "🎤",
+          profilePicture: debate.profiles.profile_picture_url,
+          userProfile: debate.profiles,
           content: debate.content,
           title: debate.title,
           likes: debate.debate_likes?.length || 0,
@@ -1039,6 +1061,76 @@ const TheCanon = ({ supabase }) => {
       console.log('All friendships for current user:', allFriendships);
     } catch (error) {
       console.error('Error loading friends:', error);
+    }
+  };
+
+  // Upload profile picture
+  const uploadProfilePicture = async (file) => {
+    if (!currentUser || !file) return;
+    
+    setUploadingProfilePicture(true);
+    
+    try {
+      // Validate file type
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        addToast('Please select a valid image file (JPEG, PNG, GIF, or WebP)', 'error');
+        return;
+      }
+      
+      // Validate file size (max 5MB)
+      const maxSize = 5 * 1024 * 1024; // 5MB in bytes
+      if (file.size > maxSize) {
+        addToast('Image must be smaller than 5MB', 'error');
+        return;
+      }
+      
+      // Create unique filename
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${currentUser.id}-${Date.now()}.${fileExt}`;
+      
+      // Upload to Supabase storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('profile-pictures')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+      
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        addToast('Error uploading image: ' + uploadError.message, 'error');
+        return;
+      }
+      
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('profile-pictures')
+        .getPublicUrl(fileName);
+      
+      const profilePictureUrl = urlData.publicUrl;
+      
+      // Update user profile in database
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ profile_picture_url: profilePictureUrl })
+        .eq('id', currentUser.id);
+      
+      if (updateError) {
+        console.error('Database update error:', updateError);
+        addToast('Error updating profile: ' + updateError.message, 'error');
+        return;
+      }
+      
+      // Update local state
+      setUserProfilePicture(profilePictureUrl);
+      addToast('Profile picture updated successfully!', 'success');
+      
+    } catch (error) {
+      console.error('Error uploading profile picture:', error);
+      addToast('Error uploading profile picture', 'error');
+    } finally {
+      setUploadingProfilePicture(false);
     }
   };
 
@@ -1309,7 +1401,7 @@ const TheCanon = ({ supabase }) => {
         .from('ranking_items')
         .select(`
           *,
-          artists(id, name, era)
+          artists(id, name, era, avatar_url, avatar_emoji)
         `)
         .in('ranking_id', rankingIds)
         .order('position');
@@ -2066,35 +2158,41 @@ const TheCanon = ({ supabase }) => {
     try {
       console.log('Loading rankings for friend:', friendId);
       
-      const { data: rankings, error } = await supabase
-        .from('rankings')
-        .select(`
-          *,
-          ranking_items (
-            position,
-            artist_id,
-            artists (*)
-          )
-        `)
-        .eq('user_id', friendId)
-        .order('created_at', { ascending: false });
+      // Load both rankings and user_lists
+      const [rankingsResult, userListsResult] = await Promise.all([
+        supabase
+          .from('rankings')
+          .select(`
+            *,
+            ranking_items (
+              position,
+              artist_id,
+              artists (*)
+            )
+          `)
+          .eq('user_id', friendId)
+          .order('created_at', { ascending: false }),
+        
+        supabase
+          .from('user_lists')
+          .select('*')
+          .eq('user_id', friendId)
+          .order('created_at', { ascending: false })
+      ]);
 
-      console.log('Friend rankings query result:', { rankings, error });
+      console.log('Friend rankings query result:', { rankings: rankingsResult.data, error: rankingsResult.error });
+      console.log('Friend user_lists query result:', { userLists: userListsResult.data, error: userListsResult.error });
 
-      if (error) {
-        console.error('Database error loading friend rankings:', error);
-        addToast(`Database error: ${error.message}`, 'error');
+      if (rankingsResult.error) {
+        console.error('Database error loading friend rankings:', rankingsResult.error);
+        addToast(`Database error: ${rankingsResult.error.message}`, 'error');
         return;
       }
 
-      if (!rankings || rankings.length === 0) {
-        console.log('No rankings found for friend:', friendId);
-        setFriendRankings([]);
-        addToast('This friend hasn\'t created any rankings yet', 'info');
-        return;
-      }
+      const rankings = rankingsResult.data || [];
+      const userLists = userListsResult.data || [];
 
-      // Format rankings similar to userLists
+      // Format rankings from the rankings table
       const formattedRankings = rankings.map(ranking => ({
         id: ranking.id,
         title: ranking.list_title,
@@ -2106,14 +2204,33 @@ const TheCanon = ({ supabase }) => {
             id: item.artists.id,
             name: item.artists.name,
             imageUrl: item.artists.image_url,
-            // Add other artist properties as needed
+            avatar_url: item.artists.avatar_url,
+            avatar_emoji: item.artists.avatar_emoji
           }))
       }));
 
-      console.log('Formatted friend rankings:', formattedRankings);
-      setFriendRankings(formattedRankings);
+      // Format user lists from the user_lists table
+      const formattedUserLists = userLists.map(list => ({
+        id: `user_list_${list.id}`,
+        title: list.list_title || 'Custom List',
+        category: 'custom',
+        isAllTime: list.is_all_time || false,
+        artists: (list.list_data || []).map(artist => ({
+          id: artist.id,
+          name: artist.name,
+          imageUrl: artist.imageUrl,
+          avatar_url: artist.avatar_url,
+          avatar_emoji: artist.avatar_emoji || '🎤'
+        }))
+      }));
+
+      // Combine both types of lists
+      const allLists = [...formattedRankings, ...formattedUserLists];
+
+      console.log('All formatted friend lists:', allLists);
+      setFriendRankings(allLists);
       
-      if (formattedRankings.length === 0) {
+      if (allLists.length === 0) {
         addToast('This friend hasn\'t created any rankings yet', 'info');
       }
     } catch (error) {
@@ -2924,6 +3041,12 @@ const TheCanon = ({ supabase }) => {
                     </button>
                   )}
                   
+                  <UserAvatar 
+                    user={{ username, profile_picture_url: userProfilePicture }} 
+                    profilePicture={userProfilePicture} 
+                    size={isMobile ? "w-8 h-8" : "w-10 h-10"} 
+                  />
+                  
                   <button 
                     onClick={() => setShowSettings(true)}
                     className={`p-2 hover:bg-white/10 border border-white/10 transition-colors ${isMobile ? 'touch-target' : ''}`}
@@ -3009,6 +3132,64 @@ const TheCanon = ({ supabase }) => {
                       </button>
                     </div>
                     <p className="text-xs text-gray-400 mt-1">Can only be changed once every 30 days</p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Profile Picture</label>
+                    <div className="flex items-center gap-4">
+                      <UserAvatar 
+                        user={{ username, profile_picture_url: userProfilePicture }} 
+                        profilePicture={userProfilePicture} 
+                        size="w-16 h-16" 
+                      />
+                      <div className="flex-1">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files[0];
+                            if (file) {
+                              uploadProfilePicture(file);
+                            }
+                          }}
+                          className="hidden"
+                          id="profile-picture-input"
+                        />
+                        <label
+                          htmlFor="profile-picture-input"
+                          className={`px-4 py-2 bg-purple-600 hover:bg-purple-700 transition-colors cursor-pointer inline-block text-center ${
+                            uploadingProfilePicture ? 'opacity-50 cursor-not-allowed' : ''
+                          }`}
+                        >
+                          {uploadingProfilePicture ? 'Uploading...' : 'Change Picture'}
+                        </label>
+                        {userProfilePicture && (
+                          <button
+                            onClick={async () => {
+                              try {
+                                const { error } = await supabase
+                                  .from('profiles')
+                                  .update({ profile_picture_url: null })
+                                  .eq('id', currentUser.id);
+                                
+                                if (error) {
+                                  addToast('Error removing profile picture', 'error');
+                                } else {
+                                  setUserProfilePicture(null);
+                                  addToast('Profile picture removed', 'success');
+                                }
+                              } catch (error) {
+                                addToast('Error removing profile picture', 'error');
+                              }
+                            }}
+                            className="ml-2 px-3 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-400/50 transition-colors text-sm"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">JPG, PNG, GIF or WebP. Max 5MB.</p>
                   </div>
                   
                   <div>
@@ -3762,7 +3943,11 @@ const TheCanon = ({ supabase }) => {
                           {realDebates.filter(d => d.isOwn).map((debate) => (
                             <div key={debate.id} className="bg-slate-800/50 border border-purple-400/30 p-4">
                               <div className="flex gap-3">
-                                <div className="text-2xl">{debate.avatar}</div>
+                                <UserAvatar 
+                                  user={debate.userProfile} 
+                                  profilePicture={debate.profilePicture} 
+                                  size="w-10 h-10" 
+                                />
                                 <div className="flex-1">
                                   <div className="flex items-center gap-2 mb-1">
                                     <span className="font-bold">{debate.user}</span>
@@ -3858,7 +4043,11 @@ const TheCanon = ({ supabase }) => {
                       {realDebates.filter(d => !d.isOwn).map((debate) => (
                         <div key={debate.id} className="bg-slate-800/50 border border-white/10 p-4">
                           <div className="flex gap-3">
-                            <div className="text-2xl">{debate.avatar}</div>
+                            <UserAvatar 
+                              user={debate.userProfile} 
+                              profilePicture={debate.profilePicture} 
+                              size="w-10 h-10" 
+                            />
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-1">
                                 <span className="font-bold">{debate.user}</span>
@@ -4779,8 +4968,12 @@ const TheCanon = ({ supabase }) => {
             <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
               <div className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-4xl w-full'} max-h-[80vh] flex flex-col`}>
                 <div className="flex justify-between items-center mb-6">
-                  <h2 className={`font-bold tracking-tight flex items-center gap-2 ${isMobile ? 'text-xl' : 'text-2xl'}`}>
-                    <User className={`${isMobile ? 'w-5 h-5' : 'w-6 h-6'} text-purple-400`} />
+                  <h2 className={`font-bold tracking-tight flex items-center gap-3 ${isMobile ? 'text-xl' : 'text-2xl'}`}>
+                    <UserAvatar 
+                      user={viewingFriend} 
+                      profilePicture={viewingFriend.profile_picture_url} 
+                      size={isMobile ? "w-8 h-8" : "w-10 h-10"} 
+                    />
                     {viewingFriend.username}'s Rankings
                   </h2>
                   <button 
@@ -4794,35 +4987,80 @@ const TheCanon = ({ supabase }) => {
                   </button>
                 </div>
                 
-                <div className="flex-1 overflow-y-auto">
+                <div className="flex-1 overflow-y-auto space-y-6">
                   {friendRankings.length > 0 ? (
-                    <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'} gap-4`}>
-                      {friendRankings.map(list => (
-                        <div key={list.id} className="bg-slate-700/50 border border-white/10 p-4">
-                          <div className="flex justify-between items-start mb-3">
-                            <h3 className="font-bold flex items-center gap-2">
-                              {list.isAllTime && <Crown className="w-4 h-4 text-yellow-400" />}
-                              {list.title}
-                            </h3>
-                          </div>
-                          
-                          <div className="space-y-2">
-                            {list.artists.slice(0, 10).map((artist, idx) => (
-                              <div key={artist.id} className="flex items-center gap-3 text-sm">
-                                <span className="text-gray-500 w-6">#{idx + 1}</span>
-                                <ArtistAvatar artist={artist} size="w-6 h-6" />
-                                <span className="truncate">{artist.name}</span>
+                    <>
+                      {/* Top 10 Lists */}
+                      {friendRankings.filter(list => list.isAllTime).length > 0 && (
+                        <div>
+                          <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                            <Crown className="w-5 h-5 text-yellow-400" />
+                            Top 10 Lists
+                          </h3>
+                          <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'} gap-4`}>
+                            {friendRankings.filter(list => list.isAllTime).map(list => (
+                              <div key={list.id} className="bg-slate-700/50 border border-white/10 p-4">
+                                <div className="flex justify-between items-start mb-3">
+                                  <h4 className="font-bold flex items-center gap-2">
+                                    <Crown className="w-4 h-4 text-yellow-400" />
+                                    {list.title}
+                                  </h4>
+                                </div>
+                                <div className="space-y-2">
+                                  {list.artists.slice(0, 10).map((artist, idx) => (
+                                    <div key={artist.id} className="flex items-center gap-3 text-sm">
+                                      <span className="text-gray-500 w-6">#{idx + 1}</span>
+                                      <ArtistAvatar artist={artist} size="w-6 h-6" />
+                                      <span className="truncate">{artist.name}</span>
+                                    </div>
+                                  ))}
+                                  {list.artists.length > 10 && (
+                                    <p className="text-xs text-gray-400 mt-2">
+                                      +{list.artists.length - 10} more artists
+                                    </p>
+                                  )}
+                                </div>
                               </div>
                             ))}
-                            {list.artists.length > 10 && (
-                              <p className="text-xs text-gray-400 mt-2">
-                                +{list.artists.length - 10} more artists
-                              </p>
-                            )}
                           </div>
                         </div>
-                      ))}
-                    </div>
+                      )}
+
+                      {/* Other Lists */}
+                      {friendRankings.filter(list => !list.isAllTime).length > 0 && (
+                        <div>
+                          <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                            <Target className="w-5 h-5 text-purple-400" />
+                            Other Lists
+                          </h3>
+                          <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'} gap-4`}>
+                            {friendRankings.filter(list => !list.isAllTime).map(list => (
+                              <div key={list.id} className="bg-slate-700/50 border border-white/10 p-4">
+                                <div className="flex justify-between items-start mb-3">
+                                  <h4 className="font-bold flex items-center gap-2">
+                                    {list.title}
+                                  </h4>
+                                </div>
+                                <div className="space-y-2">
+                                  {list.artists.slice(0, 10).map((artist, idx) => (
+                                    <div key={artist.id} className="flex items-center gap-3 text-sm">
+                                      <span className="text-gray-500 w-6">#{idx + 1}</span>
+                                      <ArtistAvatar artist={artist} size="w-6 h-6" />
+                                      <span className="truncate">{artist.name}</span>
+                                    </div>
+                                  ))}
+                                  {list.artists.length > 10 && (
+                                    <p className="text-xs text-gray-400 mt-2">
+                                      +{list.artists.length - 10} more artists
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
                   ) : (
                     <div className="text-center py-8 text-gray-400">
                       <User className="w-12 h-12 mx-auto mb-3 opacity-50" />
