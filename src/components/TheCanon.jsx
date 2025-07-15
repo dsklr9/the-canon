@@ -1290,6 +1290,16 @@ const TheCanon = ({ supabase }) => {
       console.log('🔍 DEBUG: Existing ranking_ids in DB:', [...new Set(allItems?.map(item => item.ranking_id) || [])]);
       console.log('🔍 DEBUG: Do any match our target IDs?', rankingIds.some(id => allItems?.some(item => item.ranking_id === id)));
       
+      // Debug: Check specific ranking items for the matching ID
+      const matchingId = '1ad8ca09-5331-4d12-bdce-778bab4ab938';
+      const { data: debugItems, error: debugError } = await supabase
+        .from('ranking_items')
+        .select('*')
+        .eq('ranking_id', matchingId);
+        
+      console.log('🔍 DEBUG: Items for matching ranking ID:', matchingId, debugItems);
+      console.log('🔍 DEBUG: Artist IDs in these items:', debugItems?.map(item => item.artist_id));
+      
       const { data: rankingItems, error: itemsError } = await supabase
         .from('ranking_items')
         .select(`
@@ -1301,10 +1311,36 @@ const TheCanon = ({ supabase }) => {
         
       if (itemsError) {
         console.error('❌ Error loading ranking items:', itemsError);
+        console.log('🔍 DEBUG: Join query failed, trying without artists join...');
+        
+        // Try query without join to see if that's the issue
+        const { data: itemsWithoutJoin, error: noJoinError } = await supabase
+          .from('ranking_items')
+          .select('*')
+          .in('ranking_id', rankingIds)
+          .order('position');
+          
+        console.log('🔍 DEBUG: Items without join:', itemsWithoutJoin?.length || 0);
+        console.log('🔍 DEBUG: No-join error:', noJoinError);
+        
         // Still return rankings even if items fail
       }
       
       console.log('✅ Loaded ranking items:', rankingItems?.length || 0, 'total items');
+      console.log('🔍 DEBUG: Join query successful, itemsError:', itemsError);
+      
+      // If we have 0 items but no error, try without join to compare
+      if (!itemsError && (!rankingItems || rankingItems.length === 0)) {
+        console.log('🔍 DEBUG: 0 items but no error, trying without join...');
+        const { data: itemsWithoutJoin, error: noJoinError } = await supabase
+          .from('ranking_items')
+          .select('*')
+          .in('ranking_id', rankingIds)
+          .order('position');
+          
+        console.log('🔍 DEBUG: Items without join:', itemsWithoutJoin?.length || 0);
+        console.log('🔍 DEBUG: Sample item without join:', itemsWithoutJoin?.[0]);
+      }
       console.log('🎯 Items breakdown:', rankingIds.map(id => ({
         rankingId: id,
         itemCount: rankingItems?.filter(item => item.ranking_id === id).length || 0
