@@ -3575,7 +3575,9 @@ const TheCanon = ({ supabase }) => {
                           className="w-full px-3 py-2 bg-slate-700 border border-white/20 rounded focus:border-purple-400 focus:outline-none text-sm"
                         >
                           <option value="">Select artist...</option>
-                          {allArtists.slice(0, 50).map(artist => (
+                          {allArtists
+                            .sort((a, b) => a.name.localeCompare(b.name))
+                            .map(artist => (
                             <option key={artist.id} value={artist.id}>{artist.name}</option>
                           ))}
                         </select>
@@ -3589,7 +3591,9 @@ const TheCanon = ({ supabase }) => {
                           className="w-full px-3 py-2 bg-slate-700 border border-white/20 rounded focus:border-purple-400 focus:outline-none text-sm"
                         >
                           <option value="">Select artist...</option>
-                          {allArtists.slice(0, 50).map(artist => (
+                          {allArtists
+                            .sort((a, b) => a.name.localeCompare(b.name))
+                            .map(artist => (
                             <option key={artist.id} value={artist.id}>{artist.name}</option>
                           ))}
                         </select>
