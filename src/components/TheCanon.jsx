@@ -1268,7 +1268,7 @@ const TheCanon = ({ supabase }) => {
         .from('rankings')
         .select(`
           *,
-          ranking_items!inner(
+          ranking_items(
             position,
             artist_id,
             artists(id, name, era, popularity_score, heat_score)
@@ -1305,7 +1305,9 @@ const TheCanon = ({ supabase }) => {
         console.log(`Processing list ${idx + 1}:`, {
           id: userList.id,
           userId: userList.user_id,
-          itemsCount: userList.ranking_items?.length || 0
+          listTitle: userList.list_title,
+          itemsCount: userList.ranking_items?.length || 0,
+          hasItems: !!userList.ranking_items?.length
         });
         
         if (userList.ranking_items && userList.ranking_items.length > 0) {
