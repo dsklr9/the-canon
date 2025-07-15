@@ -1304,7 +1304,7 @@ const TheCanon = ({ supabase }) => {
         .from('ranking_items')
         .select(`
           *,
-          artists(id, name, era, popularity_score, heat_score)
+          artists(id, name, era)
         `)
         .in('ranking_id', rankingIds)
         .order('position');
