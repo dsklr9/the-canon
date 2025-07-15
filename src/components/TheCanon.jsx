@@ -579,7 +579,7 @@ const TheCanon = ({ supabase }) => {
             loadArtistsFromDB(),
             loadDebates(),
             loadUserLikes(),
-            loadFriends(),
+            loadFriends(user), // Pass user directly since currentUser state isn't updated yet
             loadDailyChallenge(),
             loadBattleHistory()
           ]);
@@ -944,11 +944,12 @@ const TheCanon = ({ supabase }) => {
   };
 
   // Load friends and friend requests
-  const loadFriends = async () => {
-    if (!currentUser) return;
+  const loadFriends = async (userOverride = null) => {
+    const user = userOverride || currentUser;
+    if (!user) return;
 
     try {
-      console.log('Loading friends for user:', currentUser.id);
+      console.log('Loading friends for user:', user.id);
       
       // Load accepted friends - simplified approach
       const { data: friendships, error: friendshipsError } = await supabase
@@ -960,7 +961,7 @@ const TheCanon = ({ supabase }) => {
           status,
           created_at
         `)
-        .or(`user_id.eq.${currentUser.id},friend_id.eq.${currentUser.id}`)
+        .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`)
         .eq('status', 'accepted');
 
       console.log('Friendships query result:', { friendships, friendshipsError });
@@ -968,7 +969,7 @@ const TheCanon = ({ supabase }) => {
       if (friendships && friendships.length > 0) {
         // Get all friend IDs
         const friendIds = friendships.map(f => 
-          f.user_id === currentUser.id ? f.friend_id : f.user_id
+          f.user_id === user.id ? f.friend_id : f.user_id
         );
         
         console.log('Friend IDs:', friendIds);
@@ -993,11 +994,11 @@ const TheCanon = ({ supabase }) => {
       }
 
       // Load pending requests - simplified approach without join
-      console.log('Loading friend requests for user:', currentUser.id);
+      console.log('Loading friend requests for user:', user.id);
       const { data: requests, error: requestsError } = await supabase
         .from('friendships')
         .select('*')
-        .eq('friend_id', currentUser.id)
+        .eq('friend_id', user.id)
         .eq('status', 'pending');
 
       console.log('Friend requests query result:', { requests, requestsError });
@@ -1028,7 +1029,7 @@ const TheCanon = ({ supabase }) => {
       const { data: allFriendships } = await supabase
         .from('friendships')
         .select('*')
-        .or(`user_id.eq.${currentUser.id},friend_id.eq.${currentUser.id}`);
+        .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`);
         
       console.log('All friendships for current user:', allFriendships);
     } catch (error) {
