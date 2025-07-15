@@ -1089,26 +1089,50 @@ const TheCanon = ({ supabase }) => {
       const fileExt = file.name.split('.').pop();
       const fileName = `${currentUser.id}-${Date.now()}.${fileExt}`;
       
-      // Upload to Supabase storage
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('profile-pictures')
-        .upload(fileName, file, {
-          cacheControl: '3600',
-          upsert: false
+      // Convert image to base64 for database storage as fallback
+      const convertToBase64 = (file) => {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.readAsDataURL(file);
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = error => reject(error);
         });
+      };
       
-      if (uploadError) {
-        console.error('Upload error:', uploadError);
-        addToast('Error uploading image: ' + uploadError.message, 'error');
-        return;
+      let profilePictureUrl;
+      
+      // Try Supabase storage first
+      try {
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('profile-pictures')
+          .upload(fileName, file, {
+            cacheControl: '3600',
+            upsert: false
+          });
+        
+        if (uploadError) {
+          throw uploadError;
+        }
+        
+        // Get public URL
+        const { data: urlData } = supabase.storage
+          .from('profile-pictures')
+          .getPublicUrl(fileName);
+        
+        profilePictureUrl = urlData.publicUrl;
+        
+      } catch (storageError) {
+        console.warn('Storage upload failed, using base64 fallback:', storageError);
+        
+        // Fallback to base64 storage
+        try {
+          profilePictureUrl = await convertToBase64(file);
+        } catch (base64Error) {
+          console.error('Base64 conversion failed:', base64Error);
+          addToast('Error processing image', 'error');
+          return;
+        }
       }
-      
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from('profile-pictures')
-        .getPublicUrl(fileName);
-      
-      const profilePictureUrl = urlData.publicUrl;
       
       // Update user profile in database
       const { error: updateError } = await supabase
