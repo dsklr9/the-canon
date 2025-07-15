@@ -1277,90 +1277,119 @@ const TheCanon = ({ supabase }) => {
   }, [supabase]);
 
   const generateTop100 = useCallback(async () => {
+    console.log('🎯 generateTop100 function called');
     const rankings = [];
     const artistVotes = new Map(); // Track votes per artist
     
-    // Load all users' all-time lists
-    const allUserLists = await loadAllUserLists();
-    
-    console.log('Generating Top 100 from', allUserLists.length, 'user lists');
-    
-    // Process each user's list
-    allUserLists.forEach(userList => {
-      if (userList.ranking_items && userList.ranking_items.length > 0) {
-        userList.ranking_items.forEach(item => {
-          const artist = item.artists;
-          if (artist) {
-            const artistId = artist.id;
-            const position = item.position;
-            
-            // Weight the vote based on position (higher positions get more points)
-            const points = Math.max(1, 11 - position); // Position 1 gets 10 points, position 10 gets 1 point
-            
-            if (!artistVotes.has(artistId)) {
-              artistVotes.set(artistId, {
-                artist: artist,
-                totalPoints: 0,
-                voteCount: 0,
-                positions: []
-              });
-            }
-            
-            const current = artistVotes.get(artistId);
-            current.totalPoints += points;
-            current.voteCount += 1;
-            current.positions.push(position);
-          }
+    try {
+      // Load all users' all-time lists
+      console.log('📚 Loading all user lists...');
+      const allUserLists = await loadAllUserLists();
+      
+      console.log('📚 Loaded user lists:', allUserLists.length, 'total lists');
+      console.log('📚 Sample list structure:', allUserLists[0]);
+      
+      // Process each user's list
+      console.log('🔄 Processing user lists...');
+      allUserLists.forEach((userList, idx) => {
+        console.log(`Processing list ${idx + 1}:`, {
+          id: userList.id,
+          userId: userList.user_id,
+          itemsCount: userList.ranking_items?.length || 0
         });
-      }
-    });
-    
-    // Convert to rankings array and sort by total points
-    const sortedArtists = Array.from(artistVotes.values())
-      .sort((a, b) => b.totalPoints - a.totalPoints)
-      .slice(0, 100); // Top 100
-    
-    // Format as rankings
-    sortedArtists.forEach((item, index) => {
-      rankings.push({
-        rank: index + 1,
-        artist: item.artist,
-        lastWeek: index + 1,
-        trend: 'stable',
-        votes: item.voteCount,
-        totalPoints: item.totalPoints,
-        averagePosition: item.positions.reduce((a, b) => a + b, 0) / item.positions.length,
-        canonScore: item.artist.canonScore || item.artist.heat_score || 50
+        
+        if (userList.ranking_items && userList.ranking_items.length > 0) {
+          userList.ranking_items.forEach(item => {
+            const artist = item.artists;
+            if (artist) {
+              const artistId = artist.id;
+              const position = item.position;
+              
+              // Weight the vote based on position (higher positions get more points)
+              const points = Math.max(1, 11 - position); // Position 1 gets 10 points, position 10 gets 1 point
+              
+              if (!artistVotes.has(artistId)) {
+                artistVotes.set(artistId, {
+                  artist: artist,
+                  totalPoints: 0,
+                  voteCount: 0,
+                  positions: []
+                });
+              }
+              
+              const current = artistVotes.get(artistId);
+              current.totalPoints += points;
+              current.voteCount += 1;
+              current.positions.push(position);
+            }
+          });
+        }
       });
-    });
-    
-    // Add trending logic
-    rankings.forEach((item, idx) => {
-      if (Math.random() < 0.1) item.trend = 'up';
-      else if (Math.random() < 0.05) item.trend = 'down';
-      else if (Math.random() < 0.02) item.trend = 'hot';
-    });
-    
-    console.log('Generated Top 100 rankings:', rankings.slice(0, 10));
-    return rankings;
+      
+      console.log('🗺️ Artist votes map size:', artistVotes.size);
+      
+      // Convert to rankings array and sort by total points
+      console.log('🏆 Creating final rankings...');
+      const sortedArtists = Array.from(artistVotes.values())
+        .sort((a, b) => b.totalPoints - a.totalPoints)
+        .slice(0, 100); // Top 100
+      
+      console.log('🏆 Sorted artists count:', sortedArtists.length);
+      
+      // Format as rankings
+      sortedArtists.forEach((item, index) => {
+        rankings.push({
+          rank: index + 1,
+          artist: item.artist,
+          lastWeek: index + 1,
+          trend: 'stable',
+          votes: item.voteCount,
+          totalPoints: item.totalPoints,
+          averagePosition: item.positions.reduce((a, b) => a + b, 0) / item.positions.length,
+          canonScore: item.artist.canonScore || item.artist.heat_score || 50
+        });
+      });
+      
+      // Add trending logic
+      rankings.forEach((item, idx) => {
+        if (Math.random() < 0.1) item.trend = 'up';
+        else if (Math.random() < 0.05) item.trend = 'down';
+        else if (Math.random() < 0.02) item.trend = 'hot';
+      });
+      
+      console.log('✅ Generated Top 100 rankings:', rankings.length, 'total');
+      console.log('🎯 Top 10:', rankings.slice(0, 10).map(r => `${r.rank}. ${r.artist.name} (${r.votes} votes, ${r.totalPoints} pts)`));
+      return rankings;
+    } catch (error) {
+      console.error('❌ Error in generateTop100:', error);
+      return [];
+    }
   }, [loadAllUserLists]);
 
   // Generate rankings when artists are loaded
   useEffect(() => {
-    console.log('Rankings generation effect triggered. allArtists.length:', allArtists.length);
+    console.log('🔥 Rankings generation effect triggered');
+    console.log('allArtists.length:', allArtists.length);
+    console.log('generateTop100 function available:', typeof generateTop100);
+    
     if (allArtists.length > 0) {
+      console.log('✅ Condition met, starting rankings generation...');
       const loadRankings = async () => {
         try {
-          console.log('Starting generateTop100...');
+          console.log('🚀 Starting generateTop100...');
           const rankings = await generateTop100();
-          console.log('Generated rankings:', rankings.length, 'items');
-          setFullRankings(rankings);
-          console.log('Set fullRankings to:', rankings.length, 'items');
+          console.log('📊 Generated rankings:', rankings?.length || 0, 'items');
+          console.log('📊 First 3 rankings:', rankings?.slice(0, 3));
+          setFullRankings(rankings || []);
+          console.log('✅ Set fullRankings to:', rankings?.length || 0, 'items');
         } catch (error) {
-          console.error('Error generating Top 100:', error);
+          console.error('❌ Error generating Top 100:', error);
+          console.error('Stack trace:', error.stack);
         }
       };
       loadRankings();
+    } else {
+      console.log('❌ Condition not met: allArtists.length is', allArtists.length);
     }
   }, [allArtists, generateTop100]);
 
