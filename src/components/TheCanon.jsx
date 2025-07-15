@@ -1277,6 +1277,16 @@ const TheCanon = ({ supabase }) => {
       // Step 2: Get all ranking items for these rankings
       const rankingIds = rankings.map(r => r.id);
       console.log('🎯 Step 2: Loading ranking items for', rankingIds.length, 'rankings...');
+      console.log('🔍 Looking for ranking_ids:', rankingIds);
+      
+      // Debug: Check if ANY ranking_items exist in the database
+      const { data: allItems, error: allItemsError } = await supabase
+        .from('ranking_items')
+        .select('ranking_id, position, artist_id')
+        .limit(10);
+        
+      console.log('🔍 DEBUG: Sample ranking_items in DB:', allItems);
+      console.log('🔍 DEBUG: Total ranking_items found:', allItems?.length || 0);
       
       const { data: rankingItems, error: itemsError } = await supabase
         .from('ranking_items')
