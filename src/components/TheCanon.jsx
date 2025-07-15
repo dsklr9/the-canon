@@ -352,6 +352,8 @@ const TheCanon = ({ supabase }) => {
   const [dailyPowerVotes, setDailyPowerVotes] = useState(3);
   const [showProfile, setShowProfile] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [dragOverIndex, setDragOverIndex] = useState(null);
   const [draggedFromList, setDraggedFromList] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -2239,7 +2241,7 @@ const TheCanon = ({ supabase }) => {
           <button
             key={match.index}
             onClick={() => handleUsernameClick(friend)}
-            className="text-purple-400 hover:text-purple-300 font-medium"
+            className="text-blue-400 hover:text-blue-300 font-medium"
           >
             @{username}
           </button>
@@ -4094,7 +4096,7 @@ const TheCanon = ({ supabase }) => {
                                   <div className="flex items-center gap-2 mb-1">
                                     <button 
                                       onClick={() => handleUsernameClick(debate.userProfile)}
-                                      className="font-bold hover:text-purple-400 transition-colors cursor-pointer"
+                                      className="font-bold text-blue-400 hover:text-blue-300 transition-colors cursor-pointer"
                                     >
                                       {debate.user}
                                     </button>
@@ -4199,7 +4201,7 @@ const TheCanon = ({ supabase }) => {
                               <div className="flex items-center gap-2 mb-1">
                                 <button 
                                   onClick={() => handleUsernameClick(debate.userProfile)}
-                                  className="font-bold hover:text-purple-400 transition-colors cursor-pointer"
+                                  className="font-bold text-blue-400 hover:text-blue-300 transition-colors cursor-pointer"
                                 >
                                   {debate.user}
                                 </button>
@@ -5235,6 +5237,139 @@ const TheCanon = ({ supabase }) => {
             </button>
           </div>
         </div>
+
+        {/* Footer */}
+        <footer className="bg-slate-900 border-t border-white/10 py-6 mt-8">
+          <div className="max-w-7xl mx-auto px-4 text-center">
+            <div className="flex items-center justify-center gap-6 text-sm text-gray-400">
+              <button 
+                onClick={() => setShowTermsModal(true)}
+                className="hover:text-white transition-colors"
+              >
+                Terms of Service
+              </button>
+              <button 
+                onClick={() => setShowPrivacyModal(true)}
+                className="hover:text-white transition-colors"
+              >
+                Privacy Policy
+              </button>
+              <a 
+                href="mailto:info@thecanon.io"
+                className="hover:text-white transition-colors"
+              >
+                info@thecanon.io
+              </a>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              © 2024 The Canon. All rights reserved.
+            </p>
+          </div>
+        </footer>
+
+        {/* Terms of Service Modal */}
+        {showTermsModal && (
+          <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-2xl w-full'} max-h-[80vh] overflow-y-auto`}>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold">Terms of Service</h2>
+                <button 
+                  onClick={() => setShowTermsModal(false)}
+                  className="p-2 hover:bg-white/10 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="prose prose-invert max-w-none text-sm">
+                <p className="mb-4">
+                  Welcome to The Canon! By using our service, you agree to these terms.
+                </p>
+                
+                <h3 className="text-lg font-semibold mb-2">1. Acceptable Use</h3>
+                <p className="mb-4">
+                  You agree to use The Canon respectfully and not to post harmful, offensive, or inappropriate content. 
+                  We reserve the right to remove content and suspend accounts that violate these guidelines.
+                </p>
+                
+                <h3 className="text-lg font-semibold mb-2">2. User Content</h3>
+                <p className="mb-4">
+                  You retain rights to content you create, but grant us permission to display and distribute it through our service. 
+                  You are responsible for ensuring your content doesn't violate others' rights.
+                </p>
+                
+                <h3 className="text-lg font-semibold mb-2">3. Privacy</h3>
+                <p className="mb-4">
+                  We respect your privacy and handle your data according to our Privacy Policy.
+                </p>
+                
+                <h3 className="text-lg font-semibold mb-2">4. Changes</h3>
+                <p className="mb-4">
+                  We may update these terms occasionally. Continued use means acceptance of any changes.
+                </p>
+                
+                <p className="text-gray-400 text-xs">
+                  Last updated: January 2024
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Privacy Policy Modal */}
+        {showPrivacyModal && (
+          <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-2xl w-full'} max-h-[80vh] overflow-y-auto`}>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold">Privacy Policy</h2>
+                <button 
+                  onClick={() => setShowPrivacyModal(false)}
+                  className="p-2 hover:bg-white/10 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="prose prose-invert max-w-none text-sm">
+                <p className="mb-4">
+                  Your privacy is important to us. This policy explains how we collect, use, and protect your information.
+                </p>
+                
+                <h3 className="text-lg font-semibold mb-2">Information We Collect</h3>
+                <p className="mb-4">
+                  We collect information you provide directly (account info, rankings, posts) and automatically 
+                  (usage data, device information) to provide and improve our service.
+                </p>
+                
+                <h3 className="text-lg font-semibold mb-2">How We Use Your Information</h3>
+                <p className="mb-4">
+                  We use your information to provide the service, personalize your experience, 
+                  communicate with you, and improve our platform.
+                </p>
+                
+                <h3 className="text-lg font-semibold mb-2">Information Sharing</h3>
+                <p className="mb-4">
+                  We don't sell your personal information. We may share data with service providers 
+                  who help us operate the platform, and as required by law.
+                </p>
+                
+                <h3 className="text-lg font-semibold mb-2">Data Security</h3>
+                <p className="mb-4">
+                  We implement security measures to protect your information, though no system is 100% secure.
+                </p>
+                
+                <h3 className="text-lg font-semibold mb-2">Your Rights</h3>
+                <p className="mb-4">
+                  You can access, update, or delete your account information. Contact us at info@thecanon.io for assistance.
+                </p>
+                
+                <p className="text-gray-400 text-xs">
+                  Last updated: January 2024
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Artist Card Modal */}
         {showArtistCard && <ArtistCard artist={showArtistCard} onClose={() => setShowArtistCard(null)} />}
