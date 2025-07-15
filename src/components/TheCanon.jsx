@@ -1254,6 +1254,16 @@ const TheCanon = ({ supabase }) => {
     try {
       console.log('Loading all users\' all-time lists for aggregation...');
       
+      // First, let's debug what's in the rankings table
+      const { data: debugRankings, error: debugError } = await supabase
+        .from('rankings')
+        .select('id, user_id, list_title, list_type, is_all_time, created_at')
+        .order('created_at', { ascending: false })
+        .limit(10);
+        
+      console.log('🔍 DEBUG: Recent rankings in DB:', debugRankings);
+      console.log('🔍 DEBUG: All-time rankings count:', debugRankings?.filter(r => r.is_all_time)?.length || 0);
+      
       const { data: allUserLists, error } = await supabase
         .from('rankings')
         .select(`
