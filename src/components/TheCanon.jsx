@@ -1264,6 +1264,14 @@ const TheCanon = ({ supabase }) => {
       console.log('🔍 DEBUG: Recent rankings in DB:', debugRankings);
       console.log('🔍 DEBUG: All-time rankings count:', debugRankings?.filter(r => r.is_all_time)?.length || 0);
       
+      // Try simple query first
+      const { data: simpleRankings, error: simpleError } = await supabase
+        .from('rankings')
+        .select('*')
+        .eq('is_all_time', true);
+        
+      console.log('🔍 DEBUG: Simple rankings query:', { simpleRankings, simpleError });
+      
       const { data: allUserLists, error } = await supabase
         .from('rankings')
         .select(`
@@ -1276,7 +1284,13 @@ const TheCanon = ({ supabase }) => {
         `)
         .eq('is_all_time', true);
 
-      if (error) throw error;
+      console.log('🔍 DEBUG: Query error:', error);
+      console.log('🔍 DEBUG: Raw query result:', allUserLists);
+      
+      if (error) {
+        console.error('❌ Supabase query error:', error);
+        throw error;
+      }
       
       console.log('All user lists loaded:', allUserLists);
       return allUserLists || [];
