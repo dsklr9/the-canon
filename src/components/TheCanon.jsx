@@ -409,6 +409,11 @@ const TheCanon = ({ supabase }) => {
   const [dailyChallenge, setDailyChallenge] = useState(null);
   const [showChallengeModal, setShowChallengeModal] = useState(false);
   const [showBattleModal, setShowBattleModal] = useState(false);
+  const [selectedFriend, setSelectedFriend] = useState('');
+  const [battleArtist1, setBattleArtist1] = useState('');
+  const [battleArtist2, setBattleArtist2] = useState('');
+  const [battleType, setBattleType] = useState('random');
+  const [battleMessage, setBattleMessage] = useState('');
   const [debateComments, setDebateComments] = useState({});
   const [userBadges, setUserBadges] = useState([]);
   const [hotTakes, setHotTakes] = useState([]);
@@ -3407,8 +3412,8 @@ const TheCanon = ({ supabase }) => {
                             <Plus className="w-4 h-4" />
                           </button>
                           <div className="text-right">
-                            <p className="text-sm font-medium">{item.canonScore}</p>
-                            <p className="text-xs text-gray-500">{item.votes.toLocaleString()} votes</p>
+                            <p className="text-sm font-medium">{item.totalPoints.toFixed(1)}</p>
+                            <p className="text-xs text-gray-500">{item.votes} vote{item.votes !== 1 ? 's' : ''}</p>
                           </div>
                         </div>
                       </div>
@@ -3520,7 +3525,11 @@ const TheCanon = ({ supabase }) => {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium mb-2">Select Friend:</label>
-                    <select className="w-full px-3 py-2 bg-slate-700 border border-white/20 rounded focus:border-purple-400 focus:outline-none">
+                    <select 
+                      value={selectedFriend}
+                      onChange={(e) => setSelectedFriend(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-700 border border-white/20 rounded focus:border-purple-400 focus:outline-none"
+                    >
                       <option value="">Choose a friend...</option>
                       {friends.map(friend => (
                         <option key={friend.id} value={friend.id}>{friend.username}</option>
@@ -3532,43 +3541,140 @@ const TheCanon = ({ supabase }) => {
                     <label className="block text-sm font-medium mb-2">Face-off Type:</label>
                     <div className="space-y-2">
                       <label className="flex items-center gap-2">
-                        <input type="radio" name="battleType" value="random" className="text-purple-500" defaultChecked />
+                        <input 
+                          type="radio" 
+                          name="battleType" 
+                          value="random" 
+                          checked={battleType === 'random'}
+                          onChange={(e) => setBattleType(e.target.value)}
+                          className="text-purple-500" 
+                        />
                         <span className="text-sm">Random artists from database</span>
                       </label>
                       <label className="flex items-center gap-2">
-                        <input type="radio" name="battleType" value="custom" className="text-purple-500" />
+                        <input 
+                          type="radio" 
+                          name="battleType" 
+                          value="custom" 
+                          checked={battleType === 'custom'}
+                          onChange={(e) => setBattleType(e.target.value)}
+                          className="text-purple-500" 
+                        />
                         <span className="text-sm">Custom artist matchup</span>
                       </label>
                     </div>
                   </div>
                   
+                  {battleType === 'custom' && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Artist 1:</label>
+                        <select 
+                          value={battleArtist1}
+                          onChange={(e) => setBattleArtist1(e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-700 border border-white/20 rounded focus:border-purple-400 focus:outline-none text-sm"
+                        >
+                          <option value="">Select artist...</option>
+                          {allArtists.slice(0, 50).map(artist => (
+                            <option key={artist.id} value={artist.id}>{artist.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Artist 2:</label>
+                        <select 
+                          value={battleArtist2}
+                          onChange={(e) => setBattleArtist2(e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-700 border border-white/20 rounded focus:border-purple-400 focus:outline-none text-sm"
+                        >
+                          <option value="">Select artist...</option>
+                          {allArtists.slice(0, 50).map(artist => (
+                            <option key={artist.id} value={artist.id}>{artist.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {battleType === 'custom' && battleArtist1 && battleArtist2 && battleArtist1 !== battleArtist2 && (
+                    <div className="bg-slate-700/50 rounded-lg p-3">
+                      <p className="text-sm text-gray-300 text-center">
+                        <strong>{allArtists.find(a => a.id == battleArtist1)?.name}</strong> vs <strong>{allArtists.find(a => a.id == battleArtist2)?.name}</strong>
+                      </p>
+                    </div>
+                  )}
+                  
                   <div>
                     <label className="block text-sm font-medium mb-2">Message (optional):</label>
                     <textarea 
+                      value={battleMessage}
+                      onChange={(e) => setBattleMessage(e.target.value)}
                       className="w-full px-3 py-2 bg-slate-700 border border-white/20 rounded focus:border-purple-400 focus:outline-none"
                       rows="2"
                       placeholder="Add a message with your challenge..."
                     />
                   </div>
                   
-                  <div className="bg-slate-700/50 rounded-lg p-3">
-                    <p className="text-sm text-gray-400">
-                      <strong>Coming Soon:</strong> Send custom face-offs to your friends and see who knows hip-hop better!
-                    </p>
-                  </div>
-                  
                   <div className="flex gap-2 pt-2">
                     <button
-                      onClick={() => {
-                        setShowBattleModal(false);
-                        addToast('Battle challenges coming soon!', 'info');
+                      onClick={async () => {
+                        if (!selectedFriend) {
+                          addToast('Please select a friend', 'error');
+                          return;
+                        }
+                        
+                        if (battleType === 'custom' && (!battleArtist1 || !battleArtist2 || battleArtist1 === battleArtist2)) {
+                          addToast('Please select two different artists', 'error');
+                          return;
+                        }
+                        
+                        try {
+                          const challengeData = {
+                            challenger_id: currentUser.id,
+                            challenged_id: selectedFriend,
+                            status: 'pending',
+                            challenge_type: battleType,
+                            message: battleMessage || null
+                          };
+                          
+                          if (battleType === 'custom') {
+                            challengeData.artist1_id = parseInt(battleArtist1);
+                            challengeData.artist2_id = parseInt(battleArtist2);
+                          }
+                          
+                          const { error } = await supabase
+                            .from('friend_challenges')
+                            .insert(challengeData);
+                            
+                          if (error) throw error;
+                          
+                          setShowBattleModal(false);
+                          setSelectedFriend('');
+                          setBattleArtist1('');
+                          setBattleArtist2('');
+                          setBattleType('random');
+                          setBattleMessage('');
+                          addToast('Challenge sent successfully!', 'success');
+                        } catch (error) {
+                          console.error('Error sending challenge:', error);
+                          addToast('Failed to send challenge', 'error');
+                        }
                       }}
-                      className="flex-1 py-2 bg-red-600 hover:bg-red-700 transition-colors text-sm font-medium rounded"
+                      disabled={!selectedFriend || (battleType === 'custom' && (!battleArtist1 || !battleArtist2 || battleArtist1 === battleArtist2))}
+                      className="flex-1 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors text-sm font-medium rounded"
                     >
                       Send Challenge
                     </button>
                     <button
-                      onClick={() => setShowBattleModal(false)}
+                      onClick={() => {
+                        setShowBattleModal(false);
+                        setSelectedFriend('');
+                        setBattleArtist1('');
+                        setBattleArtist2('');
+                        setBattleType('random');
+                        setBattleMessage('');
+                      }}
                       className="px-4 py-2 bg-slate-600 hover:bg-slate-700 transition-colors text-sm rounded"
                     >
                       Cancel
@@ -3905,7 +4011,7 @@ const TheCanon = ({ supabase }) => {
                                 >
                                   <Plus className={isMobile ? 'w-4 h-4' : 'w-3 h-3'} />
                                 </button>
-                                <span className={`text-gray-500 ${isMobile ? 'text-sm' : 'text-xs'}`}>{item.canonScore}</span>
+                                <span className={`text-gray-500 ${isMobile ? 'text-sm' : 'text-xs'}`}>{item.totalPoints.toFixed(1)}</span>
                               </div>
                             </div>
                           ))}
@@ -4075,7 +4181,7 @@ const TheCanon = ({ supabase }) => {
                                       <div className="flex-1">
                                         <p className="font-medium">{artist.name}</p>
                                         <div className="flex items-center gap-2">
-                                          <p className="text-sm text-gray-400">{artist.era} • Canon Score: {artist.canonScore}</p>
+                                          <p className="text-sm text-gray-400">{artist.era}</p>
                                           {friendCount > 0 && (
                                             <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-1 rounded flex items-center gap-1">
                                               <Users className="w-3 h-3" />
