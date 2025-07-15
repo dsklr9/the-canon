@@ -1287,6 +1287,8 @@ const TheCanon = ({ supabase }) => {
         
       console.log('🔍 DEBUG: Sample ranking_items in DB:', allItems);
       console.log('🔍 DEBUG: Total ranking_items found:', allItems?.length || 0);
+      console.log('🔍 DEBUG: Existing ranking_ids in DB:', [...new Set(allItems?.map(item => item.ranking_id) || [])]);
+      console.log('🔍 DEBUG: Do any match our target IDs?', rankingIds.some(id => allItems?.some(item => item.ranking_id === id)));
       
       const { data: rankingItems, error: itemsError } = await supabase
         .from('ranking_items')
