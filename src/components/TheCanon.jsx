@@ -951,29 +951,6 @@ const TheCanon = ({ supabase }) => {
     return hasControversial || hasVersus;
   };
 
-  // Load ranking comments
-  const loadRankingComments = async (rankingId) => {
-    try {
-      const { data: comments } = await supabase
-        .from('ranking_comments')
-        .select(`
-          *,
-          profiles (username, display_name)
-        `)
-        .eq('ranking_id', rankingId)
-        .order('created_at', { ascending: false });
-      
-      if (comments) {
-        setRankingComments(prev => ({
-          ...prev,
-          [rankingId]: comments
-        }));
-      }
-    } catch (error) {
-      console.error('Error loading comments:', error);
-    }
-  };
-
   // Load user's likes
   const loadUserLikes = async () => {
     if (!currentUser) return;
