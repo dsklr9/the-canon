@@ -1216,6 +1216,12 @@ const TheCanon = ({ supabase }) => {
         ...prev,
         [debateId]: formattedComments
       }));
+      
+      // Load likes for all comments
+      const commentIds = formattedComments.map(c => c.id);
+      if (commentIds.length > 0) {
+        await loadLikes('comment', commentIds);
+      }
     } catch (error) {
       console.error('Error loading comments:', error);
     }
@@ -2554,11 +2560,36 @@ const TheCanon = ({ supabase }) => {
   const searchArtists = useCallback((query) => {
     if (!query || query.length < 2) return [];
     const lowerQuery = query.toLowerCase();
+    
+    // Create a normalized version of the query for better matching
+    const normalizedQuery = lowerQuery
+      .replace(/[^\w\s]/g, '') // Remove special characters
+      .replace(/\s+/g, ' ') // Normalize spaces
+      .trim();
+    
     return allArtists
-      .filter(artist => 
-        artist.name.toLowerCase().includes(lowerQuery) ||
-        artist.era.toLowerCase().includes(lowerQuery)
-      )
+      .filter(artist => {
+        const lowerName = artist.name.toLowerCase();
+        const normalizedName = lowerName
+          .replace(/[^\w\s]/g, '') // Remove special characters
+          .replace(/\s+/g, ' ') // Normalize spaces
+          .trim();
+        
+        // Check multiple match conditions
+        return (
+          // Exact substring match (original behavior)
+          lowerName.includes(lowerQuery) ||
+          // Normalized match (handles special characters)
+          normalizedName.includes(normalizedQuery) ||
+          // Word boundary matches (for partial word matching)
+          normalizedName.split(' ').some(word => 
+            word.startsWith(normalizedQuery) || 
+            normalizedQuery.split(' ').some(queryWord => word.startsWith(queryWord))
+          ) ||
+          // Era matching
+          artist.era.toLowerCase().includes(lowerQuery)
+        );
+      })
       .slice(0, 8);
   }, [allArtists]);
 
@@ -4367,7 +4398,22 @@ const TheCanon = ({ supabase }) => {
                                               <span className="font-medium text-sm">{comment.author}</span>
                                               <span className="text-xs text-gray-500">{comment.timestamp}</span>
                                             </div>
-                                            <p className="text-sm text-gray-300">{comment.content}</p>
+                                            <p className="text-sm text-gray-300 mb-2">{comment.content}</p>
+                                            <div className="flex items-center gap-2">
+                                              <button 
+                                                onClick={() => toggleLike('comment', comment.id)}
+                                                className={`flex items-center gap-1 text-xs transition-colors ${
+                                                  commentLikes[comment.id]?.userLiked 
+                                                    ? 'text-purple-400' 
+                                                    : 'hover:text-purple-400'
+                                                }`}
+                                              >
+                                                <Heart 
+                                                  className={`w-3 h-3 ${commentLikes[comment.id]?.userLiked ? 'fill-current' : ''}`} 
+                                                />
+                                                {commentLikes[comment.id]?.count || 0}
+                                              </button>
+                                            </div>
                                           </div>
                                         ))
                                       ) : (
@@ -4480,7 +4526,22 @@ const TheCanon = ({ supabase }) => {
                                           <span className="font-medium text-sm">{comment.author}</span>
                                           <span className="text-xs text-gray-500">{comment.timestamp}</span>
                                         </div>
-                                        <p className="text-sm text-gray-300">{comment.content}</p>
+                                        <p className="text-sm text-gray-300 mb-2">{comment.content}</p>
+                                        <div className="flex items-center gap-2">
+                                          <button 
+                                            onClick={() => toggleLike('comment', comment.id)}
+                                            className={`flex items-center gap-1 text-xs transition-colors ${
+                                              commentLikes[comment.id]?.userLiked 
+                                                ? 'text-purple-400' 
+                                                : 'hover:text-purple-400'
+                                            }`}
+                                          >
+                                            <Heart 
+                                              className={`w-3 h-3 ${commentLikes[comment.id]?.userLiked ? 'fill-current' : ''}`} 
+                                            />
+                                            {commentLikes[comment.id]?.count || 0}
+                                          </button>
+                                        </div>
                                       </div>
                                     ))
                                   ) : (
