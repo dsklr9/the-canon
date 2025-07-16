@@ -585,6 +585,12 @@ const TheCanon = ({ supabase }) => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!mounted) return;
         
+        // Load public data regardless of authentication
+        await Promise.all([
+          loadArtistsFromDB(),
+          loadDebates()
+        ]);
+        
         if (user) {
           setCurrentUser(user);
           
@@ -612,11 +618,9 @@ const TheCanon = ({ supabase }) => {
           setUserPoints(profile?.total_points || 0);
           setUserProfilePicture(profile?.profile_picture_url || null);
           
-          // Load all data in parallel for better performance
+          // Load authenticated user data
           await Promise.all([
             loadUserRankings(user.id),
-            loadArtistsFromDB(),
-            loadDebates(),
             loadUserLikes(),
             loadFriends(user), // Pass user directly since currentUser state isn't updated yet
             loadDailyChallenge(),
@@ -921,9 +925,11 @@ const TheCanon = ({ supabase }) => {
       setRealDebates(formattedDebates);
       setHotTakes(formattedDebates.filter(d => d.isHotTake));
       
-      // Load likes for all debates
-      const debateIds = formattedDebates.map(d => d.id);
-      await loadLikes('debate', debateIds);
+      // Load likes for all debates (only if user is authenticated)
+      if (currentUser) {
+        const debateIds = formattedDebates.map(d => d.id);
+        await loadLikes('debate', debateIds);
+      }
       
     } catch (error) {
       console.error('Error loading debates:', error);
@@ -3313,57 +3319,76 @@ const TheCanon = ({ supabase }) => {
                   )}
                 </div>
                 <div className={`flex items-center ${isMobile ? 'gap-2' : 'gap-4'}`}>
-                  {/* Gamification Display */}
-                  <div className={`flex items-center ${isMobile ? 'gap-1 text-xs' : 'gap-3 text-sm'}`}>
-                    {userStreak > 0 && !isMobile && (
-                      <span className="flex items-center gap-1">
-                        <Flame className="w-4 h-4 text-orange-400" />
-                        {userStreak} day streak
-                      </span>
-                    )}
-                    <span className="flex items-center gap-1">
-                      <Star className={`${isMobile ? 'w-3 h-3' : 'w-4 h-4'} text-yellow-400`} />
-                      {isMobile ? userPoints.toLocaleString() : `${userPoints.toLocaleString()} points`}
-                    </span>
-                  </div>
-                  
-                  {!isMobile && (
-                    <div className="flex items-center gap-2 bg-purple-500/10 border border-purple-500/30 px-3 py-1.5">
-                      <Zap className="w-4 h-4 text-purple-400" />
-                      <span className="text-sm font-medium">{dailyPowerVotes} Power Votes</span>
-                    </div>
-                  )}
-                  
-                  {/* Debug friend requests */}
-                  {process.env.NODE_ENV === 'development' && (
-                    <div className="text-xs text-gray-400 px-2">
-                      FR: {friendRequests.length}
-                    </div>
-                  )}
-                  
-                  {friendRequests.length > 0 && (
-                    <button 
-                      onClick={() => setActiveTab('mypeople')}
-                      className={`relative p-2 hover:bg-white/10 border border-white/10 transition-colors ${isMobile ? 'touch-target' : ''}`}
-                      title={`${friendRequests.length} pending friend request${friendRequests.length > 1 ? 's' : ''}`}
-                    >
-                      <Bell className={`${isMobile ? 'w-4 h-4' : 'w-5 h-5'} text-yellow-400`} />
-                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center text-xs font-bold text-white">
-                        {friendRequests.length}
+                  {currentUser ? (
+                    <>
+                      {/* Gamification Display */}
+                      <div className={`flex items-center ${isMobile ? 'gap-1 text-xs' : 'gap-3 text-sm'}`}>
+                        {userStreak > 0 && !isMobile && (
+                          <span className="flex items-center gap-1">
+                            <Flame className="w-4 h-4 text-orange-400" />
+                            {userStreak} day streak
+                          </span>
+                        )}
+                        <span className="flex items-center gap-1">
+                          <Star className={`${isMobile ? 'w-3 h-3' : 'w-4 h-4'} text-yellow-400`} />
+                          {isMobile ? userPoints.toLocaleString() : `${userPoints.toLocaleString()} points`}
+                        </span>
                       </div>
-                    </button>
+                      
+                      {!isMobile && (
+                        <div className="flex items-center gap-2 bg-purple-500/10 border border-purple-500/30 px-3 py-1.5">
+                          <Zap className="w-4 h-4 text-purple-400" />
+                          <span className="text-sm font-medium">{dailyPowerVotes} Power Votes</span>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    /* Public Preview CTA */
+                    <div className="flex items-center gap-2">
+                      <div className="text-sm text-gray-400">
+                        👀 Preview Mode
+                      </div>
+                      <button 
+                        onClick={() => window.location.href = '/login'}
+                        className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg transition-colors"
+                      >
+                        Sign In
+                      </button>
+                    </div>
                   )}
                   
-                  <UserAvatar 
-                    user={{ username, profile_picture_url: userProfilePicture }} 
-                    profilePicture={userProfilePicture} 
-                    size={isMobile ? "w-8 h-8" : "w-10 h-10"} 
-                  />
-                  
-                  {/* Notifications Bell */}
-                  <button 
-                    onClick={() => setShowNotifications(true)}
-                    className={`relative p-2 hover:bg-white/10 border border-white/10 transition-colors ${isMobile ? 'touch-target' : ''}`}
+                  {currentUser && (
+                    <>
+                      {/* Debug friend requests */}
+                      {process.env.NODE_ENV === 'development' && (
+                        <div className="text-xs text-gray-400 px-2">
+                          FR: {friendRequests.length}
+                        </div>
+                      )}
+                      
+                      {friendRequests.length > 0 && (
+                        <button 
+                          onClick={() => setActiveTab('mypeople')}
+                          className={`relative p-2 hover:bg-white/10 border border-white/10 transition-colors ${isMobile ? 'touch-target' : ''}`}
+                          title={`${friendRequests.length} pending friend request${friendRequests.length > 1 ? 's' : ''}`}
+                        >
+                          <Bell className={`${isMobile ? 'w-4 h-4' : 'w-5 h-5'} text-yellow-400`} />
+                          <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center text-xs font-bold text-white">
+                            {friendRequests.length}
+                          </div>
+                        </button>
+                      )}
+                      
+                      <UserAvatar 
+                        user={{ username, profile_picture_url: userProfilePicture }} 
+                        profilePicture={userProfilePicture} 
+                        size={isMobile ? "w-8 h-8" : "w-10 h-10"} 
+                      />
+                      
+                      {/* Notifications Bell */}
+                      <button 
+                        onClick={() => setShowNotifications(true)}
+                        className={`relative p-2 hover:bg-white/10 border border-white/10 transition-colors ${isMobile ? 'touch-target' : ''}`}
                   >
                     <Bell className={`${isMobile ? 'w-4 h-4' : 'w-5 h-5'}`} />
                     {unreadNotifications > 0 && (
@@ -3373,20 +3398,22 @@ const TheCanon = ({ supabase }) => {
                     )}
                   </button>
                   
-                  <button 
-                    onClick={() => setShowSettings(true)}
-                    className={`p-2 hover:bg-white/10 border border-white/10 transition-colors ${isMobile ? 'touch-target' : ''}`}
-                  >
-                    <Settings className={`${isMobile ? 'w-4 h-4' : 'w-5 h-5'}`} />
-                  </button>
-                  
-                  {!isMobile && (
-                    <button 
-                      onClick={() => supabase.auth.signOut()}
-                      className="p-2 hover:bg-white/10 border border-white/10 transition-colors text-sm"
-                    >
-                      Sign Out
-                    </button>
+                      <button 
+                        onClick={() => setShowSettings(true)}
+                        className={`p-2 hover:bg-white/10 border border-white/10 transition-colors ${isMobile ? 'touch-target' : ''}`}
+                      >
+                        <Settings className={`${isMobile ? 'w-4 h-4' : 'w-5 h-5'}`} />
+                      </button>
+                      
+                      {!isMobile && (
+                        <button 
+                          onClick={() => supabase.auth.signOut()}
+                          className="p-2 hover:bg-white/10 border border-white/10 transition-colors text-sm"
+                        >
+                          Sign Out
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -4258,7 +4285,13 @@ const TheCanon = ({ supabase }) => {
                   )}
                 </button>
                 <button
-                  onClick={() => setActiveTab('mytop10')}
+                  onClick={() => {
+                    if (!currentUser) {
+                      addToast('Please sign in to create your Top 10 list', 'warning');
+                      return;
+                    }
+                    setActiveTab('mytop10');
+                  }}
                   className={`flex-1 py-4 font-medium tracking-tight transition-colors relative ${
                     activeTab === 'mytop10' ? 'text-white' : 'text-gray-500 hover:text-gray-300'
                   } ${isMobile ? 'text-sm' : ''}`}
@@ -4269,7 +4302,13 @@ const TheCanon = ({ supabase }) => {
                   )}
                 </button>
                 <button
-                  onClick={() => setActiveTab('mypeople')}
+                  onClick={() => {
+                    if (!currentUser) {
+                      addToast('Please sign in to connect with friends', 'warning');
+                      return;
+                    }
+                    setActiveTab('mypeople');
+                  }}
                   className={`flex-1 py-4 font-medium tracking-tight transition-colors relative ${
                     activeTab === 'mypeople' ? 'text-white' : 'text-gray-500 hover:text-gray-300'
                   } ${isMobile ? 'text-sm' : ''}`}
@@ -4351,7 +4390,13 @@ const TheCanon = ({ supabase }) => {
                                   
                                   <div className="flex items-center gap-4">
                                     <button 
-                                      onClick={() => toggleLike('debate', debate.id)}
+                                      onClick={() => {
+                                        if (!currentUser) {
+                                          addToast('Please sign in to like debates', 'warning');
+                                          return;
+                                        }
+                                        toggleLike('debate', debate.id);
+                                      }}
                                       className={`flex items-center gap-1 text-sm transition-colors ${
                                         debateLikes[debate.id]?.userLiked 
                                           ? 'text-purple-400' 
@@ -4470,7 +4515,13 @@ const TheCanon = ({ supabase }) => {
                               
                               <div className="flex items-center gap-4">
                                 <button 
-                                  onClick={() => toggleLike('debate', debate.id)}
+                                  onClick={() => {
+                                    if (!currentUser) {
+                                      addToast('Please sign in to like debates', 'warning');
+                                      return;
+                                    }
+                                    toggleLike('debate', debate.id);
+                                  }}
                                   className={`flex items-center gap-1 text-sm transition-colors ${
                                     debateLikes[debate.id]?.userLiked 
                                       ? 'text-purple-400' 
