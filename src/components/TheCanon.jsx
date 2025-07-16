@@ -4831,11 +4831,19 @@ const TheCanon = ({ supabase }) => {
                                 value={otherListSearchQueries[existingList.id] || ''}
                                 className="w-full px-3 py-1.5 text-sm bg-black/50 border border-white/20 focus:border-purple-400/50 focus:outline-none rounded"
                                 onChange={(e) => handleOtherListSearch(existingList.id, e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    const results = otherListSearchResults[existingList.id];
+                                    if (results && results.length > 0) {
+                                      addArtistToOtherList(existingList.id, results[0]);
+                                    }
+                                  }
+                                }}
                                 onBlur={() => {
                                   // Delay clearing to allow click on search results
                                   setTimeout(() => {
                                     setOtherListSearchResults(prev => ({ ...prev, [existingList.id]: [] }));
-                                  }, 150);
+                                  }, 300);
                                 }}
                               />
                               
@@ -4846,6 +4854,10 @@ const TheCanon = ({ supabase }) => {
                                     <div
                                       key={artist.id}
                                       className="p-3 hover:bg-white/10 transition-colors flex items-center gap-3 cursor-pointer"
+                                      onMouseDown={(e) => {
+                                        e.preventDefault(); // Prevent blur event
+                                        addArtistToOtherList(existingList.id, artist);
+                                      }}
                                       onClick={() => addArtistToOtherList(existingList.id, artist)}
                                     >
                                       <ArtistAvatar artist={artist} size="w-8 h-8" />
