@@ -387,6 +387,7 @@ const TheCanon = ({ supabase }) => {
   const searchRef = useRef(null);
   const myTop10SearchRef = useRef(null);
   const [fullRankings, setFullRankings] = useState([]);
+  const [totalVoters, setTotalVoters] = useState(0);
   
   // New debate-related state
   const [realDebates, setRealDebates] = useState([]);
@@ -1489,6 +1490,9 @@ const TheCanon = ({ supabase }) => {
       
       console.log('📚 Loaded user lists:', allUserLists.length, 'total lists');
       console.log('📚 Sample list structure:', allUserLists[0]);
+      
+      // Set total voter count
+      setTotalVoters(allUserLists.length);
       
       // Process each user's list
       console.log('🔄 Processing user lists...');
@@ -4484,7 +4488,7 @@ const TheCanon = ({ supabase }) => {
                         </div>
                         
                         <div className={`mt-3 pt-3 border-t border-white/10 flex justify-between text-gray-400 ${isMobile ? 'text-sm' : 'text-xs'}`}>
-                          <span>{userLists.some(l => l.isAllTime) ? '1 voter' : '0 voters'}</span>
+                          <span>{totalVoters} {totalVoters === 1 ? 'voter' : 'voters'}</span>
                           <span>Avg unique: 6.8</span>
                         </div>
                       </div>
