@@ -354,6 +354,9 @@ const TheCanon = ({ supabase }) => {
   const [showSettings, setShowSettings] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [dragOverIndex, setDragOverIndex] = useState(null);
   const [draggedFromList, setDraggedFromList] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -611,7 +614,8 @@ const TheCanon = ({ supabase }) => {
             loadUserLikes(),
             loadFriends(user), // Pass user directly since currentUser state isn't updated yet
             loadDailyChallenge(),
-            loadBattleHistory()
+            loadBattleHistory(),
+            loadNotifications()
           ]);
         }
       } catch (error) {
@@ -1940,6 +1944,15 @@ const TheCanon = ({ supabase }) => {
       
       if (error) throw error;
       
+      // Create notifications for mentioned users
+      if (mentionedFriends.length > 0) {
+        await Promise.all(
+          mentionedFriends.map(friendId => 
+            createMentionNotification(friendId, currentUser.id, data.id, filteredTitle)
+          )
+        );
+      }
+      
       await loadDebates();
       
       setShowDebateModal(false);
@@ -2260,6 +2273,86 @@ const TheCanon = ({ supabase }) => {
     }
     
     return parts.length > 0 ? parts : content;
+  };
+
+  // Load user notifications
+  const loadNotifications = async () => {
+    if (!currentUser) return;
+    
+    try {
+      const { data: notifications, error } = await supabase
+        .from('notifications')
+        .select(`
+          *,
+          from_user:profiles!notifications_from_user_id_fkey (
+            id,
+            username,
+            display_name,
+            profile_picture_url
+          )
+        `)
+        .eq('to_user_id', currentUser.id)
+        .order('created_at', { ascending: false })
+        .limit(20);
+      
+      if (error) {
+        console.error('Error loading notifications:', error);
+        return;
+      }
+      
+      setNotifications(notifications || []);
+      setUnreadNotifications(notifications?.filter(n => !n.read).length || 0);
+    } catch (error) {
+      console.error('Error loading notifications:', error);
+    }
+  };
+
+  // Create notification for user mention
+  const createMentionNotification = async (toUserId, fromUserId, debateId, debateTitle) => {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .insert({
+          to_user_id: toUserId,
+          from_user_id: fromUserId,
+          type: 'mention',
+          content: `mentioned you in "${debateTitle}"`,
+          reference_id: debateId,
+          read: false,
+          created_at: new Date().toISOString()
+        });
+      
+      if (error) {
+        console.error('Error creating notification:', error);
+      }
+    } catch (error) {
+      console.error('Error creating notification:', error);
+    }
+  };
+
+  // Mark notifications as read
+  const markNotificationsAsRead = async (notificationIds) => {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ read: true })
+        .in('id', notificationIds);
+      
+      if (error) {
+        console.error('Error marking notifications as read:', error);
+        return;
+      }
+      
+      // Update local state
+      setNotifications(prev => 
+        prev.map(n => 
+          notificationIds.includes(n.id) ? { ...n, read: true } : n
+        )
+      );
+      setUnreadNotifications(prev => Math.max(0, prev - notificationIds.length));
+    } catch (error) {
+      console.error('Error marking notifications as read:', error);
+    }
   };
 
   // Load friend's rankings
@@ -3155,6 +3248,19 @@ const TheCanon = ({ supabase }) => {
                     profilePicture={userProfilePicture} 
                     size={isMobile ? "w-8 h-8" : "w-10 h-10"} 
                   />
+                  
+                  {/* Notifications Bell */}
+                  <button 
+                    onClick={() => setShowNotifications(true)}
+                    className={`relative p-2 hover:bg-white/10 border border-white/10 transition-colors ${isMobile ? 'touch-target' : ''}`}
+                  >
+                    <Bell className={`${isMobile ? 'w-4 h-4' : 'w-5 h-5'}`} />
+                    {unreadNotifications > 0 && (
+                      <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-xs font-bold text-white">
+                        {unreadNotifications > 9 ? '9+' : unreadNotifications}
+                      </div>
+                    )}
+                  </button>
                   
                   <button 
                     onClick={() => setShowSettings(true)}
@@ -5366,6 +5472,81 @@ const TheCanon = ({ supabase }) => {
                 <p className="text-gray-400 text-xs">
                   Last updated: January 2024
                 </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Notifications Modal */}
+        {showNotifications && (
+          <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-lg w-full'} max-h-[80vh] flex flex-col`}>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold">Notifications</h2>
+                <button 
+                  onClick={() => {
+                    setShowNotifications(false);
+                    // Mark all visible notifications as read
+                    const unreadIds = notifications.filter(n => !n.read).map(n => n.id);
+                    if (unreadIds.length > 0) {
+                      markNotificationsAsRead(unreadIds);
+                    }
+                  }}
+                  className="p-2 hover:bg-white/10 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto">
+                {notifications.length > 0 ? (
+                  <div className="space-y-3">
+                    {notifications.map(notification => (
+                      <div 
+                        key={notification.id} 
+                        className={`p-4 border border-white/10 transition-colors cursor-pointer hover:bg-white/5 ${
+                          !notification.read ? 'bg-purple-500/10 border-purple-400/30' : 'bg-slate-700/50'
+                        }`}
+                        onClick={() => {
+                          // Mark as read and potentially navigate to the debate
+                          if (!notification.read) {
+                            markNotificationsAsRead([notification.id]);
+                          }
+                          // Could add navigation to the specific debate here
+                          setShowNotifications(false);
+                        }}
+                      >
+                        <div className="flex items-start gap-3">
+                          <UserAvatar 
+                            user={notification.from_user} 
+                            profilePicture={notification.from_user?.profile_picture_url} 
+                            size="w-8 h-8" 
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm">
+                              <span className="font-medium text-blue-400">
+                                {notification.from_user?.username || notification.from_user?.display_name}
+                              </span>
+                              {' '}{notification.content}
+                            </p>
+                            <p className="text-xs text-gray-400 mt-1">
+                              {getRelativeTime(notification.created_at)}
+                            </p>
+                          </div>
+                          {!notification.read && (
+                            <div className="w-2 h-2 bg-purple-400 rounded-full flex-shrink-0 mt-2"></div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-400">
+                    <Bell className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                    <p>No notifications yet</p>
+                    <p className="text-xs mt-1">You'll be notified when someone mentions you in a debate!</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
