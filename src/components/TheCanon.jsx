@@ -361,6 +361,7 @@ const TheCanon = ({ supabase }) => {
   const [commentingOnList, setCommentingOnList] = useState(null);
   const [commentText, setCommentText] = useState('');
   const [listComments, setListComments] = useState({});
+  const [showLoginModal, setShowLoginModal] = useState(false);
   const [debateLikes, setDebateLikes] = useState({});
   const [commentLikes, setCommentLikes] = useState({});
   const [dragOverIndex, setDragOverIndex] = useState(null);
@@ -2562,6 +2563,15 @@ const TheCanon = ({ supabase }) => {
     }
   };
 
+  // Helper function to show login modal for unauthenticated users
+  const requireAuth = (action) => {
+    if (!currentUser) {
+      setShowLoginModal(true);
+      return false;
+    }
+    return true;
+  };
+
   // Search functionality with memoization
   const searchArtists = useCallback((query) => {
     if (!query || query.length < 2) return [];
@@ -3349,7 +3359,7 @@ const TheCanon = ({ supabase }) => {
                         👀 Preview Mode
                       </div>
                       <button 
-                        onClick={() => window.location.href = '/login'}
+                        onClick={() => setShowLoginModal(true)}
                         className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg transition-colors"
                       >
                         Sign In
@@ -4286,11 +4296,9 @@ const TheCanon = ({ supabase }) => {
                 </button>
                 <button
                   onClick={() => {
-                    if (!currentUser) {
-                      addToast('Please sign in to create your Top 10 list', 'warning');
-                      return;
+                    if (requireAuth('create top 10')) {
+                      setActiveTab('mytop10');
                     }
-                    setActiveTab('mytop10');
                   }}
                   className={`flex-1 py-4 font-medium tracking-tight transition-colors relative ${
                     activeTab === 'mytop10' ? 'text-white' : 'text-gray-500 hover:text-gray-300'
@@ -4303,11 +4311,9 @@ const TheCanon = ({ supabase }) => {
                 </button>
                 <button
                   onClick={() => {
-                    if (!currentUser) {
-                      addToast('Please sign in to connect with friends', 'warning');
-                      return;
+                    if (requireAuth('connect with friends')) {
+                      setActiveTab('mypeople');
                     }
-                    setActiveTab('mypeople');
                   }}
                   className={`flex-1 py-4 font-medium tracking-tight transition-colors relative ${
                     activeTab === 'mypeople' ? 'text-white' : 'text-gray-500 hover:text-gray-300'
@@ -4333,7 +4339,11 @@ const TheCanon = ({ supabase }) => {
               <div className="space-y-6">
                 {/* Add Debate Button */}
                 <button
-                  onClick={() => setShowDebateModal(true)}
+                  onClick={() => {
+                    if (requireAuth('start a debate')) {
+                      setShowDebateModal(true);
+                    }
+                  }}
                   className="w-full py-3 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-400/50 transition-colors font-medium flex items-center justify-center gap-2"
                 >
                   <MessageCircle className="w-5 h-5" />
@@ -4516,11 +4526,9 @@ const TheCanon = ({ supabase }) => {
                               <div className="flex items-center gap-4">
                                 <button 
                                   onClick={() => {
-                                    if (!currentUser) {
-                                      addToast('Please sign in to like debates', 'warning');
-                                      return;
+                                    if (requireAuth('like debates')) {
+                                      toggleLike('debate', debate.id);
                                     }
-                                    toggleLike('debate', debate.id);
                                   }}
                                   className={`flex items-center gap-1 text-sm transition-colors ${
                                     debateLikes[debate.id]?.userLiked 
@@ -6006,6 +6014,59 @@ const TheCanon = ({ supabase }) => {
                   className="px-4 py-2 bg-slate-600 hover:bg-slate-700 transition-colors"
                 >
                   Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Login Modal */}
+        {showLoginModal && (
+          <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-md w-full'}`}>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold">Join The Canon</h2>
+                <button 
+                  onClick={() => setShowLoginModal(false)}
+                  className="p-2 hover:bg-white/10 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="text-center mb-6">
+                <p className="text-gray-400 mb-4">
+                  Sign in to participate in debates, create your Top 10 lists, and connect with hip-hop heads worldwide.
+                </p>
+                
+                <div className="grid grid-cols-3 gap-4 mb-4 text-sm">
+                  <div className="flex flex-col items-center">
+                    <MessageCircle className="w-6 h-6 text-purple-400 mb-1" />
+                    <span>Start Debates</span>
+                  </div>
+                  <div className="flex flex-col items-center">
+                    <Crown className="w-6 h-6 text-yellow-400 mb-1" />
+                    <span>Build Lists</span>
+                  </div>
+                  <div className="flex flex-col items-center">
+                    <Users className="w-6 h-6 text-blue-400 mb-1" />
+                    <span>Find Friends</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="space-y-3">
+                <button
+                  onClick={() => window.location.href = '/login'}
+                  className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors"
+                >
+                  Sign In / Sign Up
+                </button>
+                <button
+                  onClick={() => setShowLoginModal(false)}
+                  className="w-full py-2 text-gray-400 hover:text-white transition-colors text-sm"
+                >
+                  Continue browsing
                 </button>
               </div>
             </div>
