@@ -437,7 +437,6 @@ const TheCanon = ({ supabase }) => {
   const [hotTakes, setHotTakes] = useState([]);
   const [collaborativeLists, setCollaborativeLists] = useState([]);
   const [rankingComments, setRankingComments] = useState({});
-  const [showCommentModal, setShowCommentModal] = useState(false);
   const [commentingOn, setCommentingOn] = useState(null);
   const [headToHeadRecords, setHeadToHeadRecords] = useState({});
   
