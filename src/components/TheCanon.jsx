@@ -4066,18 +4066,19 @@ const TheCanon = ({ supabase }) => {
                           return;
                         }
                         
+                        console.log('Current user:', currentUser);
+                        console.log('Selected friend:', selectedFriend);
+                        console.log('Battle type:', battleType);
+                        
+                        const challengeData = {
+                          challenger_id: currentUser.id,
+                          challenged_id: selectedFriend,
+                          status: 'pending',
+                          challenge_type: battleType,
+                          message: battleMessage || null
+                        };
+                        
                         try {
-                          console.log('Current user:', currentUser);
-                          console.log('Selected friend:', selectedFriend);
-                          console.log('Battle type:', battleType);
-                          
-                          const challengeData = {
-                            challenger_id: currentUser.id,
-                            challenged_id: selectedFriend,
-                            status: 'pending',
-                            challenge_type: battleType,
-                            message: battleMessage || null
-                          };
                           
                           if (battleType === 'custom') {
                             challengeData.artist1_id = parseInt(battleArtist1);
