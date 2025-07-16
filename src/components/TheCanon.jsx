@@ -2124,6 +2124,7 @@ const TheCanon = ({ supabase }) => {
         }
       } else {
         addToast('Friend request sent!', 'success');
+        // TODO: Send email notification to the requested friend - requires Supabase Edge Functions + email service
         // Manually trigger reload
         loadFriends();
       }
@@ -2308,6 +2309,7 @@ const TheCanon = ({ supabase }) => {
   };
 
   // Create notification for user mention
+  // TODO: Add email notifications here - requires Supabase Edge Functions + email service (Resend/SendGrid)
   const createMentionNotification = async (toUserId, fromUserId, debateId, debateTitle) => {
     try {
       const { error } = await supabase
@@ -2786,8 +2788,8 @@ const TheCanon = ({ supabase }) => {
     const shareUrl = `${window.location.origin}/share/${currentUser.id}`;
     const isGoatList = list.isAllTime || list.is_all_time;
     const shareText = isGoatList 
-      ? `Check out my Greatest of All Time on The Canon:\n${list.artists.slice(0, 5).map((a, i) => `${i + 1}. ${a.name}`).join('\n')}`
-      : `Check out my ${list.title} on The Canon:\n${list.artists.slice(0, 5).map((a, i) => `${i + 1}. ${a.name}`).join('\n')}`;
+      ? `Check out my Greatest of All Time list on The Canon:\n${list.artists.slice(0, 5).map((a, i) => `${i + 1}. ${a.name}`).join('\n')}`
+      : `Check out my ${list.title} list on The Canon:\n${list.artists.slice(0, 5).map((a, i) => `${i + 1}. ${a.name}`).join('\n')}`;
     
     if (navigator.share) {
       navigator.share({
@@ -2874,7 +2876,7 @@ const TheCanon = ({ supabase }) => {
         setFaceOffs([newFaceOff]);
         setCurrentFaceOff(0);
       }
-    }, 300);
+    }, 2000);
   };
 
   // Get head-to-head win percentage
@@ -4065,6 +4067,10 @@ const TheCanon = ({ supabase }) => {
                         }
                         
                         try {
+                          console.log('Current user:', currentUser);
+                          console.log('Selected friend:', selectedFriend);
+                          console.log('Battle type:', battleType);
+                          
                           const challengeData = {
                             challenger_id: currentUser.id,
                             challenged_id: selectedFriend,
@@ -4078,10 +4084,15 @@ const TheCanon = ({ supabase }) => {
                             challengeData.artist2_id = parseInt(battleArtist2);
                           }
                           
-                          const { error } = await supabase
+                          console.log('Sending challenge data:', challengeData);
+                          
+                          const { data, error } = await supabase
                             .from('friend_challenges')
-                            .insert(challengeData);
+                            .insert(challengeData)
+                            .select();
                             
+                          console.log('Challenge insert result - data:', data, 'error:', error);
+                          
                           if (error) throw error;
                           
                           setShowBattleModal(false);
@@ -4093,7 +4104,8 @@ const TheCanon = ({ supabase }) => {
                           addToast('Challenge sent successfully!', 'success');
                         } catch (error) {
                           console.error('Error sending challenge:', error);
-                          addToast('Failed to send challenge', 'error');
+                          console.error('Challenge data:', challengeData);
+                          addToast(`Failed to send challenge: ${error.message}`, 'error');
                         }
                       }}
                       disabled={!selectedFriend || (battleType === 'custom' && (!battleArtist1 || !battleArtist2 || battleArtist1 === battleArtist2))}
