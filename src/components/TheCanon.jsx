@@ -5805,7 +5805,7 @@ const TheCanon = ({ supabase }) => {
               
               <div className="mb-4">
                 <p className="text-sm text-gray-400 mb-3">
-                  Share your thoughts on {viewingProfile?.username || viewingProfile?.display_name}'s ranking
+                  Share your thoughts on {viewingFriend?.username || viewingFriend?.display_name}'s ranking
                 </p>
                 
                 {/* Show top 5 artists from the list for context */}
@@ -5848,7 +5848,7 @@ const TheCanon = ({ supabase }) => {
                           ranking_id: commentingOnList.id,
                           user_id: currentUser.id,
                           content: commentText.trim(),
-                          list_owner_id: viewingProfile.id
+                          list_owner_id: viewingFriend.id
                         })
                         .select('*, profiles:user_id(username, display_name, profile_picture_url)');
                       
@@ -5864,7 +5864,7 @@ const TheCanon = ({ supabase }) => {
                       await supabase
                         .from('notifications')
                         .insert({
-                          to_user_id: viewingProfile.id,
+                          to_user_id: viewingFriend.id,
                           from_user_id: currentUser.id,
                           type: 'comment',
                           content: `commented on your ${commentingOnList.title}`,
