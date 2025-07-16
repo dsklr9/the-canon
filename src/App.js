@@ -68,7 +68,8 @@ function AppContent() {
 
   return (
     <Routes>
-      <Route path="/" element={session ? <TheCanon supabase={supabase} /> : <Login />} />
+      <Route path="/" element={<TheCanon supabase={supabase} />} />
+      <Route path="/login" element={<Login />} />
       <Route path="/share/:userId" element={<ShareProfile supabase={supabase} currentSession={session} />} />
       <Route path="/terms" element={<TermsOfService />} />
       <Route path="/privacy" element={<PrivacyPolicy />} />
