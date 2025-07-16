@@ -361,6 +361,8 @@ const TheCanon = ({ supabase }) => {
   const [commentingOnList, setCommentingOnList] = useState(null);
   const [commentText, setCommentText] = useState('');
   const [listComments, setListComments] = useState({});
+  const [debateLikes, setDebateLikes] = useState({});
+  const [commentLikes, setCommentLikes] = useState({});
   const [dragOverIndex, setDragOverIndex] = useState(null);
   const [draggedFromList, setDraggedFromList] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -919,6 +921,10 @@ const TheCanon = ({ supabase }) => {
       
       setRealDebates(formattedDebates);
       setHotTakes(formattedDebates.filter(d => d.isHotTake));
+      
+      // Load likes for all debates
+      const debateIds = formattedDebates.map(d => d.id);
+      await loadLikes('debate', debateIds);
       
     } catch (error) {
       console.error('Error loading debates:', error);
@@ -2342,8 +2348,115 @@ const TheCanon = ({ supabase }) => {
       });
       
       setListComments(commentsByRanking);
+      
+      // Load likes for all comments
+      const commentIds = comments?.map(c => c.id) || [];
+      if (commentIds.length > 0) {
+        await loadLikes('comment', commentIds);
+      }
     } catch (error) {
       console.error('Error loading comments:', error);
+    }
+  };
+
+  // Load likes for debates and comments
+  const loadLikes = async (type, itemIds) => {
+    if (!itemIds || itemIds.length === 0 || !currentUser) return;
+    
+    try {
+      const { data: likes, error } = await supabase
+        .from('likes')
+        .select('*')
+        .eq('item_type', type)
+        .in('item_id', itemIds);
+      
+      if (error) {
+        console.error('Error loading likes:', error);
+        return;
+      }
+      
+      // Group likes by item_id and check if current user liked
+      const likesByItem = {};
+      likes?.forEach(like => {
+        if (!likesByItem[like.item_id]) {
+          likesByItem[like.item_id] = {
+            count: 0,
+            userLiked: false
+          };
+        }
+        likesByItem[like.item_id].count++;
+        if (like.user_id === currentUser.id) {
+          likesByItem[like.item_id].userLiked = true;
+        }
+      });
+      
+      if (type === 'debate') {
+        setDebateLikes(likesByItem);
+      } else if (type === 'comment') {
+        setCommentLikes(likesByItem);
+      }
+    } catch (error) {
+      console.error('Error loading likes:', error);
+    }
+  };
+
+  // Toggle like for an item
+  const toggleLike = async (itemType, itemId) => {
+    if (!currentUser) {
+      addToast('Please log in to like', 'warning');
+      return;
+    }
+    
+    try {
+      const isDebate = itemType === 'debate';
+      const currentLikes = isDebate ? debateLikes : commentLikes;
+      const setLikes = isDebate ? setDebateLikes : setCommentLikes;
+      
+      const itemLikes = currentLikes[itemId] || { count: 0, userLiked: false };
+      
+      if (itemLikes.userLiked) {
+        // Unlike
+        const { error } = await supabase
+          .from('likes')
+          .delete()
+          .eq('user_id', currentUser.id)
+          .eq('item_type', itemType)
+          .eq('item_id', itemId);
+        
+        if (error) throw error;
+        
+        // Update local state
+        setLikes(prev => ({
+          ...prev,
+          [itemId]: {
+            count: Math.max(0, itemLikes.count - 1),
+            userLiked: false
+          }
+        }));
+      } else {
+        // Like
+        const { error } = await supabase
+          .from('likes')
+          .insert({
+            user_id: currentUser.id,
+            item_type: itemType,
+            item_id: itemId
+          });
+        
+        if (error) throw error;
+        
+        // Update local state
+        setLikes(prev => ({
+          ...prev,
+          [itemId]: {
+            count: itemLikes.count + 1,
+            userLiked: true
+          }
+        }));
+      }
+    } catch (error) {
+      console.error('Error toggling like:', error);
+      addToast('Failed to update like', 'error');
     }
   };
 
@@ -4285,17 +4398,17 @@ const TheCanon = ({ supabase }) => {
                                   
                                   <div className="flex items-center gap-4">
                                     <button 
-                                      onClick={() => toggleLike(debate.id)}
+                                      onClick={() => toggleLike('debate', debate.id)}
                                       className={`flex items-center gap-1 text-sm transition-colors ${
-                                        userLikes.has(debate.id) 
+                                        debateLikes[debate.id]?.userLiked 
                                           ? 'text-purple-400' 
                                           : 'hover:text-purple-400'
                                       }`}
                                     >
                                       <Heart 
-                                        className={`w-4 h-4 ${userLikes.has(debate.id) ? 'fill-current' : ''}`} 
+                                        className={`w-4 h-4 ${debateLikes[debate.id]?.userLiked ? 'fill-current' : ''}`} 
                                       />
-                                      {debate.likes}
+                                      {debateLikes[debate.id]?.count || 0}
                                     </button>
                                     <button 
                                       onClick={() => toggleComments(debate.id)}
@@ -4389,17 +4502,17 @@ const TheCanon = ({ supabase }) => {
                               
                               <div className="flex items-center gap-4">
                                 <button 
-                                  onClick={() => toggleLike(debate.id)}
+                                  onClick={() => toggleLike('debate', debate.id)}
                                   className={`flex items-center gap-1 text-sm transition-colors ${
-                                    userLikes.has(debate.id) 
+                                    debateLikes[debate.id]?.userLiked 
                                       ? 'text-purple-400' 
                                       : 'hover:text-purple-400'
                                   }`}
                                 >
                                   <Heart 
-                                    className={`w-4 h-4 ${userLikes.has(debate.id) ? 'fill-current' : ''}`} 
+                                    className={`w-4 h-4 ${debateLikes[debate.id]?.userLiked ? 'fill-current' : ''}`} 
                                   />
-                                  {debate.likes}
+                                  {debateLikes[debate.id]?.count || 0}
                                 </button>
                                 <button 
                                   onClick={() => toggleComments(debate.id)}
@@ -5388,7 +5501,22 @@ const TheCanon = ({ supabase }) => {
                                               {new Date(comment.created_at).toLocaleDateString()}
                                             </span>
                                           </div>
-                                          <p className="text-gray-300">{comment.content}</p>
+                                          <p className="text-gray-300 mb-1">{comment.content}</p>
+                                          <div className="flex items-center gap-2">
+                                            <button 
+                                              onClick={() => toggleLike('comment', comment.id)}
+                                              className={`flex items-center gap-1 text-xs transition-colors ${
+                                                commentLikes[comment.id]?.userLiked 
+                                                  ? 'text-purple-400' 
+                                                  : 'hover:text-purple-400'
+                                              }`}
+                                            >
+                                              <Heart 
+                                                className={`w-3 h-3 ${commentLikes[comment.id]?.userLiked ? 'fill-current' : ''}`} 
+                                              />
+                                              {commentLikes[comment.id]?.count || 0}
+                                            </button>
+                                          </div>
                                         </div>
                                       ))}
                                       {listComments[list.id].length > 3 && (
@@ -5473,7 +5601,22 @@ const TheCanon = ({ supabase }) => {
                                               {new Date(comment.created_at).toLocaleDateString()}
                                             </span>
                                           </div>
-                                          <p className="text-gray-300">{comment.content}</p>
+                                          <p className="text-gray-300 mb-1">{comment.content}</p>
+                                          <div className="flex items-center gap-2">
+                                            <button 
+                                              onClick={() => toggleLike('comment', comment.id)}
+                                              className={`flex items-center gap-1 text-xs transition-colors ${
+                                                commentLikes[comment.id]?.userLiked 
+                                                  ? 'text-purple-400' 
+                                                  : 'hover:text-purple-400'
+                                              }`}
+                                            >
+                                              <Heart 
+                                                className={`w-3 h-3 ${commentLikes[comment.id]?.userLiked ? 'fill-current' : ''}`} 
+                                              />
+                                              {commentLikes[comment.id]?.count || 0}
+                                            </button>
+                                          </div>
                                         </div>
                                       ))}
                                       {listComments[list.id].length > 3 && (
