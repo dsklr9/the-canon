@@ -357,6 +357,10 @@ const TheCanon = ({ supabase }) => {
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [showCommentModal, setShowCommentModal] = useState(false);
+  const [commentingOnList, setCommentingOnList] = useState(null);
+  const [commentText, setCommentText] = useState('');
+  const [listComments, setListComments] = useState({});
   const [dragOverIndex, setDragOverIndex] = useState(null);
   const [draggedFromList, setDraggedFromList] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -2312,6 +2316,37 @@ const TheCanon = ({ supabase }) => {
     }
   };
 
+  // Load comments for rankings
+  const loadRankingComments = async (rankingIds) => {
+    if (!rankingIds || rankingIds.length === 0) return;
+    
+    try {
+      const { data: comments, error } = await supabase
+        .from('ranking_comments')
+        .select('*, profiles:user_id(username, display_name, profile_picture_url)')
+        .in('ranking_id', rankingIds)
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('Error loading comments:', error);
+        return;
+      }
+      
+      // Group comments by ranking_id
+      const commentsByRanking = {};
+      comments?.forEach(comment => {
+        if (!commentsByRanking[comment.ranking_id]) {
+          commentsByRanking[comment.ranking_id] = [];
+        }
+        commentsByRanking[comment.ranking_id].push(comment);
+      });
+      
+      setListComments(commentsByRanking);
+    } catch (error) {
+      console.error('Error loading comments:', error);
+    }
+  };
+
   // Create notification for user mention
   // TODO: Add email notifications here - requires Supabase Edge Functions + email service (Resend/SendGrid)
   const createMentionNotification = async (toUserId, fromUserId, debateId, debateTitle) => {
@@ -2437,6 +2472,10 @@ const TheCanon = ({ supabase }) => {
 
       console.log('All formatted friend lists:', allLists);
       setFriendRankings(allLists);
+      
+      // Load comments for all rankings
+      const rankingIds = allLists.map(list => list.id);
+      await loadRankingComments(rankingIds);
       
       if (allLists.length === 0) {
         addToast('This friend hasn\'t created any rankings yet', 'info');
@@ -5295,6 +5334,21 @@ const TheCanon = ({ supabase }) => {
                                     <Crown className="w-4 h-4 text-yellow-400" />
                                     {list.title}
                                   </h4>
+                                  <button
+                                    onClick={() => {
+                                      setCommentingOnList(list);
+                                      setShowCommentModal(true);
+                                    }}
+                                    className="p-1 hover:bg-white/10 transition-colors rounded relative"
+                                    title="Comment on this list"
+                                  >
+                                    <MessageCircle className="w-4 h-4" />
+                                    {listComments[list.id] && listComments[list.id].length > 0 && (
+                                      <span className="absolute -top-1 -right-1 bg-purple-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                                        {listComments[list.id].length}
+                                      </span>
+                                    )}
+                                  </button>
                                 </div>
                                 <div className="space-y-2">
                                   {list.artists.slice(0, 10).map((artist, idx) => (
@@ -5310,6 +5364,41 @@ const TheCanon = ({ supabase }) => {
                                     </p>
                                   )}
                                 </div>
+                                
+                                {/* Comments Section */}
+                                {listComments[list.id] && listComments[list.id].length > 0 && (
+                                  <div className="mt-3 pt-3 border-t border-white/10">
+                                    <p className="text-xs text-gray-400 mb-2 flex items-center gap-1">
+                                      <MessageCircle className="w-3 h-3" />
+                                      {listComments[list.id].length} {listComments[list.id].length === 1 ? 'comment' : 'comments'}
+                                    </p>
+                                    <div className="space-y-2 max-h-32 overflow-y-auto">
+                                      {listComments[list.id].slice(0, 3).map(comment => (
+                                        <div key={comment.id} className="text-xs bg-slate-800/50 p-2 rounded">
+                                          <div className="flex items-center gap-1 mb-1">
+                                            <UserAvatar 
+                                              user={comment.profiles} 
+                                              profilePicture={comment.profiles?.profile_picture_url} 
+                                              size="w-4 h-4" 
+                                            />
+                                            <span className="font-medium text-blue-400">
+                                              {comment.profiles?.username || comment.profiles?.display_name}
+                                            </span>
+                                            <span className="text-gray-500">
+                                              {new Date(comment.created_at).toLocaleDateString()}
+                                            </span>
+                                          </div>
+                                          <p className="text-gray-300">{comment.content}</p>
+                                        </div>
+                                      ))}
+                                      {listComments[list.id].length > 3 && (
+                                        <p className="text-xs text-purple-400 cursor-pointer hover:text-purple-300">
+                                          View all comments →
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -5330,6 +5419,21 @@ const TheCanon = ({ supabase }) => {
                                   <h4 className="font-bold flex items-center gap-2">
                                     {list.title}
                                   </h4>
+                                  <button
+                                    onClick={() => {
+                                      setCommentingOnList(list);
+                                      setShowCommentModal(true);
+                                    }}
+                                    className="p-1 hover:bg-white/10 transition-colors rounded relative"
+                                    title="Comment on this list"
+                                  >
+                                    <MessageCircle className="w-4 h-4" />
+                                    {listComments[list.id] && listComments[list.id].length > 0 && (
+                                      <span className="absolute -top-1 -right-1 bg-purple-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                                        {listComments[list.id].length}
+                                      </span>
+                                    )}
+                                  </button>
                                 </div>
                                 <div className="space-y-2">
                                   {list.artists.slice(0, 10).map((artist, idx) => (
@@ -5345,6 +5449,41 @@ const TheCanon = ({ supabase }) => {
                                     </p>
                                   )}
                                 </div>
+                                
+                                {/* Comments Section */}
+                                {listComments[list.id] && listComments[list.id].length > 0 && (
+                                  <div className="mt-3 pt-3 border-t border-white/10">
+                                    <p className="text-xs text-gray-400 mb-2 flex items-center gap-1">
+                                      <MessageCircle className="w-3 h-3" />
+                                      {listComments[list.id].length} {listComments[list.id].length === 1 ? 'comment' : 'comments'}
+                                    </p>
+                                    <div className="space-y-2 max-h-32 overflow-y-auto">
+                                      {listComments[list.id].slice(0, 3).map(comment => (
+                                        <div key={comment.id} className="text-xs bg-slate-800/50 p-2 rounded">
+                                          <div className="flex items-center gap-1 mb-1">
+                                            <UserAvatar 
+                                              user={comment.profiles} 
+                                              profilePicture={comment.profiles?.profile_picture_url} 
+                                              size="w-4 h-4" 
+                                            />
+                                            <span className="font-medium text-blue-400">
+                                              {comment.profiles?.username || comment.profiles?.display_name}
+                                            </span>
+                                            <span className="text-gray-500">
+                                              {new Date(comment.created_at).toLocaleDateString()}
+                                            </span>
+                                          </div>
+                                          <p className="text-gray-300">{comment.content}</p>
+                                        </div>
+                                      ))}
+                                      {listComments[list.id].length > 3 && (
+                                        <p className="text-xs text-purple-400 cursor-pointer hover:text-purple-300">
+                                          View all comments →
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -5576,6 +5715,121 @@ const TheCanon = ({ supabase }) => {
                     <p className="text-xs mt-1">You'll be notified when someone mentions you in a debate!</p>
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Comment Modal */}
+        {showCommentModal && commentingOnList && (
+          <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-lg w-full'}`}>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold">Comment on {commentingOnList.title}</h2>
+                <button 
+                  onClick={() => {
+                    setShowCommentModal(false);
+                    setCommentingOnList(null);
+                    setCommentText('');
+                  }}
+                  className="p-2 hover:bg-white/10 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="mb-4">
+                <p className="text-sm text-gray-400 mb-3">
+                  Share your thoughts on {viewingProfile?.username || viewingProfile?.display_name}'s ranking
+                </p>
+                
+                {/* Show top 5 artists from the list for context */}
+                <div className="bg-slate-700/50 p-3 rounded mb-4">
+                  <p className="text-xs text-gray-400 mb-2">Top 5 from this list:</p>
+                  <div className="space-y-1">
+                    {commentingOnList.artists.slice(0, 5).map((artist, idx) => (
+                      <div key={artist.id} className="flex items-center gap-2 text-sm">
+                        <span className="text-gray-500 w-4">#{idx + 1}</span>
+                        <ArtistAvatar artist={artist} size="w-5 h-5" />
+                        <span>{artist.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                <textarea
+                  value={commentText}
+                  onChange={(e) => setCommentText(e.target.value)}
+                  placeholder="What do you think about this ranking?"
+                  className="w-full px-3 py-2 bg-slate-700 border border-white/20 rounded focus:border-purple-400 focus:outline-none resize-none"
+                  rows="4"
+                  maxLength="500"
+                />
+                <p className="text-xs text-gray-400 mt-1 text-right">
+                  {commentText.length}/500
+                </p>
+              </div>
+              
+              <div className="flex gap-2">
+                <button
+                  onClick={async () => {
+                    if (!commentText.trim()) return;
+                    
+                    try {
+                      // Submit comment
+                      const { data, error } = await supabase
+                        .from('ranking_comments')
+                        .insert({
+                          ranking_id: commentingOnList.id,
+                          user_id: currentUser.id,
+                          content: commentText.trim(),
+                          list_owner_id: viewingProfile.id
+                        })
+                        .select('*, profiles:user_id(username, display_name, profile_picture_url)');
+                      
+                      if (error) throw error;
+                      
+                      // Update local state
+                      setListComments(prev => ({
+                        ...prev,
+                        [commentingOnList.id]: [...(prev[commentingOnList.id] || []), data[0]]
+                      }));
+                      
+                      // Create notification for list owner
+                      await supabase
+                        .from('notifications')
+                        .insert({
+                          to_user_id: viewingProfile.id,
+                          from_user_id: currentUser.id,
+                          type: 'comment',
+                          content: `commented on your ${commentingOnList.title}`,
+                          reference_id: commentingOnList.id
+                        });
+                      
+                      addToast('Comment posted!', 'success');
+                      setShowCommentModal(false);
+                      setCommentingOnList(null);
+                      setCommentText('');
+                    } catch (error) {
+                      console.error('Error posting comment:', error);
+                      addToast('Failed to post comment', 'error');
+                    }
+                  }}
+                  disabled={!commentText.trim()}
+                  className="flex-1 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
+                >
+                  Post Comment
+                </button>
+                <button
+                  onClick={() => {
+                    setShowCommentModal(false);
+                    setCommentingOnList(null);
+                    setCommentText('');
+                  }}
+                  className="px-4 py-2 bg-slate-600 hover:bg-slate-700 transition-colors"
+                >
+                  Cancel
+                </button>
               </div>
             </div>
           </div>
