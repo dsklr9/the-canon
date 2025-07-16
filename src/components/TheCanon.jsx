@@ -1147,60 +1147,6 @@ const TheCanon = ({ supabase }) => {
     return `${diffDays}d ago`;
   };
 
-  // Toggle like on debate with rate limiting
-  const toggleLike = async (debateId) => {
-    if (!currentUser) {
-      addToast('Please log in to like debates', 'warning');
-      return;
-    }
-
-    // Check rate limit
-    if (!await checkRateLimit('like', 30, 1)) {
-      addToast('Too many likes! Please slow down.', 'warning');
-      return;
-    }
-
-    try {
-      if (userLikes.has(debateId)) {
-        // Unlike
-        await supabase
-          .from('debate_likes')
-          .delete()
-          .eq('debate_id', debateId)
-          .eq('user_id', currentUser.id);
-        
-        setUserLikes(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(debateId);
-          return newSet;
-        });
-        
-        // Update local debate count
-        setRealDebates(prev => prev.map(d => 
-          d.id === debateId ? { ...d, likes: d.likes - 1 } : d
-        ));
-      } else {
-        // Like
-        await supabase
-          .from('debate_likes')
-          .insert({
-            debate_id: debateId,
-            user_id: currentUser.id
-          });
-        
-        setUserLikes(prev => new Set([...prev, debateId]));
-        
-        // Update local debate count
-        setRealDebates(prev => prev.map(d => 
-          d.id === debateId ? { ...d, likes: d.likes + 1 } : d
-        ));
-      }
-    } catch (error) {
-      console.error('Error toggling like:', error);
-      addToast('Error updating like', 'error');
-    }
-  };
-
   // Post reply to debate
   const postReply = async () => {
     if (!currentUser || !replyingTo || !replyContent.trim()) return;
