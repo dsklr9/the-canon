@@ -2227,11 +2227,17 @@ const TheCanon = ({ supabase }) => {
       
       // Check if user is Canon OG (joined before a certain date)
       const joinDate = new Date(userProfile.created_at);
-      const ogCutoffDate = new Date('2024-12-01'); // Adjust this date as needed
+      const ogCutoffDate = new Date('2025-09-01'); // Users who join before September 2025 are Canon OGs
       const isCanonOG = joinDate < ogCutoffDate;
       
       // Calculate days since joining
       const daysSinceJoining = Math.floor((new Date() - joinDate) / (1000 * 60 * 60 * 24));
+      
+      // Get canon points if this is the current user
+      let canonPoints = 0;
+      if (userProfile.id === currentUser?.id) {
+        canonPoints = userCanonScore;
+      }
       
       // Set the viewing friend with enhanced data
       setViewingFriend({
@@ -2239,7 +2245,8 @@ const TheCanon = ({ supabase }) => {
         stats,
         achievements,
         is_canon_og: isCanonOG,
-        days_since_joining: daysSinceJoining
+        days_since_joining: daysSinceJoining,
+        canon_points: canonPoints
       });
       
       // Load their rankings
@@ -5289,7 +5296,11 @@ const TheCanon = ({ supabase }) => {
                         My Stats
                       </h2>
                       <button
-                        onClick={() => handleUsernameClick(currentUser)}
+                        onClick={() => handleUsernameClick({
+                          ...currentUser,
+                          username: username || currentUser.email?.split('@')[0],
+                          profile_picture_url: userProfilePicture
+                        })}
                         className="text-purple-400 hover:text-purple-300 text-sm transition-colors"
                       >
                         View Full Profile →
@@ -5618,7 +5629,14 @@ const TheCanon = ({ supabase }) => {
                       profilePicture={viewingFriend.profile_picture_url} 
                       size={isMobile ? "w-8 h-8" : "w-10 h-10"} 
                     />
-                    {viewingFriend.username}'s Rankings
+                    <span className="flex items-center gap-3">
+                      {viewingFriend.username || viewingFriend.display_name || 'User'}'s Rankings
+                      {viewingFriend.canon_points !== undefined && (
+                        <span className="text-sm bg-purple-600/20 text-purple-300 px-3 py-1 rounded-full font-medium">
+                          {viewingFriend.canon_points} points
+                        </span>
+                      )}
+                    </span>
                   </h2>
                   <button 
                     onClick={() => {
@@ -5631,72 +5649,55 @@ const TheCanon = ({ supabase }) => {
                   </button>
                 </div>
                 
-                {/* User Profile Stats Section */}
-                <div className="mb-6 p-4 bg-slate-700/30 border border-white/10 rounded-lg">
-                  <div className="flex items-center justify-between mb-3">
+                {/* User Profile Stats Section - Compact Version */}
+                <div className="mb-4 p-3 bg-slate-700/30 border border-white/10 rounded-lg">
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <UserAvatar 
-                        user={viewingFriend} 
-                        profilePicture={viewingFriend.profile_picture_url} 
-                        size="w-12 h-12" 
-                      />
-                      <div>
-                        <h3 className="font-bold text-lg">{viewingFriend.username}</h3>
-                        <div className="flex items-center gap-2">
-                          {/* Canon OG Badge */}
-                          {viewingFriend.is_canon_og && (
-                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xs font-bold rounded-full">
-                              <Crown className="w-3 h-3" />
-                              CANON OG
-                            </span>
-                          )}
-                          {/* Member Since */}
-                          <span className="text-xs text-gray-400">
-                            Member since {viewingFriend.created_at ? new Date(viewingFriend.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Unknown'}
-                            {viewingFriend.days_since_joining !== undefined && (
-                              <span className="ml-2 text-purple-400">
-                                • {viewingFriend.days_since_joining} days active
-                              </span>
-                            )}
-                          </span>
-                        </div>
+                      {/* Canon OG Badge - Made More Prominent */}
+                      {viewingFriend.is_canon_og && (
+                        <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-bold rounded-full shadow-lg animate-pulse">
+                          <Crown className="w-4 h-4" />
+                          CANON OG
+                        </span>
+                      )}
+                      <span className="text-xs text-gray-400">
+                        Member since {viewingFriend.created_at ? new Date(viewingFriend.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Unknown'}
+                      </span>
+                    </div>
+                    
+                    {/* Compact Stats Row */}
+                    <div className="flex items-center gap-4 text-xs">
+                      <div className="text-center">
+                        <div className="font-bold text-purple-400">{viewingFriend.stats?.debates_started || 0}</div>
+                        <div className="text-gray-500">Debates</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="font-bold text-blue-400">{viewingFriend.stats?.comments_made || 0}</div>
+                        <div className="text-gray-500">Comments</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="font-bold text-pink-400">{viewingFriend.stats?.likes_received || 0}</div>
+                        <div className="text-gray-500">Likes</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="font-bold text-green-400">{viewingFriend.stats?.friend_count || 0}</div>
+                        <div className="text-gray-500">Friends</div>
                       </div>
                     </div>
                   </div>
                   
-                  {/* User Stats Grid */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                    <div className="bg-slate-800/50 p-3 rounded">
-                      <div className="text-xl font-bold text-purple-400">{viewingFriend.stats?.debates_started || 0}</div>
-                      <div className="text-xs text-gray-400">Debates Started</div>
-                    </div>
-                    <div className="bg-slate-800/50 p-3 rounded">
-                      <div className="text-xl font-bold text-blue-400">{viewingFriend.stats?.comments_made || 0}</div>
-                      <div className="text-xs text-gray-400">Comments</div>
-                    </div>
-                    <div className="bg-slate-800/50 p-3 rounded">
-                      <div className="text-xl font-bold text-pink-400">{viewingFriend.stats?.likes_received || 0}</div>
-                      <div className="text-xs text-gray-400">Likes Received</div>
-                    </div>
-                    <div className="bg-slate-800/50 p-3 rounded">
-                      <div className="text-xl font-bold text-green-400">{viewingFriend.stats?.friend_count || 0}</div>
-                      <div className="text-xs text-gray-400">Friends</div>
-                    </div>
-                  </div>
-                  
-                  {/* Achievements Row */}
+                  {/* Achievements Row - Compact */}
                   {viewingFriend.achievements && viewingFriend.achievements.length > 0 && (
-                    <div className="mt-4">
-                      <h4 className="text-sm font-medium text-gray-300 mb-2">Achievements</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {viewingFriend.achievements.slice(0, 6).map((achievement, idx) => (
-                          <span key={idx} className="inline-flex items-center gap-1 px-2 py-1 bg-yellow-600/20 text-yellow-300 text-xs rounded-full">
-                            <Award className="w-3 h-3" />
-                            {achievement}
+                    <div className="mt-2 flex items-center gap-2">
+                      <Award className="w-3 h-3 text-yellow-400" />
+                      <div className="flex flex-wrap gap-1">
+                        {viewingFriend.achievements.slice(0, 3).map((achievement, idx) => (
+                          <span key={idx} className="text-xs text-yellow-300">
+                            {achievement}{idx < Math.min(2, viewingFriend.achievements.length - 1) && ','}
                           </span>
                         ))}
-                        {viewingFriend.achievements.length > 6 && (
-                          <span className="text-xs text-gray-400">+{viewingFriend.achievements.length - 6} more</span>
+                        {viewingFriend.achievements.length > 3 && (
+                          <span className="text-xs text-gray-400">+{viewingFriend.achievements.length - 3} more</span>
                         )}
                       </div>
                     </div>
