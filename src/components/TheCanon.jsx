@@ -4163,7 +4163,10 @@ const TheCanon = ({ supabase }) => {
                             <span>{artist.name}</span>
                           </button>
                         ))}
-                        {searchArtists(tagSearchQuery).length === 0 && tagSearchQuery.length > 1 && (
+                        {/* Always show Add Rapper button if no exact match */}
+                        {tagSearchQuery.length > 1 && !searchArtists(tagSearchQuery).some(artist => 
+                          artist.name.toLowerCase() === tagSearchQuery.toLowerCase()
+                        ) && (
                           <button
                             onClick={() => {
                               setShowArtistRequestModal(true);
@@ -4173,7 +4176,7 @@ const TheCanon = ({ supabase }) => {
                             className="w-full p-2 hover:bg-purple-600/20 border border-purple-500/30 text-purple-400 flex items-center gap-2 text-left"
                           >
                             <Plus className="w-4 h-4" />
-                            <span>Request to add "{tagSearchQuery}"</span>
+                            <span>Can't find who you're looking for? Request "{tagSearchQuery}"</span>
                           </button>
                         )}
                       </div>
@@ -5178,8 +5181,11 @@ const TheCanon = ({ supabase }) => {
                                     </div>
                                   );
                                 })}
-                                {searchResults.length === 0 && searchQuery.length > 1 && (
-                                  <div className="p-3 border-t border-white/10">
+                                {/* Always show Add Rapper button if no exact match */}
+                                {searchQuery.length > 1 && !searchResults.some(artist => 
+                                  artist.name.toLowerCase() === searchQuery.toLowerCase()
+                                ) && (
+                                  <div className={searchResults.length > 0 ? "p-3 border-t border-white/10" : "p-3"}>
                                     <button
                                       onClick={() => {
                                         setShowArtistRequestModal(true);
@@ -5189,7 +5195,7 @@ const TheCanon = ({ supabase }) => {
                                       className="w-full p-2 hover:bg-purple-600/20 border border-purple-500/30 text-purple-400 flex items-center gap-2 rounded"
                                     >
                                       <Plus className="w-4 h-4" />
-                                      <span>Request to add "{searchQuery}"</span>
+                                      <span>Can't find who you're looking for? Request "{searchQuery}"</span>
                                     </button>
                                   </div>
                                 )}
