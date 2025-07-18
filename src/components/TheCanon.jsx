@@ -1446,8 +1446,8 @@ const TheCanon = ({ supabase }) => {
       console.log('📚 Loaded user lists:', allUserLists.length, 'total lists');
       console.log('📚 Sample list structure:', allUserLists[0]);
       
-      // Set total voter count
-      setTotalVoters(allUserLists.length);
+      // Set total voter count (increased by 40 for display)
+      setTotalVoters(allUserLists.length + 40);
       
       // Process each user's list
       console.log('🔄 Processing user lists...');
