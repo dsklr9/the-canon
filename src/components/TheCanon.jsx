@@ -761,6 +761,61 @@ const TheCanon = ({ supabase }) => {
     }
   };
 
+  // Load face-off statistics for all artists
+  const loadFaceOffStats = async () => {
+    try {
+      console.log('🥊 Loading face-off statistics...');
+      
+      // Get all face-off votes
+      const { data: faceOffVotes, error } = await supabase
+        .from('faceoff_votes')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const artistStats = new Map();
+      
+      // Process votes to calculate stats
+      faceOffVotes?.forEach(vote => {
+        const winnerId = vote.winner_id;
+        const loserId = vote.artist1_id === winnerId ? vote.artist2_id : vote.artist1_id;
+        const margin = vote.conviction_level || 50;
+        
+        // Initialize stats if needed
+        [winnerId, loserId].forEach(artistId => {
+          if (!artistStats.has(artistId)) {
+            artistStats.set(artistId, {
+              wins: 0,
+              losses: 0,
+              totalBattles: 0,
+              totalMargin: 0,
+              underdogWins: 0,
+              overdogWins: 0
+            });
+          }
+        });
+        
+        // Update winner stats
+        const winnerStats = artistStats.get(winnerId);
+        winnerStats.wins++;
+        winnerStats.totalBattles++;
+        winnerStats.totalMargin += margin;
+        
+        // Update loser stats
+        const loserStats = artistStats.get(loserId);
+        loserStats.losses++;
+        loserStats.totalBattles++;
+      });
+      
+      console.log('✅ Loaded face-off stats for', artistStats.size, 'artists');
+      return artistStats;
+    } catch (error) {
+      console.error('Error loading face-off stats:', error);
+      return new Map();
+    }
+  };
+
   // Load artists from database
   const loadArtistsFromDB = async () => {
     try {
@@ -1444,9 +1499,12 @@ const TheCanon = ({ supabase }) => {
     const artistVotes = new Map(); // Track votes per artist
     
     try {
-      // Load all users' all-time lists
-      console.log('📚 Loading all user lists...');
-      const allUserLists = await loadAllUserLists();
+      // Load all users' all-time lists and face-off data in parallel
+      console.log('📚 Loading all user lists and face-off stats...');
+      const [allUserLists, faceOffStats] = await Promise.all([
+        loadAllUserLists(),
+        loadFaceOffStats()
+      ]);
       
       console.log('📚 Loaded user lists:', allUserLists.length, 'total lists');
       console.log('📚 Sample list structure:', allUserLists[0]);
@@ -1503,8 +1561,52 @@ const TheCanon = ({ supabase }) => {
       
       console.log('🏆 Sorted artists count:', sortedArtists.length);
       
-      // Format as rankings
+      // Create a map of current rankings for underdog calculations
+      const currentRankMap = new Map();
       sortedArtists.forEach((item, index) => {
+        currentRankMap.set(item.artist.id, index + 1);
+      });
+      
+      // Format as rankings with face-off influence
+      sortedArtists.forEach((item, index) => {
+        const artistId = item.artist.id;
+        const faceOffData = faceOffStats.get(artistId);
+        
+        // Calculate face-off modifiers if data exists
+        let faceOffModifiers = null;
+        if (faceOffData && faceOffData.totalBattles >= 5) {
+          // Calculate average underdog multiplier based on opponent rankings
+          let underdogMultiplier = 1.0;
+          let marginMultiplier = 1.0;
+          
+          // For now, estimate underdog bonus (we'd need detailed battle history for precise calculation)
+          // Artists lower in rankings get higher multiplier when they win
+          const currentRank = index + 1;
+          if (currentRank > 50) {
+            underdogMultiplier = 1.5; // 50% bonus for lower-ranked artists
+          } else if (currentRank > 25) {
+            underdogMultiplier = 1.25; // 25% bonus for mid-ranked artists
+          }
+          
+          // Margin multiplier based on average conviction
+          if (faceOffData.totalMargin && faceOffData.wins > 0) {
+            const avgMargin = faceOffData.totalMargin / faceOffData.wins;
+            marginMultiplier = 0.5 + (avgMargin / 100); // 0.5 to 1.5 range
+          }
+          
+          faceOffModifiers = {
+            wins: faceOffData.wins,
+            totalBattles: faceOffData.totalBattles,
+            avgUnderdogMultiplier: underdogMultiplier,
+            avgMarginMultiplier: marginMultiplier
+          };
+        }
+        
+        // Calculate final canon score with face-off influence
+        const avgPosition = item.positions.reduce((a, b) => a + b, 0) / item.positions.length;
+        const appearanceRate = item.voteCount / (allUserLists.length || 1);
+        const canonScore = calculateCanonScore(appearanceRate, avgPosition, faceOffModifiers);
+        
         rankings.push({
           rank: index + 1,
           artist: item.artist,
@@ -1512,8 +1614,10 @@ const TheCanon = ({ supabase }) => {
           trend: 'stable',
           votes: item.voteCount,
           totalPoints: item.totalPoints,
-          averagePosition: item.positions.reduce((a, b) => a + b, 0) / item.positions.length,
-          canonScore: item.artist.canonScore || item.artist.heat_score || 50
+          averagePosition: avgPosition,
+          canonScore: canonScore,
+          faceOffWins: faceOffModifiers?.wins || 0,
+          faceOffBattles: faceOffModifiers?.totalBattles || 0
         });
       });
       
@@ -1531,7 +1635,7 @@ const TheCanon = ({ supabase }) => {
       console.error('❌ Error in generateTop100:', error);
       return [];
     }
-  }, [loadAllUserLists]);
+  }, [loadAllUserLists, loadFaceOffStats, calculateCanonScore]);
 
   // Generate rankings when artists are loaded
   useEffect(() => {
@@ -1682,10 +1786,39 @@ const TheCanon = ({ supabase }) => {
     };
   }, [notableArtists, faceOffFilters, dailyChallenge, addToast]);
 
-  // Calculate Canon Score
-  const calculateCanonScore = (appearanceRate, avgPosition) => {
+  // Calculate Canon Score with Face-off Influence
+  const calculateCanonScore = (appearanceRate, avgPosition, faceOffData = null) => {
+    // Base score from user rankings (85% weight)
     const positionScore = (11 - avgPosition) / 10;
-    return Math.round((appearanceRate * 0.7 + positionScore * 0.3) * 100);
+    const baseScore = (appearanceRate * 0.7 + positionScore * 0.3) * 100;
+    
+    // Face-off influence (15% weight)
+    let faceOffBonus = 0;
+    if (faceOffData && faceOffData.totalBattles >= 5) {
+      // Base face-off score from win rate
+      const winRate = faceOffData.wins / faceOffData.totalBattles;
+      let faceOffScore = winRate * 100;
+      
+      // Apply underdog bonus multiplier
+      if (faceOffData.avgUnderdogMultiplier) {
+        faceOffScore *= faceOffData.avgUnderdogMultiplier;
+      }
+      
+      // Apply margin of victory multiplier
+      if (faceOffData.avgMarginMultiplier) {
+        faceOffScore *= faceOffData.avgMarginMultiplier;
+      }
+      
+      // Apply volume normalization (diminishing returns)
+      const volumeNormalizer = Math.log10(Math.min(faceOffData.totalBattles, 100) + 1) / 2;
+      faceOffScore *= volumeNormalizer;
+      
+      faceOffBonus = faceOffScore * 0.15; // 15% max influence
+    }
+    
+    // Combine scores with caps
+    const finalScore = Math.round(baseScore * 0.85 + faceOffBonus);
+    return Math.min(100, Math.max(0, finalScore)); // Cap between 0-100
   };
 
   // Save ranking to database with validation
@@ -1771,11 +1904,26 @@ const TheCanon = ({ supabase }) => {
     }
   };
 
-  // Save face-off vote to database with battle history
+  // Save face-off vote to database with underdog calculations
   const saveFaceOffVote = async (artist1Id, artist2Id, winnerId, conviction) => {
     if (!currentUser) return;
     
     try {
+      // Find current rankings of both artists
+      const artist1Rank = fullRankings.findIndex(r => r.artist.id === artist1Id) + 1;
+      const artist2Rank = fullRankings.findIndex(r => r.artist.id === artist2Id) + 1;
+      
+      // Calculate underdog bonus
+      let underdogBonus = 1.0;
+      const winnerRank = winnerId === artist1Id ? artist1Rank : artist2Rank;
+      const loserRank = winnerId === artist1Id ? artist2Rank : artist1Rank;
+      
+      if (winnerRank > 0 && loserRank > 0 && winnerRank > loserRank) {
+        // Winner is the underdog
+        const rankGap = winnerRank - loserRank;
+        underdogBonus = 1 + Math.min(rankGap / 50, 1.0); // Max 2x bonus
+      }
+      
       const voteData = {
         user_id: currentUser.id,
         artist1_id: artist1Id,
@@ -1784,6 +1932,9 @@ const TheCanon = ({ supabase }) => {
         conviction_level: conviction,
         is_power_vote: conviction > 75,
         is_daily_challenge: faceOffs[currentFaceOff]?.isDailyChallenge || false,
+        underdog_bonus: underdogBonus,
+        winner_rank: winnerRank || null,
+        loser_rank: loserRank || null,
         created_at: new Date().toISOString()
       };
       
@@ -1794,10 +1945,16 @@ const TheCanon = ({ supabase }) => {
       // Update battle history
       setBattleHistory(prev => [voteData, ...prev]);
 
-      // Award points
-      const points = conviction > 75 ? 5 : 2;
+      // Award points with underdog bonus
+      const basePoints = conviction > 75 ? 5 : 2;
       const bonusPoints = faceOffs[currentFaceOff]?.isDailyChallenge ? 3 : 0;
-      await awardPoints(points + bonusPoints, 'faceoff_vote');
+      const totalPoints = Math.round((basePoints + bonusPoints) * underdogBonus);
+      await awardPoints(totalPoints, 'faceoff_vote');
+      
+      // Show special message for underdog victories
+      if (underdogBonus > 1.5) {
+        addToast(`🎯 Underdog victory! +${totalPoints} points!`, 'success');
+      }
       
       // Check for badges
       if (battleHistory.length >= 100) {
