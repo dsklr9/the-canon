@@ -2236,7 +2236,7 @@ const TheCanon = ({ supabase }) => {
       // Get canon points if this is the current user
       let canonPoints = 0;
       if (userProfile.id === currentUser?.id) {
-        canonPoints = userCanonScore;
+        canonPoints = userPoints || 0;
       }
       
       // Set the viewing friend with enhanced data
