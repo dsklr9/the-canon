@@ -378,6 +378,7 @@ const TheCanon = ({ supabase }) => {
   const [requestedArtistGenre, setRequestedArtistGenre] = useState('Hip-Hop');
   const [requestedArtistEra, setRequestedArtistEra] = useState('2020s');
   const [requestNotes, setRequestNotes] = useState('');
+  const [selectedSearchIndex, setSelectedSearchIndex] = useState(-1);
   const [friendRankings, setFriendRankings] = useState([]);
   const [draggedItem, setDraggedItem] = useState(null);
   const [showTop100Modal, setShowTop100Modal] = useState(false);
@@ -2891,30 +2892,62 @@ const TheCanon = ({ supabase }) => {
       .replace(/\s+/g, ' ') // Normalize spaces
       .trim();
     
-    return allArtists
-      .filter(artist => {
+    const results = allArtists
+      .map(artist => {
         const lowerName = artist.name.toLowerCase();
         const normalizedName = lowerName
           .replace(/[^\w\s]/g, '') // Remove special characters
           .replace(/\s+/g, ' ') // Normalize spaces
           .trim();
         
-        // Check multiple match conditions
-        return (
-          // Exact substring match (original behavior)
-          lowerName.includes(lowerQuery) ||
-          // Normalized match (handles special characters)
-          normalizedName.includes(normalizedQuery) ||
-          // Word boundary matches (for partial word matching)
-          normalizedName.split(' ').some(word => 
-            word.startsWith(normalizedQuery) || 
-            normalizedQuery.split(' ').some(queryWord => word.startsWith(queryWord))
-          ) ||
-          // Era matching
-          artist.era.toLowerCase().includes(lowerQuery)
-        );
+        let score = 0;
+        let isMatch = false;
+        
+        // 1. EXACT MATCH (highest priority) - score 100
+        if (lowerName === lowerQuery || normalizedName === normalizedQuery) {
+          score = 100;
+          isMatch = true;
+        }
+        // 2. STARTS WITH QUERY - score 90
+        else if (lowerName.startsWith(lowerQuery) || normalizedName.startsWith(normalizedQuery)) {
+          score = 90;
+          isMatch = true;
+        }
+        // 3. EXACT WORD MATCH - score 80
+        else if (lowerName.split(' ').includes(lowerQuery) || normalizedName.split(' ').includes(normalizedQuery)) {
+          score = 80;
+          isMatch = true;
+        }
+        // 4. WORD STARTS WITH - score 70
+        else if (normalizedName.split(' ').some(word => word.startsWith(normalizedQuery))) {
+          score = 70;
+          isMatch = true;
+        }
+        // 5. CONTAINS QUERY - score 60
+        else if (lowerName.includes(lowerQuery) || normalizedName.includes(normalizedQuery)) {
+          score = 60;
+          isMatch = true;
+        }
+        // 6. PARTIAL WORD MATCHING - score 50
+        else if (normalizedName.split(' ').some(word => 
+          normalizedQuery.split(' ').some(queryWord => word.startsWith(queryWord))
+        )) {
+          score = 50;
+          isMatch = true;
+        }
+        // 7. ERA MATCHING - score 40
+        else if (artist.era.toLowerCase().includes(lowerQuery)) {
+          score = 40;
+          isMatch = true;
+        }
+        
+        return isMatch ? { ...artist, searchScore: score } : null;
       })
+      .filter(Boolean)
+      .sort((a, b) => b.searchScore - a.searchScore) // Sort by score descending
       .slice(0, 8);
+    
+    return results;
   }, [allArtists]);
 
   const searchResults = useMemo(() => searchArtists(searchQuery), [searchQuery, searchArtists]);
@@ -5147,8 +5180,40 @@ const TheCanon = ({ supabase }) => {
                                 onChange={(e) => {
                                   setSearchQuery(e.target.value);
                                   setShowSearchResults(true);
+                                  setSelectedSearchIndex(-1); // Reset selection when typing
                                 }}
                                 onFocus={() => setShowSearchResults(true)}
+                                onKeyDown={(e) => {
+                                  if (!showSearchResults || searchResults.length === 0) return;
+                                  
+                                  switch (e.key) {
+                                    case 'ArrowDown':
+                                      e.preventDefault();
+                                      setSelectedSearchIndex(prev => 
+                                        prev < searchResults.length - 1 ? prev + 1 : 0
+                                      );
+                                      break;
+                                    case 'ArrowUp':
+                                      e.preventDefault();
+                                      setSelectedSearchIndex(prev => 
+                                        prev > 0 ? prev - 1 : searchResults.length - 1
+                                      );
+                                      break;
+                                    case 'Enter':
+                                      e.preventDefault();
+                                      if (selectedSearchIndex >= 0 && selectedSearchIndex < searchResults.length) {
+                                        addArtistToList(searchResults[selectedSearchIndex], list.id);
+                                        setSearchQuery('');
+                                        setShowSearchResults(false);
+                                        setSelectedSearchIndex(-1);
+                                      }
+                                      break;
+                                    case 'Escape':
+                                      setShowSearchResults(false);
+                                      setSelectedSearchIndex(-1);
+                                      break;
+                                  }
+                                }}
                                 placeholder="Search artists to add..."
                                 className="w-full pl-10 pr-4 py-2 bg-black/50 border border-white/20 focus:border-purple-400/50 focus:outline-none"
                               />
@@ -5157,12 +5222,15 @@ const TheCanon = ({ supabase }) => {
                             {/* Search Results */}
                             {showSearchResults && searchQuery && (
                               <div className="absolute top-full mt-2 w-full bg-slate-800 border border-white/20 shadow-xl max-h-64 overflow-y-auto z-10">
-                                {searchResults.map((artist) => {
+                                {searchResults.map((artist, index) => {
                                   const friendCount = getFriendCountForArtist(artist.id);
+                                  const isSelected = index === selectedSearchIndex;
                                   return (
                                     <div
                                       key={artist.id}
-                                      className="p-3 hover:bg-white/10 transition-colors flex items-center gap-3 cursor-pointer"
+                                      className={`p-3 transition-colors flex items-center gap-3 cursor-pointer ${
+                                        isSelected ? 'bg-purple-600/20 border-l-2 border-purple-400' : 'hover:bg-white/10'
+                                      }`}
                                       onClick={() => addArtistToList(artist, list.id)}
                                     >
                                       <span className="text-2xl"><ArtistAvatar artist={artist} /></span>
