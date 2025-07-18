@@ -762,7 +762,7 @@ const TheCanon = ({ supabase }) => {
   };
 
   // Load face-off statistics for all artists
-  const loadFaceOffStats = async () => {
+  const loadFaceOffStats = useCallback(async () => {
     try {
       console.log('🥊 Loading face-off statistics...');
       
@@ -814,7 +814,7 @@ const TheCanon = ({ supabase }) => {
       console.error('Error loading face-off stats:', error);
       return new Map();
     }
-  };
+  }, [supabase]);
 
   // Load artists from database
   const loadArtistsFromDB = async () => {
@@ -1493,6 +1493,41 @@ const TheCanon = ({ supabase }) => {
     }
   }, [supabase]);
 
+  // Calculate Canon Score with Face-off Influence
+  const calculateCanonScore = useCallback((appearanceRate, avgPosition, faceOffData = null) => {
+    // Base score from user rankings (85% weight)
+    const positionScore = (11 - avgPosition) / 10;
+    const baseScore = (appearanceRate * 0.7 + positionScore * 0.3) * 100;
+    
+    // Face-off influence (15% weight)
+    let faceOffBonus = 0;
+    if (faceOffData && faceOffData.totalBattles >= 5) {
+      // Base face-off score from win rate
+      const winRate = faceOffData.wins / faceOffData.totalBattles;
+      let faceOffScore = winRate * 100;
+      
+      // Apply underdog bonus multiplier
+      if (faceOffData.avgUnderdogMultiplier) {
+        faceOffScore *= faceOffData.avgUnderdogMultiplier;
+      }
+      
+      // Apply margin of victory multiplier
+      if (faceOffData.avgMarginMultiplier) {
+        faceOffScore *= faceOffData.avgMarginMultiplier;
+      }
+      
+      // Apply volume normalization (diminishing returns)
+      const volumeNormalizer = Math.log10(Math.min(faceOffData.totalBattles, 100) + 1) / 2;
+      faceOffScore *= volumeNormalizer;
+      
+      faceOffBonus = faceOffScore * 0.15; // 15% max influence
+    }
+    
+    // Combine scores with caps
+    const finalScore = Math.round(baseScore * 0.85 + faceOffBonus);
+    return Math.min(100, Math.max(0, finalScore)); // Cap between 0-100
+  }, []);
+
   const generateTop100 = useCallback(async () => {
     console.log('🎯 generateTop100 function called');
     const rankings = [];
@@ -1785,41 +1820,6 @@ const TheCanon = ({ supabase }) => {
       isDailyChallenge: dailyChallenge ? true : false
     };
   }, [notableArtists, faceOffFilters, dailyChallenge, addToast]);
-
-  // Calculate Canon Score with Face-off Influence
-  const calculateCanonScore = (appearanceRate, avgPosition, faceOffData = null) => {
-    // Base score from user rankings (85% weight)
-    const positionScore = (11 - avgPosition) / 10;
-    const baseScore = (appearanceRate * 0.7 + positionScore * 0.3) * 100;
-    
-    // Face-off influence (15% weight)
-    let faceOffBonus = 0;
-    if (faceOffData && faceOffData.totalBattles >= 5) {
-      // Base face-off score from win rate
-      const winRate = faceOffData.wins / faceOffData.totalBattles;
-      let faceOffScore = winRate * 100;
-      
-      // Apply underdog bonus multiplier
-      if (faceOffData.avgUnderdogMultiplier) {
-        faceOffScore *= faceOffData.avgUnderdogMultiplier;
-      }
-      
-      // Apply margin of victory multiplier
-      if (faceOffData.avgMarginMultiplier) {
-        faceOffScore *= faceOffData.avgMarginMultiplier;
-      }
-      
-      // Apply volume normalization (diminishing returns)
-      const volumeNormalizer = Math.log10(Math.min(faceOffData.totalBattles, 100) + 1) / 2;
-      faceOffScore *= volumeNormalizer;
-      
-      faceOffBonus = faceOffScore * 0.15; // 15% max influence
-    }
-    
-    // Combine scores with caps
-    const finalScore = Math.round(baseScore * 0.85 + faceOffBonus);
-    return Math.min(100, Math.max(0, finalScore)); // Cap between 0-100
-  };
 
   // Save ranking to database with validation
   const saveRankingToDatabase = async (ranking) => {
