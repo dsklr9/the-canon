@@ -373,6 +373,11 @@ const TheCanon = ({ supabase }) => {
   const [editingRanking, setEditingRanking] = useState(null);
   const [viewingFriend, setViewingFriend] = useState(null);
   const [currentUserStats, setCurrentUserStats] = useState({ debates_started: 0, comments_made: 0, likes_received: 0, friend_count: 0 });
+  const [showArtistRequestModal, setShowArtistRequestModal] = useState(false);
+  const [requestedArtistName, setRequestedArtistName] = useState('');
+  const [requestedArtistGenre, setRequestedArtistGenre] = useState('Hip-Hop');
+  const [requestedArtistEra, setRequestedArtistEra] = useState('2020s');
+  const [requestNotes, setRequestNotes] = useState('');
   const [friendRankings, setFriendRankings] = useState([]);
   const [draggedItem, setDraggedItem] = useState(null);
   const [showTop100Modal, setShowTop100Modal] = useState(false);
@@ -2219,6 +2224,36 @@ const TheCanon = ({ supabase }) => {
     }
   };
 
+  // Submit artist request
+  const submitArtistRequest = async () => {
+    if (!currentUser || !requestedArtistName.trim()) return;
+
+    try {
+      const { error } = await supabase
+        .from('artist_requests')
+        .insert({
+          user_id: currentUser.id,
+          artist_name: requestedArtistName.trim(),
+          genre: requestedArtistGenre,
+          era: requestedArtistEra,
+          notes: requestNotes.trim(),
+          status: 'pending'
+        });
+
+      if (error) throw error;
+
+      addToast(`Request to add "${requestedArtistName}" submitted!`, 'success');
+      setShowArtistRequestModal(false);
+      setRequestedArtistName('');
+      setRequestedArtistGenre('Hip-Hop');
+      setRequestedArtistEra('2020s');
+      setRequestNotes('');
+    } catch (error) {
+      console.error('Error submitting artist request:', error);
+      addToast('Error submitting request', 'error');
+    }
+  };
+
   // Handle username click to show user profile
   const handleUsernameClick = async (userProfile) => {
     try {
@@ -3971,6 +4006,19 @@ const TheCanon = ({ supabase }) => {
                             <span>{artist.name}</span>
                           </button>
                         ))}
+                        {searchArtists(tagSearchQuery).length === 0 && tagSearchQuery.length > 1 && (
+                          <button
+                            onClick={() => {
+                              setShowArtistRequestModal(true);
+                              setRequestedArtistName(tagSearchQuery);
+                              setShowTagSearch(false);
+                            }}
+                            className="w-full p-2 hover:bg-purple-600/20 border border-purple-500/30 text-purple-400 flex items-center gap-2 text-left"
+                          >
+                            <Plus className="w-4 h-4" />
+                            <span>Request to add "{tagSearchQuery}"</span>
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -4947,7 +4995,7 @@ const TheCanon = ({ supabase }) => {
                             </div>
                             
                             {/* Search Results */}
-                            {showSearchResults && searchQuery && searchResults.length > 0 && (
+                            {showSearchResults && searchQuery && (
                               <div className="absolute top-full mt-2 w-full bg-slate-800 border border-white/20 shadow-xl max-h-64 overflow-y-auto z-10">
                                 {searchResults.map((artist) => {
                                   const friendCount = getFriendCountForArtist(artist.id);
@@ -4973,6 +5021,21 @@ const TheCanon = ({ supabase }) => {
                                     </div>
                                   );
                                 })}
+                                {searchResults.length === 0 && searchQuery.length > 1 && (
+                                  <div className="p-3 border-t border-white/10">
+                                    <button
+                                      onClick={() => {
+                                        setShowArtistRequestModal(true);
+                                        setRequestedArtistName(searchQuery);
+                                        setShowSearchResults(false);
+                                      }}
+                                      className="w-full p-2 hover:bg-purple-600/20 border border-purple-500/30 text-purple-400 flex items-center gap-2 rounded"
+                                    >
+                                      <Plus className="w-4 h-4" />
+                                      <span>Request to add "{searchQuery}"</span>
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
@@ -6308,6 +6371,98 @@ const TheCanon = ({ supabase }) => {
 
         {/* Artist Card Modal */}
         {showArtistCard && <ArtistCard artist={showArtistCard} onClose={() => setShowArtistCard(null)} />}
+
+        {/* Artist Request Modal */}
+        {showArtistRequestModal && (
+          <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-md w-full'}`}>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-bold">Request New Artist</h2>
+                <button 
+                  onClick={() => setShowArtistRequestModal(false)}
+                  className="p-2 hover:bg-white/10 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Artist Name</label>
+                  <input
+                    type="text"
+                    value={requestedArtistName}
+                    onChange={(e) => setRequestedArtistName(e.target.value)}
+                    placeholder="Enter artist name"
+                    className="w-full px-3 py-2 bg-black/50 border border-white/20 focus:border-purple-400 focus:outline-none rounded"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-2">Genre</label>
+                  <select
+                    value={requestedArtistGenre}
+                    onChange={(e) => setRequestedArtistGenre(e.target.value)}
+                    className="w-full px-3 py-2 bg-black/50 border border-white/20 focus:border-purple-400 focus:outline-none rounded"
+                  >
+                    <option value="Hip-Hop">Hip-Hop</option>
+                    <option value="R&B">R&B</option>
+                    <option value="Pop">Pop</option>
+                    <option value="Rock">Rock</option>
+                    <option value="Jazz">Jazz</option>
+                    <option value="Electronic">Electronic</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-2">Era</label>
+                  <select
+                    value={requestedArtistEra}
+                    onChange={(e) => setRequestedArtistEra(e.target.value)}
+                    className="w-full px-3 py-2 bg-black/50 border border-white/20 focus:border-purple-400 focus:outline-none rounded"
+                  >
+                    <option value="2020s">2020s</option>
+                    <option value="2010s">2010s</option>
+                    <option value="2000s">2000s</option>
+                    <option value="1990s">1990s</option>
+                    <option value="1980s">1980s</option>
+                    <option value="1970s">1970s</option>
+                    <option value="1960s">1960s</option>
+                    <option value="Earlier">Earlier</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-2">Additional Notes (Optional)</label>
+                  <textarea
+                    value={requestNotes}
+                    onChange={(e) => setRequestNotes(e.target.value)}
+                    placeholder="Any additional info about the artist..."
+                    rows={3}
+                    className="w-full px-3 py-2 bg-black/50 border border-white/20 focus:border-purple-400 focus:outline-none rounded resize-none"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={submitArtistRequest}
+                  disabled={!requestedArtistName.trim()}
+                  className="flex-1 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium rounded"
+                >
+                  Submit Request
+                </button>
+                <button
+                  onClick={() => setShowArtistRequestModal(false)}
+                  className="flex-1 py-2 bg-white/10 hover:bg-white/20 border border-white/20 transition-colors rounded"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </ErrorBoundary>
   );
