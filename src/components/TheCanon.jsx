@@ -372,6 +372,7 @@ const TheCanon = ({ supabase }) => {
   const [otherListSearchResults, setOtherListSearchResults] = useState({});
   const [editingRanking, setEditingRanking] = useState(null);
   const [viewingFriend, setViewingFriend] = useState(null);
+  const [currentUserStats, setCurrentUserStats] = useState({ debates_started: 0, comments_made: 0, likes_received: 0, friend_count: 0 });
   const [friendRankings, setFriendRankings] = useState([]);
   const [draggedItem, setDraggedItem] = useState(null);
   const [showTop100Modal, setShowTop100Modal] = useState(false);
@@ -693,6 +694,15 @@ const TheCanon = ({ supabase }) => {
       friendRequestsSubscription.unsubscribe();
     };
   }, [currentUser]);
+
+  // Load current user's stats
+  useEffect(() => {
+    if (currentUser && activeTab === 'mypeople') {
+      loadUserStats(currentUser.id).then(({ stats }) => {
+        setCurrentUserStats(stats);
+      });
+    }
+  }, [currentUser, activeTab]);
 
   // Get current user
   const getCurrentUser = async () => {
@@ -2127,11 +2137,110 @@ const TheCanon = ({ supabase }) => {
     }
   };
 
+  // Load user stats for profile display
+  const loadUserStats = async (userId) => {
+    try {
+      console.log('Loading stats for user:', userId);
+      
+      // First get user's debates and comments to count likes
+      const [debatesResult, commentsResult, friendsResult] = await Promise.all([
+        // Count debates started
+        supabase
+          .from('debates')
+          .select('id', { count: 'exact' })
+          .eq('author_id', userId),
+        
+        // Count comments made  
+        supabase
+          .from('debate_comments')
+          .select('id', { count: 'exact' })
+          .eq('author_id', userId),
+        
+        // Count friends
+        supabase
+          .from('friendships')
+          .select('id', { count: 'exact' })
+          .or(`user_id.eq.${userId},friend_id.eq.${userId}`)
+          .eq('status', 'accepted')
+      ]);
+
+      // Get debate IDs to count likes
+      const userDebates = await supabase
+        .from('debates')
+        .select('id')
+        .eq('author_id', userId);
+
+      // Count likes on user's debates
+      let likesCount = 0;
+      if (userDebates.data && userDebates.data.length > 0) {
+        const debateIds = userDebates.data.map(d => d.id);
+        const likesResult = await supabase
+          .from('debate_likes')
+          .select('id', { count: 'exact' })
+          .in('debate_id', debateIds);
+        likesCount = likesResult.count || 0;
+      }
+
+      console.log('Stats query results:', { 
+        debates: debatesResult, 
+        comments: commentsResult, 
+        likes: likesCount, 
+        friends: friendsResult 
+      });
+
+      // Calculate achievements based on stats
+      const achievements = [];
+      const debatesCount = debatesResult.count || 0;
+      const commentsCount = commentsResult.count || 0;
+      const friendsCount = friendsResult.count || 0;
+
+      // Achievement logic
+      if (debatesCount >= 1) achievements.push('First Debate');
+      if (debatesCount >= 5) achievements.push('Debate Starter');
+      if (debatesCount >= 10) achievements.push('Debate Master');
+      if (commentsCount >= 10) achievements.push('Engaged');
+      if (commentsCount >= 50) achievements.push('Conversationalist');
+      if (friendsCount >= 5) achievements.push('Social Butterfly');
+      if (friendsCount >= 10) achievements.push('Network Builder');
+      if (likesCount >= 10) achievements.push('Crowd Pleaser');
+      if (likesCount >= 50) achievements.push('Influencer');
+
+      const stats = {
+        debates_started: debatesCount,
+        comments_made: commentsCount,
+        likes_received: likesCount,
+        friend_count: friendsCount
+      };
+
+      return { stats, achievements };
+    } catch (error) {
+      console.error('Error loading user stats:', error);
+      return { stats: {}, achievements: [] };
+    }
+  };
+
   // Handle username click to show user profile
   const handleUsernameClick = async (userProfile) => {
     try {
-      // Set the viewing friend
-      setViewingFriend(userProfile);
+      // Load user stats
+      const { stats, achievements } = await loadUserStats(userProfile.id);
+      
+      // Check if user is Canon OG (joined before a certain date)
+      const joinDate = new Date(userProfile.created_at);
+      const ogCutoffDate = new Date('2024-12-01'); // Adjust this date as needed
+      const isCanonOG = joinDate < ogCutoffDate;
+      
+      // Calculate days since joining
+      const daysSinceJoining = Math.floor((new Date() - joinDate) / (1000 * 60 * 60 * 24));
+      
+      // Set the viewing friend with enhanced data
+      setViewingFriend({
+        ...userProfile,
+        stats,
+        achievements,
+        is_canon_og: isCanonOG,
+        days_since_joining: daysSinceJoining
+      });
       
       // Load their rankings
       await loadFriendRankings(userProfile.id);
@@ -5166,6 +5275,57 @@ const TheCanon = ({ supabase }) => {
             ) : (
               <div className="space-y-6">
                 {/* My People Tab Content */}
+                
+                {/* My Stats Section */}
+                {currentUser && (
+                  <div className="bg-gradient-to-r from-purple-900/30 to-pink-900/30 border border-white/20 p-6 rounded-lg">
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="text-xl font-bold flex items-center gap-3">
+                        <UserAvatar 
+                          user={currentUser} 
+                          profilePicture={userProfilePicture} 
+                          size="w-10 h-10" 
+                        />
+                        My Stats
+                      </h2>
+                      <button
+                        onClick={() => handleUsernameClick(currentUser)}
+                        className="text-purple-400 hover:text-purple-300 text-sm transition-colors"
+                      >
+                        View Full Profile →
+                      </button>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                      <div className="bg-slate-800/50 p-3 rounded">
+                        <div className="text-xl font-bold text-purple-400">{currentUserStats.debates_started}</div>
+                        <div className="text-xs text-gray-400">Debates Started</div>
+                      </div>
+                      <div className="bg-slate-800/50 p-3 rounded">
+                        <div className="text-xl font-bold text-blue-400">{currentUserStats.comments_made}</div>
+                        <div className="text-xs text-gray-400">Comments</div>
+                      </div>
+                      <div className="bg-slate-800/50 p-3 rounded">
+                        <div className="text-xl font-bold text-pink-400">{currentUserStats.likes_received}</div>
+                        <div className="text-xs text-gray-400">Likes Received</div>
+                      </div>
+                      <div className="bg-slate-800/50 p-3 rounded">
+                        <div className="text-xl font-bold text-green-400">{friends.length}</div>
+                        <div className="text-xs text-gray-400">Friends</div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center justify-center gap-4 mt-4 text-sm text-gray-400">
+                      <span>Member since {currentUser.created_at ? new Date(currentUser.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Unknown'}</span>
+                      {currentUser.created_at && (
+                        <span className="text-purple-400">
+                          • {Math.floor((new Date() - new Date(currentUser.created_at)) / (1000 * 60 * 60 * 24))} days active
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+                
                 {/* Friend Search Section */}
                 <div>
                   <h2 className="text-lg font-bold mb-3">Find Friends</h2>
@@ -5469,6 +5629,78 @@ const TheCanon = ({ supabase }) => {
                   >
                     <X className="w-5 h-5" />
                   </button>
+                </div>
+                
+                {/* User Profile Stats Section */}
+                <div className="mb-6 p-4 bg-slate-700/30 border border-white/10 rounded-lg">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <UserAvatar 
+                        user={viewingFriend} 
+                        profilePicture={viewingFriend.profile_picture_url} 
+                        size="w-12 h-12" 
+                      />
+                      <div>
+                        <h3 className="font-bold text-lg">{viewingFriend.username}</h3>
+                        <div className="flex items-center gap-2">
+                          {/* Canon OG Badge */}
+                          {viewingFriend.is_canon_og && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xs font-bold rounded-full">
+                              <Crown className="w-3 h-3" />
+                              CANON OG
+                            </span>
+                          )}
+                          {/* Member Since */}
+                          <span className="text-xs text-gray-400">
+                            Member since {viewingFriend.created_at ? new Date(viewingFriend.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'Unknown'}
+                            {viewingFriend.days_since_joining !== undefined && (
+                              <span className="ml-2 text-purple-400">
+                                • {viewingFriend.days_since_joining} days active
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* User Stats Grid */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                    <div className="bg-slate-800/50 p-3 rounded">
+                      <div className="text-xl font-bold text-purple-400">{viewingFriend.stats?.debates_started || 0}</div>
+                      <div className="text-xs text-gray-400">Debates Started</div>
+                    </div>
+                    <div className="bg-slate-800/50 p-3 rounded">
+                      <div className="text-xl font-bold text-blue-400">{viewingFriend.stats?.comments_made || 0}</div>
+                      <div className="text-xs text-gray-400">Comments</div>
+                    </div>
+                    <div className="bg-slate-800/50 p-3 rounded">
+                      <div className="text-xl font-bold text-pink-400">{viewingFriend.stats?.likes_received || 0}</div>
+                      <div className="text-xs text-gray-400">Likes Received</div>
+                    </div>
+                    <div className="bg-slate-800/50 p-3 rounded">
+                      <div className="text-xl font-bold text-green-400">{viewingFriend.stats?.friend_count || 0}</div>
+                      <div className="text-xs text-gray-400">Friends</div>
+                    </div>
+                  </div>
+                  
+                  {/* Achievements Row */}
+                  {viewingFriend.achievements && viewingFriend.achievements.length > 0 && (
+                    <div className="mt-4">
+                      <h4 className="text-sm font-medium text-gray-300 mb-2">Achievements</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {viewingFriend.achievements.slice(0, 6).map((achievement, idx) => (
+                          <span key={idx} className="inline-flex items-center gap-1 px-2 py-1 bg-yellow-600/20 text-yellow-300 text-xs rounded-full">
+                            <Award className="w-3 h-3" />
+                            {achievement}
+                          </span>
+                        ))}
+                        {viewingFriend.achievements.length > 6 && (
+                          <span className="text-xs text-gray-400">+{viewingFriend.achievements.length - 6} more</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 
                 <div className="flex-1 overflow-y-auto space-y-6">
