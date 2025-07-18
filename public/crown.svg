@@ -2,18 +2,17 @@
   <!-- Dark navy background -->
   <rect width="64" height="64" fill="#1e293b" rx="8"/>
   
-  <!-- Yellow crown outline -->
-  <path d="M12 42 L16 26 L24 34 L32 20 L40 34 L48 26 L52 42 L52 46 L12 46 Z" 
-        fill="none" 
-        stroke="#fde047" 
-        stroke-width="2.5" 
-        stroke-linejoin="round"/>
-  
-  <!-- Yellow crown fill -->
-  <path d="M12 42 L16 26 L24 34 L32 20 L40 34 L48 26 L52 42 L52 46 L12 46 Z" 
-        fill="#fde047" 
-        opacity="0.9"/>
-  
-  <!-- Yellow base bar -->
-  <rect x="12" y="50" width="40" height="6" fill="#fde047" rx="1"/>
+  <!-- Lucide Crown icon path scaled to fit -->
+  <g transform="translate(8, 8) scale(2, 2)">
+    <path d="M2 4l3 12h14l3-12-5 4-5-7-5 7z" 
+          fill="#fbbf24" 
+          stroke="#fbbf24" 
+          stroke-width="1" 
+          stroke-linejoin="round" 
+          stroke-linecap="round"/>
+    <path d="M5 20h14" 
+          stroke="#fbbf24" 
+          stroke-width="2" 
+          stroke-linecap="round"/>
+  </g>
 </svg>
