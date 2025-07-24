@@ -379,6 +379,7 @@ const TheCanon = ({ supabase }) => {
   const [requestedArtistEra, setRequestedArtistEra] = useState('2020s');
   const [requestNotes, setRequestNotes] = useState('');
   const [selectedSearchIndex, setSelectedSearchIndex] = useState(-1);
+  const [expandedLists, setExpandedLists] = useState(new Set());
   const [friendRankings, setFriendRankings] = useState([]);
   const [draggedItem, setDraggedItem] = useState(null);
   const [showTop100Modal, setShowTop100Modal] = useState(false);
@@ -1495,38 +1496,72 @@ const TheCanon = ({ supabase }) => {
   }, [supabase]);
 
   // Calculate Canon Score with Face-off Influence
-  const calculateCanonScore = useCallback((appearanceRate, avgPosition, faceOffData = null) => {
-    // Base score from user rankings (85% weight)
-    const positionScore = (11 - avgPosition) / 10;
-    const baseScore = (appearanceRate * 0.7 + positionScore * 0.3) * 100;
+  const calculateCanonScore = useCallback((appearanceRate, avgPosition, faceOffData = null, totalPoints = 0, maxPoints = 1, rank = 1) => {
+    // Calculate raw performance metrics
+    const positionScore = (11 - avgPosition) / 10; // 0-1 scale, higher is better
+    const popularityScore = appearanceRate; // 0-1 scale based on appearance frequency
+    
+    // Combine base metrics (85% weight from user rankings)
+    const baseMetric = (popularityScore * 0.7 + positionScore * 0.3);
     
     // Face-off influence (15% weight)
     let faceOffBonus = 0;
     if (faceOffData && faceOffData.totalBattles >= 5) {
-      // Base face-off score from win rate
       const winRate = faceOffData.wins / faceOffData.totalBattles;
-      let faceOffScore = winRate * 100;
+      let faceOffScore = winRate;
       
-      // Apply underdog bonus multiplier
+      // Apply multipliers
       if (faceOffData.avgUnderdogMultiplier) {
         faceOffScore *= faceOffData.avgUnderdogMultiplier;
       }
-      
-      // Apply margin of victory multiplier
       if (faceOffData.avgMarginMultiplier) {
         faceOffScore *= faceOffData.avgMarginMultiplier;
       }
       
-      // Apply volume normalization (diminishing returns)
+      // Volume normalization
       const volumeNormalizer = Math.log10(Math.min(faceOffData.totalBattles, 100) + 1) / 2;
       faceOffScore *= volumeNormalizer;
       
       faceOffBonus = faceOffScore * 0.15; // 15% max influence
     }
     
-    // Combine scores with caps
-    const finalScore = Math.round(baseScore * 0.85 + faceOffBonus);
-    return Math.min(100, Math.max(0, finalScore)); // Cap between 0-100
+    // Combine base and face-off metrics
+    const rawScore = baseMetric * 0.85 + faceOffBonus;
+    
+    // Transform to 0-100 scale with desired distribution
+    // Top 100-150 artists get baseline of 70+, with progressive difficulty
+    let canonScore;
+    
+    if (rank <= 150) {
+      // Create a curved distribution for top 150 artists
+      // Map raw scores to 70-100 range with diminishing returns
+      
+      // Normalize raw score to 0-1 range for top artists
+      const normalizedScore = Math.min(1, Math.max(0, rawScore));
+      
+      if (normalizedScore <= 0.6) {
+        // Easy progression from 70-80 (covers bottom 60% of range)
+        canonScore = 70 + (normalizedScore / 0.6) * 10;
+      } else if (normalizedScore <= 0.85) {
+        // Moderate progression from 80-90 (covers next 25% of range)
+        const progressInRange = (normalizedScore - 0.6) / 0.25;
+        canonScore = 80 + progressInRange * 10;
+      } else {
+        // Very difficult progression from 90-100 (covers top 15% of range)
+        const progressInRange = (normalizedScore - 0.85) / 0.15;
+        // Use exponential curve for the 90s to make it very difficult
+        const exponentialProgress = Math.pow(progressInRange, 2.5);
+        canonScore = 90 + exponentialProgress * 10;
+      }
+    } else {
+      // Artists outside top 150 get scores below 70
+      // Scale from 0-70 based on their performance
+      const scaledScore = Math.min(1, rawScore * 1.2); // Slight boost for lower-ranked artists
+      canonScore = scaledScore * 70;
+    }
+    
+    // Ensure score stays within bounds and return as integer
+    return Math.round(Math.min(100, Math.max(0, canonScore)));
   }, []);
 
   const generateTop100 = useCallback(async () => {
@@ -1641,7 +1676,8 @@ const TheCanon = ({ supabase }) => {
         // Calculate final canon score with face-off influence
         const avgPosition = item.positions.reduce((a, b) => a + b, 0) / item.positions.length;
         const appearanceRate = item.voteCount / (allUserLists.length || 1);
-        const canonScore = calculateCanonScore(appearanceRate, avgPosition, faceOffModifiers);
+        const currentRank = index + 1;
+        const canonScore = calculateCanonScore(appearanceRate, avgPosition, faceOffModifiers, item.totalPoints, sortedPoints[0]?.totalPoints || 1, currentRank);
         
         rankings.push({
           rank: index + 1,
@@ -2380,6 +2416,19 @@ const TheCanon = ({ supabase }) => {
       console.error('Error loading user stats:', error);
       return { stats: {}, achievements: [] };
     }
+  };
+
+  // Toggle list expansion
+  const toggleListExpansion = (listId) => {
+    setExpandedLists(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(listId)) {
+        newSet.delete(listId);
+      } else {
+        newSet.add(listId);
+      }
+      return newSet;
+    });
   };
 
   // Submit artist request
@@ -5145,7 +5194,8 @@ const TheCanon = ({ supabase }) => {
                     .map((list, index) => {
                       console.log('Rendering GOAT list:', { index, listId: list.id, title: list.title, isAllTime: list.isAllTime });
                       const uniqueness = calculateUniqueness(list);
-                      const displayCount = Math.min(list.artists.length, 20);
+                      const isExpanded = expandedLists.has(list.id);
+                      const displayCount = isExpanded ? list.artists.length : Math.min(list.artists.length, 10);
                       
                       return (
                         <div key={list.id} className="bg-yellow-500/5 border-2 border-yellow-400/50 p-4" data-list-id={list.id}>
@@ -5381,9 +5431,12 @@ const TheCanon = ({ supabase }) => {
                           </div>
                           
                           {/* Show More Button */}
-                          {list.artists.length > 20 && (
-                            <button className="w-full mt-3 py-2 bg-white/10 hover:bg-white/20 border border-white/20 transition-colors text-sm">
-                              Show All {list.artists.length}
+                          {list.artists.length > 10 && (
+                            <button 
+                              onClick={() => toggleListExpansion(list.id)}
+                              className="w-full mt-3 py-2 bg-white/10 hover:bg-white/20 border border-white/20 transition-colors text-sm"
+                            >
+                              {isExpanded ? `Show Less` : `Show All ${list.artists.length}`}
                             </button>
                           )}
                         </div>
