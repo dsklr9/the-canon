@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import { Heart, MessageCircle, Share2, TrendingUp, Users, Zap, Trophy, Flame, Star, ChevronDown, X, Check, Shuffle, Timer, Search, Plus, GripVertical, User, Edit2, Save, ArrowUp, ArrowDown, Swords, Crown, Settings, Copy, BarChart3, Sparkles, Target, Gift, AlertCircle, Loader2, Filter, Clock, Award, TrendingDown, Users2, Bell } from 'lucide-react';
 import { ReportModal, useRateLimit, filterContent } from './ModerationComponents';
+import TournamentSection from './TournamentSection';
 
 // Add CSS styles to prevent viewport issues
 const globalStyles = `
@@ -4743,6 +4744,12 @@ const TheCanon = ({ supabase }) => {
           <main className="max-w-7xl mx-auto px-4 py-6">
             {activeTab === 'foryou' ? (
               <div className="space-y-6">
+                {/* Tournament Section */}
+                <TournamentSection 
+                  supabase={supabase} 
+                  currentUser={currentUser}
+                />
+                
                 {/* Add Debate Button */}
                 <button
                   onClick={() => {
