@@ -1677,7 +1677,7 @@ const TheCanon = ({ supabase }) => {
         const avgPosition = item.positions.reduce((a, b) => a + b, 0) / item.positions.length;
         const appearanceRate = item.voteCount / (allUserLists.length || 1);
         const currentRank = index + 1;
-        const canonScore = calculateCanonScore(appearanceRate, avgPosition, faceOffModifiers, item.totalPoints, sortedPoints[0]?.totalPoints || 1, currentRank);
+        const canonScore = calculateCanonScore(appearanceRate, avgPosition, faceOffModifiers, item.totalPoints, sortedArtists[0]?.totalPoints || 1, currentRank);
         
         rankings.push({
           rank: index + 1,
