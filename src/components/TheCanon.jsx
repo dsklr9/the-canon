@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from '
 import { Heart, MessageCircle, Share2, TrendingUp, Users, Zap, Trophy, Flame, Star, ChevronDown, X, Check, Shuffle, Timer, Search, Plus, GripVertical, User, Edit2, Save, ArrowUp, ArrowDown, Swords, Crown, Settings, Copy, BarChart3, Sparkles, Target, Gift, AlertCircle, Loader2, Filter, Clock, Award, TrendingDown, Users2, Bell } from 'lucide-react';
 import { ReportModal, useRateLimit, filterContent } from './ModerationComponents';
 import TournamentSection from './TournamentSection';
+import CustomCategorySelector from './CustomCategorySelector';
 
 // Add CSS styles to prevent viewport issues
 const globalStyles = `
@@ -382,6 +383,8 @@ const TheCanon = ({ supabase }) => {
   const [selectedSearchIndex, setSelectedSearchIndex] = useState(-1);
   const [expandedLists, setExpandedLists] = useState(new Set());
   const [friendRankings, setFriendRankings] = useState([]);
+  const [showCustomCategorySelector, setShowCustomCategorySelector] = useState(false);
+  const [userCustomCategories, setUserCustomCategories] = useState([]);
   const [draggedItem, setDraggedItem] = useState(null);
   const [showTop100Modal, setShowTop100Modal] = useState(false);
   const [loadedRankings, setLoadedRankings] = useState(100);
@@ -561,14 +564,11 @@ const TheCanon = ({ supabase }) => {
     setToasts(prev => prev.filter(toast => toast.id !== id));
   }, []);
 
-  // Category definitions
-  const rankingCategories = [
-    { id: 'all-time', name: 'Greatest of All Time', locked: true },
-    { id: 'lyricists', name: 'Best Lyricists' },
-    { id: 'influential', name: 'Most Influential' },
-    { id: 'flow', name: 'Best Flow' },
-    { id: 'upcoming', name: 'Best Up & Coming' },
-    { id: 'current', name: 'Best in the Game (Right Now)' }
+  // Pre-defined starter categories (first 3 slots)
+  const starterCategories = [
+    { id: 'underrated', name: 'Most Underrated', description: 'Artists who don\'t get the recognition they deserve' },
+    { id: 'overrated', name: 'Most Overrated', description: 'Artists who get more credit than they deserve' },
+    { id: 'current', name: 'Best in the Game (right now)', description: 'The hottest artists dominating hip-hop today' }
   ];
 
   // Badge definitions
@@ -3249,27 +3249,81 @@ const TheCanon = ({ supabase }) => {
     }
   }, [userLists, updateListAndSave]);
 
-  const createNewList = useCallback((categoryId = null) => {
-    const category = rankingCategories.find(c => c.id === categoryId);
+  const createNewList = useCallback((categoryId = null, customCategory = null) => {
     const tempId = `temp-${Date.now()}`;
-    const newList = {
-      id: tempId,
-      title: category ? category.name : "New Ranking",
-      category: categoryId,
-      artists: [],
-      created: "Just now",
-      isAllTime: categoryId === 'all-time'
-    };
+    let newList;
+    
+    if (customCategory) {
+      // Creating from custom category
+      newList = {
+        id: tempId,
+        title: customCategory.category_name,
+        category: null,
+        custom_category_id: customCategory.id,
+        artists: [],
+        created: "Just now",
+        isAllTime: false
+      };
+    } else {
+      // Creating from starter category
+      const category = starterCategories.find(c => c.id === categoryId);
+      newList = {
+        id: tempId,
+        title: category ? category.name : "New Ranking",
+        category: categoryId,
+        custom_category_id: null,
+        artists: [],
+        created: "Just now",
+        isAllTime: categoryId === 'all-time'
+      };
+    }
+    
     setUserLists([...userLists, newList]);
-    if (!categoryId) {
+    if (!categoryId && !customCategory) {
       setEditingRanking(tempId);
     }
     
-    // If it's not an all-time list, save it immediately to enable editing
-    if (categoryId && categoryId !== 'all-time') {
+    // Save to database immediately to enable editing
+    if (categoryId || customCategory) {
       saveRankingToDatabase(newList);
     }
   }, [userLists]);
+
+  const loadUserCustomCategories = useCallback(async () => {
+    if (!currentUser) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('user_lists')
+        .select(`
+          custom_category_id,
+          custom_categories!inner(
+            id,
+            category_name,
+            description,
+            usage_count
+          )
+        `)
+        .eq('user_id', currentUser.id)
+        .not('custom_category_id', 'is', null);
+
+      if (error) throw error;
+      
+      const customCategories = data?.map(item => ({
+        ...item.custom_categories,
+        list_id: item.id
+      })) || [];
+      
+      setUserCustomCategories(customCategories);
+    } catch (error) {
+      console.error('Error loading user custom categories:', error);
+    }
+  }, [currentUser, supabase]);
+
+  const handleCustomCategorySelected = useCallback((category) => {
+    createNewList(null, category);
+    setShowCustomCategorySelector(false);
+  }, [createNewList]);
 
   const hasAllTimeList = userLists.some(list => list.isAllTime);
 
@@ -5509,26 +5563,22 @@ const TheCanon = ({ supabase }) => {
                 <div>
                   <h2 className="text-lg font-bold mb-3">OTHER RANKINGS</h2>
                   <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'} gap-4`}>
-                    {rankingCategories
-                      .filter(cat => !cat.locked)
-                      .map(category => {
-                        const existingList = userLists.find(l => l.category === category.id);
-                        if (existingList) {
-                          console.log('Rendering Other Rankings list:', { category: category.id, listId: existingList.id, title: existingList.title, isAllTime: existingList.isAllTime });
-                        }
-                        
-                        if (!existingList) {
-                          return (
-                            <button
-                              key={category.id}
-                              onClick={() => createNewList(category.id)}
-                              className="p-4 bg-white/5 hover:bg-white/10 border border-white/10 transition-colors text-left"
-                            >
-                              <h3 className="font-bold mb-1">{category.name}</h3>
-                              <p className="text-sm text-gray-400">Click to create this ranking</p>
-                            </button>
-                          );
-                        }
+                    {/* Starter Categories (first 3 slots) */}
+                    {starterCategories.map(category => {
+                      const existingList = userLists.find(l => l.category === category.id);
+                      
+                      if (!existingList) {
+                        return (
+                          <button
+                            key={category.id}
+                            onClick={() => createNewList(category.id)}
+                            className="p-4 bg-white/5 hover:bg-white/10 border border-white/10 transition-colors text-left"
+                          >
+                            <h3 className="font-bold mb-1">{category.name}</h3>
+                            <p className="text-sm text-gray-400">{category.description}</p>
+                          </button>
+                        );
+                      }
                         
                         return (
                           <div key={category.id} className="bg-white/5 border border-white/10 p-4" data-list-id={existingList.id}>
@@ -5684,6 +5734,186 @@ const TheCanon = ({ supabase }) => {
                           </div>
                         );
                       })}
+                    
+                    {/* Custom Categories */}
+                    {userLists
+                      .filter(list => list.custom_category_id)
+                      .map(list => {
+                        const customCategory = userCustomCategories.find(cat => cat.id === list.custom_category_id);
+                        if (!customCategory) return null;
+                        
+                        return (
+                          <div key={list.id} className="bg-white/5 border border-white/10 p-4" data-list-id={list.id}>
+                            <div className="flex justify-between items-start mb-3">
+                              <div>
+                                <h3 className="font-bold">{customCategory.category_name}</h3>
+                                {customCategory.description && (
+                                  <p className="text-xs text-gray-400 mt-1">{customCategory.description}</p>
+                                )}
+                              </div>
+                              <button
+                                onClick={() => shareList(list)}
+                                className="p-1 hover:bg-white/10 transition-colors"
+                              >
+                                <Share2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                            
+                            {/* Add Search Bar for custom category lists */}
+                            <div className="relative mb-3">
+                              <input
+                                type="text"
+                                placeholder="Search artists..."
+                                value={otherListSearchQueries[list.id] || ''}
+                                className="w-full px-3 py-1.5 text-sm bg-black/50 border border-white/20 focus:border-purple-400/50 focus:outline-none rounded"
+                                onChange={(e) => handleOtherListSearch(list.id, e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    const results = otherListSearchResults[list.id];
+                                    if (results && results.length > 0) {
+                                      addArtistToOtherList(list.id, results[0]);
+                                    }
+                                  }
+                                }}
+                                onBlur={() => {
+                                  setTimeout(() => {
+                                    setOtherListSearchResults(prev => ({ ...prev, [list.id]: [] }));
+                                  }, 300);
+                                }}
+                              />
+                              
+                              {/* Search Results Dropdown */}
+                              {otherListSearchResults[list.id] && otherListSearchResults[list.id].length > 0 && (
+                                <div className="absolute top-full mt-1 w-full bg-slate-800 border border-white/20 shadow-xl max-h-48 overflow-y-auto z-20">
+                                  {otherListSearchResults[list.id].map((artist) => (
+                                    <div
+                                      key={artist.id}
+                                      className="p-3 hover:bg-white/10 transition-colors flex items-center gap-3 cursor-pointer"
+                                      onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        addArtistToOtherList(list.id, artist);
+                                      }}
+                                      onClick={() => addArtistToOtherList(list.id, artist)}
+                                    >
+                                      <ArtistAvatar artist={artist} size="w-8 h-8" />
+                                      <div>
+                                        <p className="font-medium">{artist.name}</p>
+                                        <p className="text-xs text-gray-400">{artist.genre || 'Artist'}</p>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            
+                            <div className="space-y-1">
+                              {list.artists.map((artist, index) => (
+                                <div key={artist.id}>
+                                  {/* Drop indicator */}
+                                  {dragOverIndex === index && draggedFromList === list.id && (
+                                    <div className="h-1 bg-purple-400 rounded transition-all duration-200" />
+                                  )}
+                                  
+                                  <div
+                                    data-drop-index={index}
+                                    className={`flex items-center ${isMobile ? 'gap-1 p-1.5' : 'gap-3 p-2'} bg-black/30 border border-white/10 ${
+                                      isMobile ? '' : 'cursor-move hover:bg-white/10'
+                                    } transition-all duration-200 ${
+                                      draggedItem?.artist.id === artist.id ? 'opacity-50' : ''
+                                    } ${isMobile ? 'draggable-item' : ''}`}
+                                    {...(!isMobile ? {
+                                      draggable: true,
+                                      onDragStart: (e) => handleDragStart(e, artist, list.id),
+                                      onDragOver: handleDragOver,
+                                      onDragEnter: (e) => handleDragEnter(e, index),
+                                      onDrop: (e) => handleDrop(e, index, list.id),
+                                    } : {})}
+                                  >
+                                    <div 
+                                      className={`drag-handle ${isMobile ? 'touch-target flex items-center justify-center w-6 h-6' : ''}`}
+                                      {...(isMobile ? {
+                                        onTouchStart: (e) => mobileDrag.handleTouchStart(e, { artist, listId: list.id }),
+                                        onTouchMove: mobileDrag.handleTouchMove,
+                                        onTouchEnd: mobileDrag.handleTouchEnd,
+                                      } : {})}
+                                    >
+                                      <GripVertical className={`${isMobile ? 'w-3 h-3' : 'w-4 h-4'} text-gray-400`} />
+                                    </div>
+                                    <span 
+                                      className={`text-gray-400 font-bold ${isMobile ? 'text-xs w-4 text-center' : 'text-sm'} cursor-pointer`}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowArtistCard(artist);
+                                      }}
+                                    >#{index + 1}</span>
+                                    <div 
+                                      className="cursor-pointer"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowArtistCard(artist);
+                                      }}
+                                    >
+                                      <ArtistAvatar artist={artist} size={isMobile ? 'w-6 h-6' : 'w-8 h-8'} />
+                                    </div>
+                                    <span 
+                                      className={`truncate flex-1 ${isMobile ? 'text-xs' : 'text-sm'} cursor-pointer`}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowArtistCard(artist);
+                                      }}
+                                    >{artist.name}</span>
+                                    <button
+                                      onClick={() => {
+                                        const newArtists = list.artists.filter(a => a.id !== artist.id);
+                                        updateListAndSave(list.id, newArtists);
+                                      }}
+                                      className="p-1 hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-colors"
+                                      title="Remove artist"
+                                    >
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                              
+                              {/* Drop indicator at the end */}
+                              {dragOverIndex === list.artists.length && draggedFromList === list.id && (
+                                <div className="h-1 bg-purple-400 rounded transition-all duration-200" />
+                              )}
+                              
+                              {/* Drop zone at the end */}
+                              <div
+                                data-drop-index={list.artists.length}
+                                className={`${list.artists.length === 0 ? 
+                                  'border-2 border-dashed border-gray-600 p-6 text-center text-gray-400 text-sm' : 
+                                  'h-4 border border-dashed border-transparent hover:border-gray-600 transition-colors'
+                                }`}
+                                {...(!isMobile ? {
+                                  onDragOver: handleDragOver,
+                                  onDragEnter: (e) => handleDragEnter(e, list.artists.length),
+                                  onDrop: (e) => handleDrop(e, list.artists.length, list.id),
+                                } : {})}
+                              >
+                                {list.artists.length === 0 && (
+                                  isMobile ? 'Search and tap artists to add them' : 'Search artists or drag them here'
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    
+                    {/* Custom Category Selector Button */}
+                    <button
+                      onClick={() => setShowCustomCategorySelector(true)}
+                      className="p-4 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-400/30 text-purple-300 transition-colors text-left flex items-center gap-3"
+                    >
+                      <Plus className="w-5 h-5" />
+                      <div>
+                        <h3 className="font-bold mb-1">Create Custom Category</h3>
+                        <p className="text-sm text-purple-400/80">Make your own ranking category</p>
+                      </div>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -6849,6 +7079,17 @@ const TheCanon = ({ supabase }) => {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Custom Category Selector Modal */}
+        {showCustomCategorySelector && (
+          <CustomCategorySelector 
+            supabase={supabase}
+            currentUser={currentUser}
+            onCategorySelected={handleCustomCategorySelected}
+            onClose={() => setShowCustomCategorySelector(false)}
+            existingUserCategories={userLists.filter(list => list.custom_category_id)}
+          />
         )}
       </div>
     </ErrorBoundary>
