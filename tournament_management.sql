@@ -249,7 +249,7 @@ $$ LANGUAGE plpgsql;
 -- Run this to create a test tournament
 /*
 SELECT create_tournament(
-    'March Madness: Best Bars 2024',
+    'Bars Madness: Best Bars 2024',
     'Submit your favorite 4 bars from any hip-hop artist. Community voting determines the ultimate winner!',
     'Best Bars',
     16,

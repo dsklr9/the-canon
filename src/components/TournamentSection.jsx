@@ -9,14 +9,17 @@ import {
   Vote,
   Clock,
   Zap,
-  Target
+  Target,
+  Settings
 } from 'lucide-react';
 import TournamentModal from './TournamentModal';
 import TournamentBracket from './TournamentBracket';
+import TournamentReview from './TournamentReview';
 
 const TournamentSection = ({ supabase, currentUser }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showSubmissionModal, setShowSubmissionModal] = useState(false);
+  const [showReview, setShowReview] = useState(false);
   const [activeTournament, setActiveTournament] = useState(null);
   const [tournaments, setTournaments] = useState([]);
   const [submissions, setSubmissions] = useState([]);
@@ -147,7 +150,7 @@ const TournamentSection = ({ supabase, currentUser }) => {
       <div className="bg-gradient-to-r from-purple-900/20 to-pink-900/20 border border-purple-400/30 p-6">
         <div className="flex items-center justify-center">
           <div className="w-6 h-6 border-2 border-purple-400/30 border-t-purple-400 rounded-full animate-spin" />
-          <span className="ml-3 text-gray-300">Loading tournament...</span>
+          <span className="ml-3 text-gray-300">Loading breakdown...</span>
         </div>
       </div>
     );
@@ -158,7 +161,7 @@ const TournamentSection = ({ supabase, currentUser }) => {
       <div className="bg-gradient-to-r from-purple-900/20 to-pink-900/20 border border-purple-400/30 p-6">
         <div className="text-center">
           <Trophy className="w-12 h-12 text-purple-400 mx-auto mb-3" />
-          <h3 className="text-xl font-bold text-white mb-2">No Active Tournament</h3>
+          <h3 className="text-xl font-bold text-white mb-2">No Active Breakdown</h3>
           <p className="text-gray-400">Check back soon for the next bars battle!</p>
         </div>
       </div>
@@ -180,7 +183,7 @@ const TournamentSection = ({ supabase, currentUser }) => {
                 <Zap className="w-4 h-4 text-purple-400 absolute -top-1 -right-1" />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-white">Bars Tournament</h2>
+                <h2 className="text-xl font-bold text-white">Bar-for-Bar Breakdown</h2>
                 <p className="text-purple-300 text-sm">{activeTournament.title}</p>
               </div>
             </div>
@@ -243,7 +246,7 @@ const TournamentSection = ({ supabase, currentUser }) => {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex gap-3">
+          <div className="flex gap-3 flex-wrap">
             {activeTournament.status === 'submission' && (
               <button
                 onClick={() => setShowSubmissionModal(true)}
@@ -261,6 +264,18 @@ const TournamentSection = ({ supabase, currentUser }) => {
               <Trophy className="w-4 h-4" />
               View Full Bracket
             </button>
+
+            {/* Simple Admin Toggle - you can add proper admin check later */}
+            {currentUser && (
+              <button
+                onClick={() => setShowReview(!showReview)}
+                className="px-4 py-3 bg-orange-600/20 hover:bg-orange-600/30 border border-orange-400/30 text-orange-300 transition-colors flex items-center gap-2 text-sm"
+                title="Review submissions (admin)"
+              >
+                <Settings className="w-4 h-4" />
+                {showReview ? 'Hide' : 'Review'}
+              </button>
+            )}
           </div>
 
           {/* User's Submission Status */}
@@ -283,7 +298,7 @@ const TournamentSection = ({ supabase, currentUser }) => {
         </div>
 
         {/* Expanded Bracket View */}
-        {isExpanded && (
+        {isExpanded && !showReview && (
           <div className="border-t border-purple-400/30 p-6 bg-black/20">
             <TournamentBracket
               tournament={activeTournament}
@@ -295,6 +310,26 @@ const TournamentSection = ({ supabase, currentUser }) => {
                 // Optionally handle vote callback
                 console.log('Vote cast:', matchupId, submissionId);
               }}
+            />
+          </div>
+        )}
+
+        {/* Review Section */}
+        {showReview && (
+          <div className="border-t border-orange-400/30 p-6 bg-black/20">
+            <div className="mb-4">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <Settings className="w-5 h-5 text-orange-400" />
+                Submission Review
+              </h3>
+              <p className="text-sm text-gray-400 mt-1">
+                Review and approve tournament submissions. When in doubt, use "Email for Review".
+              </p>
+            </div>
+            <TournamentReview
+              tournament={activeTournament}
+              supabase={supabase}
+              currentUser={currentUser}
             />
           </div>
         )}

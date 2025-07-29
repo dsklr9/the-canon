@@ -3434,8 +3434,14 @@ const TheCanon = ({ supabase }) => {
 
   // Tutorial Component
   const Tutorial = () => (
-    <div className="fixed inset-0 z-50 bg-slate-900/95 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-slate-800 border border-white/20 p-8 max-w-md w-full">
+    <div 
+      className="fixed inset-0 z-50 bg-slate-900/95 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={() => setShowTutorial(false)}
+    >
+      <div 
+        className="bg-slate-800 border border-white/20 p-8 max-w-md w-full"
+        onClick={(e) => e.stopPropagation()}
+      >
         <h1 className="text-3xl font-black text-center mb-2">WELCOME TO THE CANON</h1>
         <p className="text-purple-400 text-center mb-6 font-medium">
           Where hip-hop legends earn their crown... and pretenders are exposed.
@@ -3546,8 +3552,14 @@ const TheCanon = ({ supabase }) => {
     }, [artist.id, friends]);
     
     return (
-      <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
-        <div className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-2xl w-full'} max-h-[80vh] overflow-y-auto`}>
+      <div 
+        className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4"
+        onClick={() => setShowArtistCard(null)}
+      >
+        <div 
+          className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-2xl w-full'} max-h-[80vh] overflow-y-auto`}
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="flex justify-between items-start mb-4">
             <div className="flex items-center gap-4">
               <div className={`${isMobile ? 'text-4xl' : 'text-6xl'}`}><ArtistAvatar artist={artist} size={isMobile ? "w-12 h-12" : "w-16 h-16"} /></div>
@@ -3833,8 +3845,14 @@ const TheCanon = ({ supabase }) => {
 
           {/* Settings Modal */}
           {showSettings && (
-            <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-md w-full'}`}>
+            <div 
+              className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4"
+              onClick={() => setShowSettings(false)}
+            >
+              <div 
+                className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-md w-full'}`}
+                onClick={(e) => e.stopPropagation()}
+              >
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-xl font-bold">Settings</h2>
                   <button onClick={() => setShowSettings(false)} className="p-2 hover:bg-white/10 transition-colors touch-target">
@@ -4102,8 +4120,14 @@ const TheCanon = ({ supabase }) => {
 
           {/* Prompt to Add to List Modal */}
           {promptAddToList && selectedArtistToAdd && (
-            <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className="bg-slate-800 border border-white/20 p-6 max-w-md w-full">
+            <div 
+              className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4"
+              onClick={() => setPromptAddToList(false)}
+            >
+              <div 
+                className="bg-slate-800 border border-white/20 p-6 max-w-md w-full"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <h2 className="text-xl font-bold mb-4">Start Your Greatest of All Time List!</h2>
                 <p className="text-gray-300 mb-6">
                   You voted for <span className="font-bold">{selectedArtistToAdd.name}</span>! 
@@ -4138,8 +4162,14 @@ const TheCanon = ({ supabase }) => {
 
           {/* Create Debate Modal */}
           {showDebateModal && (
-            <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-lg w-full'} max-h-[80vh] overflow-y-auto`}>
+            <div 
+              className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4"
+              onClick={() => setShowDebateModal(false)}
+            >
+              <div 
+                className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-lg w-full'} max-h-[80vh] overflow-y-auto`}
+                onClick={(e) => e.stopPropagation()}
+              >
                 <h2 className="text-xl font-bold mb-4">Start a Debate</h2>
                 
                 <input
@@ -4294,8 +4324,14 @@ const TheCanon = ({ supabase }) => {
 
           {/* Reply Modal */}
           {showReplyModal && replyingTo && (
-            <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-lg w-full'}`}>
+            <div 
+              className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4"
+              onClick={() => setShowReplyModal(false)}
+            >
+              <div 
+                className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-lg w-full'}`}
+                onClick={(e) => e.stopPropagation()}
+              >
                 <h2 className="text-xl font-bold mb-4">Reply to Debate</h2>
                 
                 <div className="bg-black/30 p-3 mb-4 rounded">
@@ -4347,8 +4383,14 @@ const TheCanon = ({ supabase }) => {
 
           {/* Top 100 Modal */}
           {showTop100Modal && (
-            <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-4xl w-full'} max-h-[80vh] flex flex-col`}>
+            <div 
+              className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4"
+              onClick={() => setShowTop100Modal(false)}
+            >
+              <div 
+                className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-4xl w-full'} max-h-[80vh] flex flex-col`}
+                onClick={(e) => e.stopPropagation()}
+              >
                 <div className="flex justify-between items-center mb-6">
                   <h2 className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold tracking-tight flex items-center gap-2`}>
                     <Trophy className={`${isMobile ? 'w-5 h-5' : 'w-6 h-6'} text-yellow-400`} />
@@ -4418,8 +4460,14 @@ const TheCanon = ({ supabase }) => {
 
           {/* Daily Challenge Modal */}
           {showChallengeModal && dailyChallenge && (
-            <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-lg w-full'} max-h-[80vh] overflow-y-auto`}>
+            <div 
+              className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4"
+              onClick={() => setShowChallengeModal(false)}
+            >
+              <div 
+                className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-lg w-full'} max-h-[80vh] overflow-y-auto`}
+                onClick={(e) => e.stopPropagation()}
+              >
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-xl font-bold flex items-center gap-2">
                     <Target className="w-5 h-5 text-purple-400" />
@@ -4493,8 +4541,14 @@ const TheCanon = ({ supabase }) => {
 
           {/* Battle Modal */}
           {showBattleModal && (
-            <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-lg w-full'} max-h-[80vh] overflow-y-auto`}>
+            <div 
+              className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4"
+              onClick={() => setShowBattleModal(false)}
+            >
+              <div 
+                className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-lg w-full'} max-h-[80vh] overflow-y-auto`}
+                onClick={(e) => e.stopPropagation()}
+              >
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-xl font-bold flex items-center gap-2">
                     <Swords className="w-5 h-5 text-red-400" />
@@ -5974,8 +6028,14 @@ const TheCanon = ({ supabase }) => {
 
           {/* Friend Rankings Modal */}
           {viewingFriend && (
-            <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-4xl w-full'} max-h-[80vh] flex flex-col`}>
+            <div 
+              className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4"
+              onClick={() => setViewingFriend(null)}
+            >
+              <div 
+                className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-4xl w-full'} max-h-[80vh] flex flex-col`}
+                onClick={(e) => e.stopPropagation()}
+              >
                 <div className="flex justify-between items-center mb-6">
                   <h2 className={`font-bold tracking-tight flex items-center gap-3 ${isMobile ? 'text-xl' : 'text-2xl'}`}>
                     <UserAvatar 
@@ -6315,8 +6375,14 @@ const TheCanon = ({ supabase }) => {
 
         {/* Terms of Service Modal */}
         {showTermsModal && (
-          <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-2xl w-full'} max-h-[80vh] overflow-y-auto`}>
+          <div 
+            className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setShowTermsModal(false)}
+          >
+            <div 
+              className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-2xl w-full'} max-h-[80vh] overflow-y-auto`}
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-bold">Terms of Service</h2>
                 <button 
@@ -6364,8 +6430,14 @@ const TheCanon = ({ supabase }) => {
 
         {/* Privacy Policy Modal */}
         {showPrivacyModal && (
-          <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-2xl w-full'} max-h-[80vh] overflow-y-auto`}>
+          <div 
+            className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setShowPrivacyModal(false)}
+          >
+            <div 
+              className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-2xl w-full'} max-h-[80vh] overflow-y-auto`}
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-bold">Privacy Policy</h2>
                 <button 
@@ -6419,8 +6491,14 @@ const TheCanon = ({ supabase }) => {
 
         {/* Notifications Modal */}
         {showNotifications && (
-          <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-lg w-full'} max-h-[80vh] flex flex-col`}>
+          <div 
+            className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setShowNotifications(false)}
+          >
+            <div 
+              className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-lg w-full'} max-h-[80vh] flex flex-col`}
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-bold">Notifications</h2>
                 <button 
@@ -6494,8 +6572,14 @@ const TheCanon = ({ supabase }) => {
 
         {/* Comment Modal */}
         {showCommentModal && commentingOnList && (
-          <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-lg w-full'}`}>
+          <div 
+            className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setShowCommentModal(false)}
+          >
+            <div 
+              className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-lg w-full'}`}
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-bold">Comment on {commentingOnList.title}</h2>
                 <button 
@@ -6609,8 +6693,14 @@ const TheCanon = ({ supabase }) => {
 
         {/* Login Modal */}
         {showLoginModal && (
-          <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-md w-full'}`}>
+          <div 
+            className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setShowLoginModal(false)}
+          >
+            <div 
+              className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-md w-full'}`}
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-bold">Join The Canon</h2>
                 <button 
@@ -6665,8 +6755,14 @@ const TheCanon = ({ supabase }) => {
 
         {/* Artist Request Modal */}
         {showArtistRequestModal && (
-          <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-md w-full'}`}>
+          <div 
+            className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setShowArtistRequestModal(false)}
+          >
+            <div 
+              className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-md w-full'}`}
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-bold">Request New Artist</h2>
                 <button 

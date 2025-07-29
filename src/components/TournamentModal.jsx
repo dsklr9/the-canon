@@ -128,8 +128,14 @@ const TournamentModal = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-800 border border-white/20 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+    <div 
+      className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+      onClick={onClose}
+    >
+      <div 
+        className="bg-slate-800 border border-white/20 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-white/10">
           <div className="flex items-center gap-3">
@@ -238,7 +244,7 @@ const TournamentModal = ({
                   <h4 className="font-medium text-yellow-300 mb-2">Submission Guidelines</h4>
                   <ul className="text-sm text-yellow-200/80 space-y-1">
                     <li>• Choose bars that showcase technical skill, wordplay, or impact</li>
-                    <li>• Keep it clean - inappropriate content will be removed</li>
+                    <li>• Keep it reasonably clean - overly explicit/vulgar lyrics may be removed</li>
                     <li>• You can update your submission until the deadline</li>
                     <li>• Community voting will determine bracket seeding</li>
                   </ul>
