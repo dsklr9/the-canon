@@ -395,6 +395,11 @@ const TheCanon = ({ supabase }) => {
   const [userStreak, setUserStreak] = useState(0);
   const [userPoints, setUserPoints] = useState(0);
   const [userAchievements, setUserAchievements] = useState([]);
+  const [customCategoryOrder, setCustomCategoryOrder] = useState([]);
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+  const [categoryToDelete, setCategoryToDelete] = useState(null);
+  const [draggedCategoryId, setDraggedCategoryId] = useState(null);
+  const [categoryDragOverIndex, setCategoryDragOverIndex] = useState(null);
   const [userProfilePicture, setUserProfilePicture] = useState(null);
   const [uploadingProfilePicture, setUploadingProfilePicture] = useState(false);
   const [showArtistCard, setShowArtistCard] = useState(null);
@@ -602,14 +607,48 @@ const TheCanon = ({ supabase }) => {
         ]);
         
         if (user) {
+          console.log('🔧 User found during initialization:', user.id);
+          console.log('🔧 Setting currentUser...');
           setCurrentUser(user);
+          console.log('🔧 currentUser set!');
           
+          console.log('🔧 About to check first login...');
           // Check first login
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', user.id)
-            .single();
+          console.log('🔧 Loading profile for user:', user.id);
+          try {
+            const { data: profile, error: profileError } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', user.id)
+              .single();
+            
+            console.log('🔧 Profile loaded:', profile, 'Error:', profileError);
+            
+            if (profileError && profileError.code !== 'PGRST116') {
+              console.error('🔧 Profile loading error:', profileError);
+              // Continue with null profile
+            }
+            
+            await continueInitialization(user, profile);
+          } catch (error) {
+            console.error('🔧 Profile loading failed:', error);
+            // Continue with null profile
+            await continueInitialization(user, null);
+          }
+        }
+      } catch (error) {
+        console.error('Initialization error:', error);
+        addToast('Error loading data. Please refresh.', 'error');
+      } finally {
+        if (mounted) {
+          setIsInitialLoading(false);
+        }
+      }
+    };
+
+    const continueInitialization = async (user, profile) => {
+      console.log('🔧 Continuing initialization with profile:', !!profile);
+      try {
           
           if (profile?.first_login) {
             setShowTutorial(true);
@@ -623,21 +662,30 @@ const TheCanon = ({ supabase }) => {
           }
           
           // Set user data
+          console.log('🔧 Setting user data from profile...');
           setUsername(profile?.username || profile?.display_name || user.email.split('@')[0]);
           setUserStreak(profile?.login_streak || 0);
           setUserPoints(profile?.total_points || 0);
           setUserProfilePicture(profile?.profile_picture_url || null);
+          console.log('🔧 User data set, about to load authenticated data...');
           
           // Load authenticated user data
+          console.log('🔧 About to start Promise.all block...');
+          console.log('🔧 All conditions met, starting Promise.all...');
+          console.log('🔧 Starting Promise.all with loadUserCustomCategories...');
           await Promise.all([
             loadUserRankings(user.id),
             loadUserLikes(),
             loadFriends(user), // Pass user directly since currentUser state isn't updated yet
             loadDailyChallenge(),
             loadBattleHistory(),
-            loadNotifications()
+            loadNotifications(),
+            (async () => {
+              console.log('🔧 About to call loadUserCustomCategories, user:', user);
+              return await loadUserCustomCategories(user);
+            })()
           ]);
-        }
+          console.log('🔧 Promise.all completed');
       } catch (error) {
         console.error('Initialization error:', error);
         addToast('Error loading data. Please refresh.', 'error');
@@ -712,6 +760,7 @@ const TheCanon = ({ supabase }) => {
     }
   }, [currentUser, activeTab]);
 
+
   // Get current user
   const getCurrentUser = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -759,8 +808,11 @@ const TheCanon = ({ supabase }) => {
         setUserBadges(badges);
       }
       
-      // Load user's rankings
-      await loadUserRankings(user.id);
+      // Load user's rankings and custom categories
+      await Promise.all([
+        loadUserRankings(user.id),
+        loadUserCustomCategories(user)
+      ]);
     }
   };
 
@@ -860,6 +912,7 @@ const TheCanon = ({ supabase }) => {
           id: ranking.id,
           title: ranking.list_title,
           category: ranking.list_type,
+          custom_category_id: ranking.custom_category_id,
           artists: ranking.ranking_items
             .sort((a, b) => a.position - b.position)
             .map(item => ({
@@ -1869,7 +1922,8 @@ const TheCanon = ({ supabase }) => {
       return;
     }
     
-    if (ranking.artists.length === 0) {
+    // Allow empty custom categories to be saved, but require artists for other types
+    if (ranking.artists.length === 0 && !ranking.custom_category_id) {
       addToast('Add some artists to your ranking', 'error');
       return;
     }
@@ -1884,6 +1938,7 @@ const TheCanon = ({ supabase }) => {
         list_type: ranking.category || (ranking.isAllTime ? 'all-time' : 'custom'),
         is_all_time: ranking.isAllTime || false,
         is_collaborative: ranking.isCollaborative || false,
+        custom_category_id: ranking.custom_category_id || null,
         updated_at: new Date().toISOString()
       };
       
@@ -1927,6 +1982,11 @@ const TheCanon = ({ supabase }) => {
             : list
         )
       );
+
+      // Reload custom categories if this was a custom category
+      if (ranking.custom_category_id) {
+        loadUserCustomCategories();
+      }
 
       await awardPoints(10, 'ranking_saved');
 
@@ -3249,6 +3309,176 @@ const TheCanon = ({ supabase }) => {
     }
   }, [userLists, updateListAndSave]);
 
+  const loadUserCustomCategories = useCallback(async (user = currentUser) => {
+    console.log('🎯 loadUserCustomCategories called with user:', user?.id);
+    if (!user) {
+      console.log('🎯 No user provided, returning early');
+      return;
+    }
+
+    try {
+      // First, let's see what rankings exist with custom_category_id
+      const { data: rankingsData, error: rankingsError } = await supabase
+        .from('rankings')
+        .select('id, custom_category_id, list_title')
+        .eq('user_id', user.id)
+        .not('custom_category_id', 'is', null);
+      
+      console.log('Rankings with custom_category_id:', rankingsData);
+      
+      if (rankingsError) {
+        console.error('Error loading rankings:', rankingsError);
+        throw rankingsError;
+      }
+      
+      // Now try the join query
+      const { data, error } = await supabase
+        .from('rankings')
+        .select(`
+          id,
+          custom_category_id,
+          custom_categories!inner(
+            id,
+            category_name,
+            description,
+            usage_count
+          )
+        `)
+        .eq('user_id', user.id)
+        .not('custom_category_id', 'is', null);
+
+      if (error) {
+        console.error('Error loading custom categories join:', error);
+        throw error;
+      }
+      
+      console.log('Join query result:', data);
+      
+      const customCategories = data?.map(item => ({
+        ...item.custom_categories,
+        list_id: item.id
+      })) || [];
+      
+      console.log('🎯 Setting userCustomCategories state with:', customCategories);
+      setUserCustomCategories(customCategories);
+      console.log('🎯 State should now be updated with', customCategories.length, 'categories');
+      
+      // Load custom category order from localStorage
+      const savedOrder = localStorage.getItem(`custom_category_order_${user.id}`);
+      if (savedOrder) {
+        setCustomCategoryOrder(JSON.parse(savedOrder));
+      }
+    } catch (error) {
+      console.error('Error loading user custom categories:', error);
+    }
+  }, [supabase]);
+
+  const handleDeleteCustomCategory = useCallback(async (listId) => {
+    const list = userLists.find(l => l.id === listId);
+    if (!list) return;
+
+    // If list has artists, show confirmation modal
+    if (list.artists && list.artists.length > 0) {
+      setCategoryToDelete({ listId, list });
+      setShowDeleteConfirmModal(true);
+    } else {
+      // If no artists, delete immediately
+      await deleteCustomCategory(listId);
+    }
+  }, [userLists]);
+
+  const deleteCustomCategory = useCallback(async (listId) => {
+    try {
+      // Delete the ranking from database
+      const { error } = await supabase
+        .from('rankings')
+        .delete()
+        .eq('id', listId)
+        .eq('user_id', currentUser.id);
+
+      if (error) throw error;
+
+      // Remove from local state
+      setUserLists(prev => prev.filter(list => list.id !== listId));
+      
+      // Reload custom categories
+      loadUserCustomCategories();
+      
+      addToast('Custom category removed successfully', 'success');
+    } catch (error) {
+      console.error('Error deleting custom category:', error);
+      addToast('Failed to delete custom category', 'error');
+    }
+  }, [currentUser, supabase, loadUserCustomCategories, addToast]);
+
+  const handleDeleteList = useCallback(async (listId) => {
+    try {
+      // Delete the ranking from database
+      const { error } = await supabase
+        .from('rankings')
+        .delete()
+        .eq('id', listId)
+        .eq('user_id', currentUser.id);
+
+      if (error) throw error;
+
+      // Remove from local state
+      setUserLists(prev => prev.filter(list => list.id !== listId));
+      
+      addToast('List deleted successfully', 'success');
+    } catch (error) {
+      console.error('Error deleting list:', error);
+      addToast('Failed to delete list', 'error');
+    }
+  }, [currentUser, supabase, addToast]);
+
+  // Custom category drag and drop handlers
+  const handleCategoryDragStart = useCallback((e, categoryId) => {
+    setDraggedCategoryId(categoryId);
+    e.dataTransfer.effectAllowed = 'move';
+  }, []);
+
+  const handleCategoryDragEnd = useCallback(() => {
+    setDraggedCategoryId(null);
+    setCategoryDragOverIndex(null);
+  }, []);
+
+  const handleCategoryDragOver = useCallback((e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  }, []);
+
+  const handleCategoryDragEnter = useCallback((e, index) => {
+    if (draggedCategoryId) {
+      setCategoryDragOverIndex(index);
+    }
+  }, [draggedCategoryId]);
+
+  const handleCategoryDrop = useCallback(async (e, dropIndex) => {
+    e.preventDefault();
+    
+    if (!draggedCategoryId) return;
+
+    const customLists = userLists.filter(list => list.custom_category_id);
+    const draggedIndex = customLists.findIndex(list => list.id === draggedCategoryId);
+    
+    if (draggedIndex === -1 || draggedIndex === dropIndex) return;
+
+    // Reorder the lists
+    const newCustomLists = [...customLists];
+    const [removed] = newCustomLists.splice(draggedIndex, 1);
+    newCustomLists.splice(dropIndex, 0, removed);
+
+    // Update the order in state
+    const newOrder = newCustomLists.map(list => list.id);
+    setCustomCategoryOrder(newOrder);
+
+    // Save the order to localStorage or database
+    localStorage.setItem(`custom_category_order_${currentUser.id}`, JSON.stringify(newOrder));
+
+    setCategoryDragOverIndex(null);
+  }, [draggedCategoryId, userLists, currentUser]);
+
   const createNewList = useCallback((categoryId = null, customCategory = null) => {
     const tempId = `temp-${Date.now()}`;
     let newList;
@@ -3288,37 +3518,6 @@ const TheCanon = ({ supabase }) => {
       saveRankingToDatabase(newList);
     }
   }, [userLists]);
-
-  const loadUserCustomCategories = useCallback(async () => {
-    if (!currentUser) return;
-
-    try {
-      const { data, error } = await supabase
-        .from('user_lists')
-        .select(`
-          custom_category_id,
-          custom_categories!inner(
-            id,
-            category_name,
-            description,
-            usage_count
-          )
-        `)
-        .eq('user_id', currentUser.id)
-        .not('custom_category_id', 'is', null);
-
-      if (error) throw error;
-      
-      const customCategories = data?.map(item => ({
-        ...item.custom_categories,
-        list_id: item.id
-      })) || [];
-      
-      setUserCustomCategories(customCategories);
-    } catch (error) {
-      console.error('Error loading user custom categories:', error);
-    }
-  }, [currentUser, supabase]);
 
   const handleCustomCategorySelected = useCallback((category) => {
     createNewList(null, category);
@@ -4850,6 +5049,7 @@ const TheCanon = ({ supabase }) => {
 
           {/* Main Content */}
           <main className="max-w-7xl mx-auto px-4 py-6">
+            {console.log('🔍 Current activeTab in main content:', activeTab)}
             {activeTab === 'foryou' ? (
               <div className="space-y-6">
                 {/* Tournament Section */}
@@ -5581,15 +5781,52 @@ const TheCanon = ({ supabase }) => {
                       }
                         
                         return (
-                          <div key={category.id} className="bg-white/5 border border-white/10 p-4" data-list-id={existingList.id}>
+                          <div 
+                            key={category.id} 
+                            className={`bg-white/5 border border-white/10 p-4 ${!isMobile ? 'cursor-move' : ''}`}
+                            data-list-id={existingList.id}
+                            draggable={!isMobile}
+                            onDragStart={(e) => handleCategoryDragStart(e, existingList.id)}
+                            onDragEnd={handleCategoryDragEnd}
+                            onDragOver={handleCategoryDragOver}
+                            onDrop={(e) => handleCategoryDrop(e, category.id)}
+                          >
                             <div className="flex justify-between items-start mb-3">
-                              <h3 className="font-bold">{existingList.title}</h3>
-                              <button
-                                onClick={() => shareList(existingList)}
-                                className="p-1 hover:bg-white/10 transition-colors"
-                              >
-                                <Share2 className="w-3 h-3" />
-                              </button>
+                              <div className="flex items-center gap-2">
+                                {/* Mobile drag handle for other rankings */}
+                                {isMobile && (
+                                  <div 
+                                    className="touch-target flex items-center justify-center w-6 h-6 cursor-grab active:cursor-grabbing"
+                                    onTouchStart={(e) => {
+                                      // Mobile touch handling for other rankings reordering
+                                      e.preventDefault();
+                                    }}
+                                  >
+                                    <GripVertical className="w-3 h-3 text-gray-400" />
+                                  </div>
+                                )}
+                                <h3 className="font-bold">{existingList.title}</h3>
+                              </div>
+                              <div className="flex gap-1">
+                                <button
+                                  onClick={() => shareList(existingList)}
+                                  className="p-1 hover:bg-white/10 transition-colors rounded"
+                                  title="Share"
+                                >
+                                  <Share2 className="w-3 h-3" />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    if (window.confirm(`Are you sure you want to delete "${existingList.title}"? This cannot be undone.`)) {
+                                      handleDeleteList(existingList.id);
+                                    }
+                                  }}
+                                  className="p-1 hover:bg-white/10 transition-colors rounded"
+                                  title="Delete list"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </div>
                             </div>
                             {/* Add Search Bar for existing category lists */}
                             <div className="relative mb-3">
@@ -5736,184 +5973,245 @@ const TheCanon = ({ supabase }) => {
                       })}
                     
                     {/* Custom Categories */}
-                    {userLists
-                      .filter(list => list.custom_category_id)
-                      .map(list => {
-                        const customCategory = userCustomCategories.find(cat => cat.id === list.custom_category_id);
-                        if (!customCategory) return null;
-                        
-                        return (
-                          <div key={list.id} className="bg-white/5 border border-white/10 p-4" data-list-id={list.id}>
-                            <div className="flex justify-between items-start mb-3">
-                              <div>
-                                <h3 className="font-bold">{customCategory.category_name}</h3>
-                                {customCategory.description && (
-                                  <p className="text-xs text-gray-400 mt-1">{customCategory.description}</p>
-                                )}
-                              </div>
-                              <button
-                                onClick={() => shareList(list)}
-                                className="p-1 hover:bg-white/10 transition-colors"
-                              >
-                                <Share2 className="w-3 h-3" />
-                              </button>
-                            </div>
-                            
-                            {/* Add Search Bar for custom category lists */}
-                            <div className="relative mb-3">
-                              <input
-                                type="text"
-                                placeholder="Search artists..."
-                                value={otherListSearchQueries[list.id] || ''}
-                                className="w-full px-3 py-1.5 text-sm bg-black/50 border border-white/20 focus:border-purple-400/50 focus:outline-none rounded"
-                                onChange={(e) => handleOtherListSearch(list.id, e.target.value)}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    const results = otherListSearchResults[list.id];
-                                    if (results && results.length > 0) {
-                                      addArtistToOtherList(list.id, results[0]);
-                                    }
-                                  }
-                                }}
-                                onBlur={() => {
-                                  setTimeout(() => {
-                                    setOtherListSearchResults(prev => ({ ...prev, [list.id]: [] }));
-                                  }, 300);
-                                }}
-                              />
-                              
-                              {/* Search Results Dropdown */}
-                              {otherListSearchResults[list.id] && otherListSearchResults[list.id].length > 0 && (
-                                <div className="absolute top-full mt-1 w-full bg-slate-800 border border-white/20 shadow-xl max-h-48 overflow-y-auto z-20">
-                                  {otherListSearchResults[list.id].map((artist) => (
-                                    <div
-                                      key={artist.id}
-                                      className="p-3 hover:bg-white/10 transition-colors flex items-center gap-3 cursor-pointer"
-                                      onMouseDown={(e) => {
-                                        e.preventDefault();
-                                        addArtistToOtherList(list.id, artist);
-                                      }}
-                                      onClick={() => addArtistToOtherList(list.id, artist)}
-                                    >
-                                      <ArtistAvatar artist={artist} size="w-8 h-8" />
-                                      <div>
-                                        <p className="font-medium">{artist.name}</p>
-                                        <p className="text-xs text-gray-400">{artist.genre || 'Artist'}</p>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
+                    <>
+                      {userLists
+                        .filter(list => list.custom_category_id)
+                        .sort((a, b) => {
+                          if (customCategoryOrder.length === 0) return 0;
+                          const indexA = customCategoryOrder.indexOf(a.id);
+                          const indexB = customCategoryOrder.indexOf(b.id);
+                          if (indexA === -1 && indexB === -1) return 0;
+                          if (indexA === -1) return 1;
+                          if (indexB === -1) return -1;
+                          return indexA - indexB;
+                        })
+                        .map((list, index) => {
+                          const customCategory = userCustomCategories.find(cat => cat.id === list.custom_category_id);
+                          if (!customCategory) return null;
+                          
+                          return (
+                            <div key={list.id}>
+                              {/* Drop indicator */}
+                              {categoryDragOverIndex === index && (
+                                <div className="h-1 bg-purple-400 rounded transition-all duration-200 mb-2" />
                               )}
-                            </div>
-                            
-                            <div className="space-y-1">
-                              {list.artists.map((artist, index) => (
-                                <div key={artist.id}>
-                                  {/* Drop indicator */}
-                                  {dragOverIndex === index && draggedFromList === list.id && (
-                                    <div className="h-1 bg-purple-400 rounded transition-all duration-200" />
-                                  )}
-                                  
-                                  <div
-                                    data-drop-index={index}
-                                    className={`flex items-center ${isMobile ? 'gap-1 p-1.5' : 'gap-3 p-2'} bg-black/30 border border-white/10 ${
-                                      isMobile ? '' : 'cursor-move hover:bg-white/10'
-                                    } transition-all duration-200 ${
-                                      draggedItem?.artist.id === artist.id ? 'opacity-50' : ''
-                                    } ${isMobile ? 'draggable-item' : ''}`}
-                                    {...(!isMobile ? {
-                                      draggable: true,
-                                      onDragStart: (e) => handleDragStart(e, artist, list.id),
-                                      onDragOver: handleDragOver,
-                                      onDragEnter: (e) => handleDragEnter(e, index),
-                                      onDrop: (e) => handleDrop(e, index, list.id),
-                                    } : {})}
-                                  >
-                                    <div 
-                                      className={`drag-handle ${isMobile ? 'touch-target flex items-center justify-center w-6 h-6' : ''}`}
-                                      {...(isMobile ? {
-                                        onTouchStart: (e) => mobileDrag.handleTouchStart(e, { artist, listId: list.id }),
-                                        onTouchMove: mobileDrag.handleTouchMove,
-                                        onTouchEnd: mobileDrag.handleTouchEnd,
-                                      } : {})}
-                                    >
-                                      <GripVertical className={`${isMobile ? 'w-3 h-3' : 'w-4 h-4'} text-gray-400`} />
+                              
+                              <div 
+                                className={`bg-white/5 border border-white/10 p-4 ${
+                                  draggedCategoryId === list.id ? 'opacity-50' : ''
+                                } ${!isMobile ? 'cursor-move' : ''}`}
+                                data-list-id={list.id}
+                                draggable={!isMobile}
+                                onDragStart={(e) => handleCategoryDragStart(e, list.id)}
+                                onDragEnd={handleCategoryDragEnd}
+                                onDragEnter={(e) => handleCategoryDragEnter(e, index)}
+                                onDragOver={handleCategoryDragOver}
+                                onDrop={(e) => handleCategoryDrop(e, index)}
+                              >
+                                <div className="flex justify-between items-start mb-3">
+                                  <div className="flex items-center gap-2">
+                                    {/* Mobile drag handle for category reordering */}
+                                    {isMobile && (
+                                      <div 
+                                        className="touch-target flex items-center justify-center w-6 h-6 cursor-grab active:cursor-grabbing"
+                                        onTouchStart={(e) => {
+                                          // Mobile touch handling for category reordering would go here
+                                          // For now, just prevent default to avoid conflicts
+                                          e.preventDefault();
+                                        }}
+                                      >
+                                        <GripVertical className="w-3 h-3 text-gray-400" />
+                                      </div>
+                                    )}
+                                    <div>
+                                      <h3 className="font-bold">{customCategory.category_name}</h3>
+                                      {customCategory.description && (
+                                        <p className="text-xs text-gray-400 mt-1">{customCategory.description}</p>
+                                      )}
                                     </div>
-                                    <span 
-                                      className={`text-gray-400 font-bold ${isMobile ? 'text-xs w-4 text-center' : 'text-sm'} cursor-pointer`}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setShowArtistCard(artist);
-                                      }}
-                                    >#{index + 1}</span>
-                                    <div 
-                                      className="cursor-pointer"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setShowArtistCard(artist);
-                                      }}
-                                    >
-                                      <ArtistAvatar artist={artist} size={isMobile ? 'w-6 h-6' : 'w-8 h-8'} />
-                                    </div>
-                                    <span 
-                                      className={`truncate flex-1 ${isMobile ? 'text-xs' : 'text-sm'} cursor-pointer`}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setShowArtistCard(artist);
-                                      }}
-                                    >{artist.name}</span>
+                                  </div>
+                                  <div className="flex gap-1">
                                     <button
-                                      onClick={() => {
-                                        const newArtists = list.artists.filter(a => a.id !== artist.id);
-                                        updateListAndSave(list.id, newArtists);
-                                      }}
-                                      className="p-1 hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-colors"
-                                      title="Remove artist"
+                                      onClick={() => shareList(list)}
+                                      className="p-1 hover:bg-white/10 transition-colors rounded"
+                                      title="Share"
+                                    >
+                                      <Share2 className="w-3 h-3" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteCustomCategory(list.id)}
+                                      className="p-1 hover:bg-white/10 transition-colors rounded"
+                                      title="Delete category"
                                     >
                                       <X className="w-3 h-3" />
                                     </button>
                                   </div>
                                 </div>
-                              ))}
-                              
-                              {/* Drop indicator at the end */}
-                              {dragOverIndex === list.artists.length && draggedFromList === list.id && (
-                                <div className="h-1 bg-purple-400 rounded transition-all duration-200" />
-                              )}
-                              
-                              {/* Drop zone at the end */}
-                              <div
-                                data-drop-index={list.artists.length}
-                                className={`${list.artists.length === 0 ? 
-                                  'border-2 border-dashed border-gray-600 p-6 text-center text-gray-400 text-sm' : 
-                                  'h-4 border border-dashed border-transparent hover:border-gray-600 transition-colors'
-                                }`}
-                                {...(!isMobile ? {
-                                  onDragOver: handleDragOver,
-                                  onDragEnter: (e) => handleDragEnter(e, list.artists.length),
-                                  onDrop: (e) => handleDrop(e, list.artists.length, list.id),
-                                } : {})}
-                              >
-                                {list.artists.length === 0 && (
-                                  isMobile ? 'Search and tap artists to add them' : 'Search artists or drag them here'
-                                )}
+                                
+                                {/* Add Search Bar for custom category lists */}
+                                <div className="relative mb-3">
+                                  <input
+                                    type="text"
+                                    placeholder="Search artists..."
+                                    value={otherListSearchQueries[list.id] || ''}
+                                    className="w-full px-3 py-1.5 text-sm bg-black/50 border border-white/20 focus:border-purple-400/50 focus:outline-none rounded"
+                                    onChange={(e) => handleOtherListSearch(list.id, e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        const results = otherListSearchResults[list.id];
+                                        if (results && results.length > 0) {
+                                          addArtistToOtherList(list.id, results[0]);
+                                        }
+                                      }
+                                    }}
+                                    onBlur={() => {
+                                      setTimeout(() => {
+                                        setOtherListSearchResults(prev => ({ ...prev, [list.id]: [] }));
+                                      }, 300);
+                                    }}
+                                  />
+                                  
+                                  {/* Search Results Dropdown */}
+                                  {otherListSearchResults[list.id] && otherListSearchResults[list.id].length > 0 && (
+                                    <div className="absolute top-full mt-1 w-full bg-slate-800 border border-white/20 shadow-xl max-h-48 overflow-y-auto z-20">
+                                      {otherListSearchResults[list.id].map((artist) => (
+                                        <div
+                                          key={artist.id}
+                                          className="p-3 hover:bg-white/10 transition-colors flex items-center gap-3 cursor-pointer"
+                                          onMouseDown={(e) => {
+                                            e.preventDefault();
+                                            addArtistToOtherList(list.id, artist);
+                                          }}
+                                          onClick={() => addArtistToOtherList(list.id, artist)}
+                                        >
+                                          <ArtistAvatar artist={artist} size="w-8 h-8" />
+                                          <div>
+                                            <p className="font-medium">{artist.name}</p>
+                                            <p className="text-xs text-gray-400">{artist.genre || 'Artist'}</p>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                <div className="space-y-1">
+                                  {list.artists.map((artist, index) => (
+                                    <div key={artist.id}>
+                                      {/* Drop indicator */}
+                                      {dragOverIndex === index && draggedFromList === list.id && (
+                                        <div className="h-1 bg-purple-400 rounded transition-all duration-200" />
+                                      )}
+                                      
+                                      <div
+                                        data-drop-index={index}
+                                        className={`flex items-center ${isMobile ? 'gap-1 p-1.5' : 'gap-3 p-2'} bg-black/30 border border-white/10 ${
+                                          isMobile ? '' : 'cursor-move hover:bg-white/10'
+                                        } transition-all duration-200 ${
+                                          draggedItem?.artist.id === artist.id ? 'opacity-50' : ''
+                                        } ${isMobile ? 'draggable-item' : ''}`}
+                                        {...(!isMobile ? {
+                                          draggable: true,
+                                          onDragStart: (e) => handleDragStart(e, artist, list.id),
+                                          onDragOver: handleDragOver,
+                                          onDragEnter: (e) => handleDragEnter(e, index),
+                                          onDrop: (e) => handleDrop(e, index, list.id),
+                                        } : {})}
+                                      >
+                                        <div 
+                                          className={`drag-handle ${isMobile ? 'touch-target flex items-center justify-center w-6 h-6' : ''}`}
+                                          {...(isMobile ? {
+                                            onTouchStart: (e) => mobileDrag.handleTouchStart(e, { artist, listId: list.id }),
+                                            onTouchMove: mobileDrag.handleTouchMove,
+                                            onTouchEnd: mobileDrag.handleTouchEnd,
+                                          } : {})}
+                                        >
+                                          <GripVertical className={`${isMobile ? 'w-3 h-3' : 'w-4 h-4'} text-gray-400`} />
+                                        </div>
+                                        <span 
+                                          className={`text-gray-400 font-bold ${isMobile ? 'text-xs w-4 text-center' : 'text-sm'} cursor-pointer`}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setShowArtistCard(artist);
+                                          }}
+                                        >#{index + 1}</span>
+                                        <div 
+                                          className="cursor-pointer"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setShowArtistCard(artist);
+                                          }}
+                                        >
+                                          <ArtistAvatar artist={artist} size={isMobile ? 'w-6 h-6' : 'w-8 h-8'} />
+                                        </div>
+                                        <span 
+                                          className={`truncate flex-1 ${isMobile ? 'text-xs' : 'text-sm'} cursor-pointer`}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setShowArtistCard(artist);
+                                          }}
+                                        >{artist.name}</span>
+                                        <button
+                                          onClick={() => {
+                                            const newArtists = list.artists.filter(a => a.id !== artist.id);
+                                            updateListAndSave(list.id, newArtists);
+                                          }}
+                                          className="p-1 hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-colors"
+                                          title="Remove artist"
+                                        >
+                                          <X className="w-3 h-3" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                  
+                                  {/* Drop indicator at the end */}
+                                  {dragOverIndex === list.artists.length && draggedFromList === list.id && (
+                                    <div className="h-1 bg-purple-400 rounded transition-all duration-200" />
+                                  )}
+                                  
+                                  {/* Drop zone at the end */}
+                                  <div
+                                    data-drop-index={list.artists.length}
+                                    className={`${list.artists.length === 0 ? 
+                                      'border-2 border-dashed border-gray-600 p-6 text-center text-gray-400 text-sm' : 
+                                      'h-4 border border-dashed border-transparent hover:border-gray-600 transition-colors'
+                                    }`}
+                                    {...(!isMobile ? {
+                                      onDragOver: handleDragOver,
+                                      onDragEnter: (e) => handleDragEnter(e, list.artists.length),
+                                      onDrop: (e) => handleDrop(e, list.artists.length, list.id),
+                                    } : {})}
+                                  >
+                                    {list.artists.length === 0 && (
+                                      isMobile ? 'Search and tap artists to add them' : 'Search artists or drag them here'
+                                    )}
+                                  </div>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        );
-                      })}
-                    
-                    {/* Custom Category Selector Button */}
-                    <button
-                      onClick={() => setShowCustomCategorySelector(true)}
-                      className="p-4 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-400/30 text-purple-300 transition-colors text-left flex items-center gap-3"
-                    >
-                      <Plus className="w-5 h-5" />
-                      <div>
-                        <h3 className="font-bold mb-1">Create Custom Category</h3>
-                        <p className="text-sm text-purple-400/80">Make your own ranking category</p>
-                      </div>
-                    </button>
+                          );
+                        })}
+                      
+                      
+                      {/* Final drop zone for category reordering */}
+                      {userLists.filter(list => list.custom_category_id).length > 0 && 
+                       categoryDragOverIndex === userLists.filter(list => list.custom_category_id).length && (
+                        <div className="h-1 bg-purple-400 rounded transition-all duration-200 mb-2" />
+                      )}
+                      
+                      {/* Custom Category Selector Button */}
+                      <button
+                        onClick={() => setShowCustomCategorySelector(true)}
+                        className="p-4 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-400/30 text-purple-300 transition-colors text-left flex items-center gap-3"
+                      >
+                        <Plus className="w-5 h-5" />
+                        <div>
+                          <h3 className="font-bold mb-1">Create Custom Category</h3>
+                          <p className="text-sm text-purple-400/80">Make your own ranking category</p>
+                        </div>
+                      </button>
+                    </>
                   </div>
                 </div>
               </div>
@@ -6983,6 +7281,68 @@ const TheCanon = ({ supabase }) => {
         {/* Artist Card Modal */}
         {showArtistCard && <ArtistCard artist={showArtistCard} onClose={() => setShowArtistCard(null)} />}
 
+        {/* Delete Custom Category Confirmation Modal */}
+        {showDeleteConfirmModal && categoryToDelete && (
+          <div 
+            className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => {
+              setShowDeleteConfirmModal(false);
+              setCategoryToDelete(null);
+            }}
+          >
+            <div 
+              className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-md w-full'}`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold">Delete Category</h2>
+                <button
+                  onClick={() => {
+                    setShowDeleteConfirmModal(false);
+                    setCategoryToDelete(null);
+                  }}
+                  className="text-gray-400 hover:text-white transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
+                  <p className="text-sm">
+                    This custom category contains <strong>{categoryToDelete.list.artists.length} artists</strong>.
+                  </p>
+                  <p className="text-sm mt-2">
+                    Are you sure you want to delete this category? This action cannot be undone.
+                  </p>
+                </div>
+                
+                <div className="flex gap-3">
+                  <button
+                    onClick={async () => {
+                      await deleteCustomCategory(categoryToDelete.listId);
+                      setShowDeleteConfirmModal(false);
+                      setCategoryToDelete(null);
+                    }}
+                    className="flex-1 py-2 bg-red-600 hover:bg-red-700 transition-colors text-sm font-medium rounded"
+                  >
+                    Delete Category
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowDeleteConfirmModal(false);
+                      setCategoryToDelete(null);
+                    }}
+                    className="flex-1 py-2 bg-slate-600 hover:bg-slate-700 transition-colors text-sm rounded"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Artist Request Modal */}
         {showArtistRequestModal && (
           <div 
@@ -7088,7 +7448,7 @@ const TheCanon = ({ supabase }) => {
             currentUser={currentUser}
             onCategorySelected={handleCustomCategorySelected}
             onClose={() => setShowCustomCategorySelector(false)}
-            existingUserCategories={userLists.filter(list => list.custom_category_id)}
+            existingUserCategories={userLists}
           />
         )}
       </div>
