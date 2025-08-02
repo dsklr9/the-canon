@@ -385,10 +385,13 @@ const TheCanon = ({ supabase }) => {
   const [userPoints, setUserPoints] = useState(0);
   const [userAchievements, setUserAchievements] = useState([]);
   const [customCategoryOrder, setCustomCategoryOrder] = useState([]);
+  const [otherRankingsOrder, setOtherRankingsOrder] = useState([]);
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [categoryToDelete, setCategoryToDelete] = useState(null);
   const [draggedCategoryId, setDraggedCategoryId] = useState(null);
   const [categoryDragOverIndex, setCategoryDragOverIndex] = useState(null);
+  const [draggedOtherRankingId, setDraggedOtherRankingId] = useState(null);
+  const [otherRankingDragOverIndex, setOtherRankingDragOverIndex] = useState(null);
   const [userProfilePicture, setUserProfilePicture] = useState(null);
   const [uploadingProfilePicture, setUploadingProfilePicture] = useState(false);
   const [showArtistCard, setShowArtistCard] = useState(null);
@@ -3109,9 +3112,13 @@ const TheCanon = ({ supabase }) => {
   const handleMobileDragStart = useCallback((data) => {
     console.log('handleMobileDragStart called with:', data);
     if (data.isCategory) {
-      // Handle category dragging
+      // Handle custom category dragging
       const { categoryId } = data;
       setDraggedCategoryId(categoryId);
+    } else if (data.isOtherRanking) {
+      // Handle other rankings dragging
+      const { rankingId } = data;
+      setDraggedOtherRankingId(rankingId);
     } else {
       // Handle artist dragging
       const { artist, listId } = data;
@@ -3123,7 +3130,7 @@ const TheCanon = ({ supabase }) => {
   const handleMobileDragMove = useCallback((touch) => {
     const element = document.elementFromPoint(touch.clientX, touch.clientY);
     
-    // Check if we're dragging a category
+    // Check if we're dragging a custom category
     if (draggedCategoryId) {
       const categoryDropZone = element?.closest('[data-list-id]');
       if (categoryDropZone) {
@@ -3136,6 +3143,19 @@ const TheCanon = ({ supabase }) => {
       } else {
         setCategoryDragOverIndex(null);
       }
+    } else if (draggedOtherRankingId) {
+      // Check if we're dragging an other ranking
+      const otherRankingDropZone = element?.closest('[data-list-id]');
+      if (otherRankingDropZone) {
+        // Find the index of this ranking in the other rankings
+        const otherRankingLists = userLists.filter(list => !list.custom_category_id && !list.isAllTime);
+        const dropIndex = otherRankingLists.findIndex(list => list.id === otherRankingDropZone.getAttribute('data-list-id'));
+        if (dropIndex !== -1) {
+          setOtherRankingDragOverIndex(dropIndex);
+        }
+      } else {
+        setOtherRankingDragOverIndex(null);
+      }
     } else {
       // Handle artist dragging
       const dropTarget = element?.closest('[data-drop-index]');
@@ -3146,12 +3166,12 @@ const TheCanon = ({ supabase }) => {
         setDragOverIndex(null);
       }
     }
-  }, [draggedCategoryId, userLists]);
+  }, [draggedCategoryId, draggedOtherRankingId, userLists]);
 
   const handleMobileDragEnd = useCallback((data, dropTarget) => {
-    console.log('Mobile drag end:', { draggedItem, draggedCategoryId, dropTarget });
+    console.log('Mobile drag end:', { draggedItem, draggedCategoryId, draggedOtherRankingId, dropTarget });
     
-    // Handle category dragging
+    // Handle custom category dragging
     if (draggedCategoryId && dropTarget) {
       const categoryDropZone = dropTarget.closest('[data-list-id]');
       if (categoryDropZone) {
@@ -3179,6 +3199,37 @@ const TheCanon = ({ supabase }) => {
       }
       setDraggedCategoryId(null);
       setCategoryDragOverIndex(null);
+      return;
+    }
+    
+    // Handle other rankings dragging
+    if (draggedOtherRankingId && dropTarget) {
+      const otherRankingDropZone = dropTarget.closest('[data-list-id]');
+      if (otherRankingDropZone) {
+        const otherRankingLists = userLists.filter(list => !list.custom_category_id && !list.isAllTime);
+        const dropIndex = otherRankingLists.findIndex(list => list.id === otherRankingDropZone.getAttribute('data-list-id'));
+        if (dropIndex !== -1) {
+          const draggedIndex = otherRankingLists.findIndex(list => list.id === draggedOtherRankingId);
+          
+          if (draggedIndex !== -1 && draggedIndex !== dropIndex) {
+            // Reorder the lists
+            const newOtherRankingLists = [...otherRankingLists];
+            const [removed] = newOtherRankingLists.splice(draggedIndex, 1);
+            newOtherRankingLists.splice(dropIndex, 0, removed);
+
+            // Update the order in state
+            const newOrder = newOtherRankingLists.map(list => list.id);
+            setOtherRankingsOrder(newOrder);
+
+            // Save the order to localStorage
+            if (currentUser) {
+              localStorage.setItem(`other_rankings_order_${currentUser.id}`, JSON.stringify(newOrder));
+            }
+          }
+        }
+      }
+      setDraggedOtherRankingId(null);
+      setOtherRankingDragOverIndex(null);
       return;
     }
     
@@ -3257,7 +3308,7 @@ const TheCanon = ({ supabase }) => {
     setDraggedItem(null);
     setDragOverIndex(null);
     setDraggedFromList(null);
-  }, [draggedItem, draggedCategoryId, userLists, updateListAndSave, currentUser]);
+  }, [draggedItem, draggedCategoryId, draggedOtherRankingId, userLists, updateListAndSave, currentUser]);
 
   const mobileDrag = useMobileDrag(
     handleMobileDragStart,
@@ -3394,6 +3445,12 @@ const TheCanon = ({ supabase }) => {
       if (savedOrder) {
         setCustomCategoryOrder(JSON.parse(savedOrder));
       }
+
+      // Load other rankings order from localStorage
+      const savedOtherRankingsOrder = localStorage.getItem(`other_rankings_order_${user.id}`);
+      if (savedOtherRankingsOrder) {
+        setOtherRankingsOrder(JSON.parse(savedOtherRankingsOrder));
+      }
     } catch (error) {
       console.error('Error loading user custom categories:', error);
     }
@@ -3504,6 +3561,55 @@ const TheCanon = ({ supabase }) => {
 
     setCategoryDragOverIndex(null);
   }, [draggedCategoryId, userLists, currentUser]);
+
+  // Other Rankings drag handlers
+  const handleOtherRankingDragStart = useCallback((e, rankingId) => {
+    setDraggedOtherRankingId(rankingId);
+    e.dataTransfer.effectAllowed = 'move';
+  }, []);
+
+  const handleOtherRankingDragEnd = useCallback(() => {
+    setDraggedOtherRankingId(null);
+    setOtherRankingDragOverIndex(null);
+  }, []);
+
+  const handleOtherRankingDragOver = useCallback((e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  }, []);
+
+  const handleOtherRankingDragEnter = useCallback((e, index) => {
+    if (draggedOtherRankingId) {
+      setOtherRankingDragOverIndex(index);
+    }
+  }, [draggedOtherRankingId]);
+
+  const handleOtherRankingDrop = useCallback(async (e, dropIndex) => {
+    e.preventDefault();
+    
+    if (!draggedOtherRankingId) return;
+
+    const otherRankingLists = userLists.filter(list => !list.custom_category_id && !list.isAllTime);
+    const draggedIndex = otherRankingLists.findIndex(list => list.id === draggedOtherRankingId);
+    
+    if (draggedIndex === -1 || draggedIndex === dropIndex) return;
+
+    // Reorder the lists
+    const newOtherRankingLists = [...otherRankingLists];
+    const [removed] = newOtherRankingLists.splice(draggedIndex, 1);
+    newOtherRankingLists.splice(dropIndex, 0, removed);
+
+    // Update the order in state
+    const newOrder = newOtherRankingLists.map(list => list.id);
+    setOtherRankingsOrder(newOrder);
+
+    // Save the order to localStorage
+    if (currentUser) {
+      localStorage.setItem(`other_rankings_order_${currentUser.id}`, JSON.stringify(newOrder));
+    }
+
+    setOtherRankingDragOverIndex(null);
+  }, [draggedOtherRankingId, userLists, currentUser]);
 
   const createNewList = useCallback((categoryId = null, customCategory = null) => {
     const tempId = `temp-${Date.now()}`;
@@ -5790,7 +5896,23 @@ const TheCanon = ({ supabase }) => {
                   <h2 className="text-lg font-bold mb-3">OTHER RANKINGS</h2>
                   <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'} gap-4`}>
                     {/* Starter Categories (first 3 slots) */}
-                    {starterCategories.map(category => {
+                    {starterCategories
+                      .sort((a, b) => {
+                        const listA = userLists.find(l => l.category === a.id);
+                        const listB = userLists.find(l => l.category === b.id);
+                        
+                        // Only sort if both lists exist
+                        if (!listA || !listB) return 0;
+                        
+                        if (otherRankingsOrder.length === 0) return 0;
+                        const indexA = otherRankingsOrder.indexOf(listA.id);
+                        const indexB = otherRankingsOrder.indexOf(listB.id);
+                        if (indexA === -1 && indexB === -1) return 0;
+                        if (indexA === -1) return 1;
+                        if (indexB === -1) return -1;
+                        return indexA - indexB;
+                      })
+                      .map((category, index) => {
                       const existingList = userLists.find(l => l.category === category.id);
                       
                       if (!existingList) {
@@ -5807,26 +5929,33 @@ const TheCanon = ({ supabase }) => {
                       }
                         
                         return (
-                          <div 
-                            key={category.id} 
-                            className={`bg-white/5 border border-white/10 p-4 ${!isMobile ? 'cursor-move' : ''}`}
-                            data-list-id={existingList.id}
-                            draggable={!isMobile}
-                            onDragStart={(e) => handleCategoryDragStart(e, existingList.id)}
-                            onDragEnd={handleCategoryDragEnd}
-                            onDragOver={handleCategoryDragOver}
-                            onDrop={(e) => handleCategoryDrop(e, category.id)}
-                          >
+                          <div key={category.id}>
+                            {/* Drop indicator */}
+                            {otherRankingDragOverIndex === index && (
+                              <div className="h-1 bg-blue-400 rounded transition-all duration-200 mb-2" />
+                            )}
+                            
+                            <div 
+                              className={`bg-white/5 border border-white/10 p-4 ${!isMobile ? 'cursor-move' : ''} ${
+                                draggedOtherRankingId === existingList.id ? 'opacity-50' : ''
+                              }`}
+                              data-list-id={existingList.id}
+                              draggable={!isMobile}
+                              onDragStart={(e) => handleOtherRankingDragStart(e, existingList.id)}
+                              onDragEnd={handleOtherRankingDragEnd}
+                              onDragOver={handleOtherRankingDragOver}
+                              onDragEnter={(e) => handleOtherRankingDragEnter(e, index)}
+                              onDrop={(e) => handleOtherRankingDrop(e, index)}
+                            >
                             <div className="flex justify-between items-start mb-3">
                               <div className="flex items-center gap-2">
                                 {/* Mobile drag handle for other rankings */}
                                 {isMobile && (
                                   <div 
                                     className="touch-target flex items-center justify-center w-6 h-6 cursor-grab active:cursor-grabbing"
-                                    onTouchStart={(e) => {
-                                      // Mobile touch handling for other rankings reordering
-                                      e.preventDefault();
-                                    }}
+                                    onTouchStart={(e) => mobileDrag.handleTouchStart(e, { rankingId: existingList.id, isOtherRanking: true })}
+                                    onTouchMove={mobileDrag.handleTouchMove}
+                                    onTouchEnd={mobileDrag.handleTouchEnd}
                                   >
                                     <GripVertical className="w-3 h-3 text-gray-400" />
                                   </div>
@@ -5997,6 +6126,14 @@ const TheCanon = ({ supabase }) => {
                           </div>
                         );
                       })}
+                      
+                      {/* Final drop zone for other rankings reordering */}
+                      {starterCategories.filter(cat => userLists.find(l => l.category === cat.id)).length > 0 && 
+                       otherRankingDragOverIndex === starterCategories.filter(cat => userLists.find(l => l.category === cat.id)).length && (
+                        <div className="h-1 bg-blue-400 rounded transition-all duration-200 mb-2" />
+                      )}
+                    </div>
+                  </div>
                     
                     {/* Custom Categories */}
                     <>
