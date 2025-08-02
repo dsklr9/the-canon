@@ -3158,7 +3158,23 @@ const TheCanon = ({ supabase }) => {
         const customLists = userLists.filter(list => list.custom_category_id);
         const dropIndex = customLists.findIndex(list => list.id === categoryDropZone.getAttribute('data-list-id'));
         if (dropIndex !== -1) {
-          handleCategoryDrop(null, dropIndex);
+          const draggedIndex = customLists.findIndex(list => list.id === draggedCategoryId);
+          
+          if (draggedIndex !== -1 && draggedIndex !== dropIndex) {
+            // Reorder the lists
+            const newCustomLists = [...customLists];
+            const [removed] = newCustomLists.splice(draggedIndex, 1);
+            newCustomLists.splice(dropIndex, 0, removed);
+
+            // Update the order in state
+            const newOrder = newCustomLists.map(list => list.id);
+            setCustomCategoryOrder(newOrder);
+
+            // Save the order to localStorage
+            if (currentUser) {
+              localStorage.setItem(`custom_category_order_${currentUser.id}`, JSON.stringify(newOrder));
+            }
+          }
         }
       }
       setDraggedCategoryId(null);
@@ -3241,7 +3257,7 @@ const TheCanon = ({ supabase }) => {
     setDraggedItem(null);
     setDragOverIndex(null);
     setDraggedFromList(null);
-  }, [draggedItem, draggedCategoryId, userLists, handleCategoryDrop]);
+  }, [draggedItem, draggedCategoryId, userLists, updateListAndSave, currentUser]);
 
   const mobileDrag = useMobileDrag(
     handleMobileDragStart,
