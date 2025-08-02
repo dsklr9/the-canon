@@ -32,17 +32,6 @@ const globalStyles = `
       cursor: grabbing;
     }
     
-    /* Prevent text selection on draggable items */
-    .draggable-item {
-      -webkit-user-select: none;
-      -moz-user-select: none;
-      -ms-user-select: none;
-      user-select: none;
-      -webkit-touch-callout: none;
-      touch-action: none;
-      position: relative;
-    }
-    
     /* Improve touch targets */
     .touch-target {
       min-height: 44px;
@@ -204,8 +193,8 @@ const useMobileDrag = (onDragStart, onDragEnd, onDragMove) => {
       mainContainer.style.touchAction = 'none';
     }
     
-    // Find the draggable item container (parent with draggable-item class)
-    const draggableItem = e.currentTarget.closest('.draggable-item') || e.currentTarget.closest('[data-drop-index]');
+    // Find the draggable item container
+    const draggableItem = e.currentTarget.closest('[data-drop-index]') || e.currentTarget.closest('[data-list-id]');
     setDraggedElement({ element: draggableItem, data });
   }, []);
 
@@ -524,8 +513,8 @@ const TheCanon = ({ supabase }) => {
           return;
         }
         
-        // Check if touch is on a draggable element
-        const target = e.target.closest('.draggable-item, .drag-handle');
+        // Check if touch is on a drag handle
+        const target = e.target.closest('.drag-handle');
         if (target) {
           // Let our custom drag handler deal with it
           return;
@@ -534,7 +523,7 @@ const TheCanon = ({ supabase }) => {
       
       // Also prevent scroll bounce on iOS
       const preventScrollBounce = (e) => {
-        const target = e.target.closest('.draggable-item, .drag-handle');
+        const target = e.target.closest('.drag-handle');
         if (target) {
           e.preventDefault();
         }
@@ -3119,44 +3108,65 @@ const TheCanon = ({ supabase }) => {
   // Mobile drag handlers
   const handleMobileDragStart = useCallback((data) => {
     console.log('handleMobileDragStart called with:', data);
-    const { artist, listId } = data;
-    setDraggedItem({ artist, listId });
-    setDraggedFromList(listId);
+    if (data.isCategory) {
+      // Handle category dragging
+      const { categoryId } = data;
+      setDraggedCategoryId(categoryId);
+    } else {
+      // Handle artist dragging
+      const { artist, listId } = data;
+      setDraggedItem({ artist, listId });
+      setDraggedFromList(listId);
+    }
   }, []);
 
   const handleMobileDragMove = useCallback((touch) => {
-    // Check if we have a dragged element to temporarily hide
-    const draggedElement = document.querySelector('.draggable-item[style*="transform"]');
-    let originalDisplay, originalPointerEvents;
-    
-    if (draggedElement) {
-      originalDisplay = draggedElement.style.display;
-      originalPointerEvents = draggedElement.style.pointerEvents;
-      draggedElement.style.display = 'none';
-      draggedElement.style.pointerEvents = 'none';
-    }
-    
     const element = document.elementFromPoint(touch.clientX, touch.clientY);
-    const dropTarget = element?.closest('[data-drop-index]');
     
-    // Restore the dragged element
-    if (draggedElement) {
-      draggedElement.style.display = originalDisplay;
-      draggedElement.style.pointerEvents = originalPointerEvents;
-    }
-    
-    if (dropTarget) {
-      const index = parseInt(dropTarget.dataset.dropIndex);
-      setDragOverIndex(index);
+    // Check if we're dragging a category
+    if (draggedCategoryId) {
+      const categoryDropZone = element?.closest('[data-list-id]');
+      if (categoryDropZone) {
+        // Find the index of this category in the custom lists
+        const customLists = userLists.filter(list => list.custom_category_id);
+        const dropIndex = customLists.findIndex(list => list.id === categoryDropZone.getAttribute('data-list-id'));
+        if (dropIndex !== -1) {
+          setCategoryDragOverIndex(dropIndex);
+        }
+      } else {
+        setCategoryDragOverIndex(null);
+      }
     } else {
-      // Clear drag over index if not over a valid drop target
-      setDragOverIndex(null);
+      // Handle artist dragging
+      const dropTarget = element?.closest('[data-drop-index]');
+      if (dropTarget) {
+        const index = parseInt(dropTarget.dataset.dropIndex);
+        setDragOverIndex(index);
+      } else {
+        setDragOverIndex(null);
+      }
     }
-  }, []);
+  }, [draggedCategoryId, userLists]);
 
   const handleMobileDragEnd = useCallback((data, dropTarget) => {
-    console.log('Mobile drag end:', { draggedItem, dropTarget });
+    console.log('Mobile drag end:', { draggedItem, draggedCategoryId, dropTarget });
     
+    // Handle category dragging
+    if (draggedCategoryId && dropTarget) {
+      const categoryDropZone = dropTarget.closest('[data-list-id]');
+      if (categoryDropZone) {
+        const customLists = userLists.filter(list => list.custom_category_id);
+        const dropIndex = customLists.findIndex(list => list.id === categoryDropZone.getAttribute('data-list-id'));
+        if (dropIndex !== -1) {
+          handleCategoryDrop(null, dropIndex);
+        }
+      }
+      setDraggedCategoryId(null);
+      setCategoryDragOverIndex(null);
+      return;
+    }
+    
+    // Handle artist dragging
     if (!draggedItem || !dropTarget) {
       console.log('No dragged item or drop target');
       setDraggedItem(null);
@@ -3231,7 +3241,7 @@ const TheCanon = ({ supabase }) => {
     setDraggedItem(null);
     setDragOverIndex(null);
     setDraggedFromList(null);
-  }, [draggedItem, userLists]);
+  }, [draggedItem, draggedCategoryId, userLists, handleCategoryDrop]);
 
   const mobileDrag = useMobileDrag(
     handleMobileDragStart,
@@ -5661,7 +5671,7 @@ const TheCanon = ({ supabase }) => {
                                     isMobile ? '' : 'cursor-move hover:bg-white/10'
                                   } transition-all duration-200 ${
                                     draggedItem?.artist.id === artist.id ? 'opacity-50' : ''
-                                  } ${isMobile ? 'draggable-item' : ''}`}
+                                  }`}
                                   {...(!isMobile ? {
                                     draggable: true,
                                     onDragStart: (e) => handleDragStart(e, artist, list.id),
@@ -5889,7 +5899,7 @@ const TheCanon = ({ supabase }) => {
                                       isMobile ? '' : 'cursor-move hover:bg-white/10'
                                     } transition-all duration-200 ${
                                       draggedItem?.artist.id === artist.id ? 'opacity-50' : ''
-                                    } ${isMobile ? 'draggable-item' : ''}`}
+                                    }`}
                                     {...(!isMobile ? {
                                       draggable: true,
                                       onDragStart: (e) => handleDragStart(e, artist, existingList.id),
@@ -6014,11 +6024,9 @@ const TheCanon = ({ supabase }) => {
                                     {isMobile && (
                                       <div 
                                         className="touch-target flex items-center justify-center w-6 h-6 cursor-grab active:cursor-grabbing"
-                                        onTouchStart={(e) => {
-                                          // Mobile touch handling for category reordering would go here
-                                          // For now, just prevent default to avoid conflicts
-                                          e.preventDefault();
-                                        }}
+                                        onTouchStart={(e) => mobileDrag.handleTouchStart(e, { categoryId: list.id, isCategory: true })}
+                                        onTouchMove={mobileDrag.handleTouchMove}
+                                        onTouchEnd={mobileDrag.handleTouchEnd}
                                       >
                                         <GripVertical className="w-3 h-3 text-gray-400" />
                                       </div>
@@ -6109,7 +6117,7 @@ const TheCanon = ({ supabase }) => {
                                           isMobile ? '' : 'cursor-move hover:bg-white/10'
                                         } transition-all duration-200 ${
                                           draggedItem?.artist.id === artist.id ? 'opacity-50' : ''
-                                        } ${isMobile ? 'draggable-item' : ''}`}
+                                        }`}
                                         {...(!isMobile ? {
                                           draggable: true,
                                           onDragStart: (e) => handleDragStart(e, artist, list.id),
