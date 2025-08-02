@@ -11,8 +11,8 @@ CREATE TABLE custom_categories (
     UNIQUE(category_name) -- Prevent duplicates
 );
 
--- Add custom category reference to user_lists
-ALTER TABLE user_lists ADD COLUMN custom_category_id UUID REFERENCES custom_categories(id);
+-- Add custom category reference to rankings table (not user_lists)
+ALTER TABLE rankings ADD COLUMN custom_category_id UUID REFERENCES custom_categories(id);
 
 -- RLS policies for custom categories
 ALTER TABLE custom_categories ENABLE ROW LEVEL SECURITY;
@@ -44,7 +44,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER on_custom_list_created
-    AFTER INSERT ON user_lists
+    AFTER INSERT ON rankings
     FOR EACH ROW
     EXECUTE FUNCTION increment_category_usage();
 
