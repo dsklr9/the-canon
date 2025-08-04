@@ -753,6 +753,62 @@ const TheCanon = ({ supabase }) => {
     }
   }, [currentUser, activeTab]);
 
+  // Calculate taste compatibility between two users' rankings
+  const calculateTasteCompatibility = useCallback((userRanking, otherRanking) => {
+    if (!userRanking?.artists?.length || !otherRanking?.artists?.length) return 0;
+    
+    const userArtists = userRanking.artists;
+    const otherArtists = otherRanking.artists;
+    
+    // Parameters for scoring
+    const maxList = Math.max(userArtists.length, otherArtists.length);
+    const minList = Math.min(userArtists.length, otherArtists.length);
+    
+    let totalScore = 0;
+    let matchCount = 0;
+    let positionPenalty = 0;
+    
+    // Check each artist in user's list
+    userArtists.forEach((artist, userIndex) => {
+      const otherIndex = otherArtists.findIndex(a => a.id === artist.id);
+      
+      if (otherIndex !== -1) {
+        matchCount++;
+        
+        // Calculate position-based score (higher positions = more weight)
+        const userWeight = 1 / (userIndex + 1);  // 1st place = 1, 2nd = 0.5, 3rd = 0.33...
+        const otherWeight = 1 / (otherIndex + 1);
+        
+        // Position similarity (0 to 1, where 1 = same position)
+        const positionDiff = Math.abs(userIndex - otherIndex);
+        const positionSimilarity = 1 - (positionDiff / maxList);
+        
+        // Combined score for this match
+        const matchScore = (userWeight + otherWeight) * positionSimilarity;
+        totalScore += matchScore;
+        
+        // Track position differences for penalty calculation
+        positionPenalty += positionDiff / maxList;
+      }
+    });
+    
+    // Calculate final compatibility score
+    if (matchCount === 0) return 0;
+    
+    // Base score from matches (normalized by list sizes)
+    const matchRatio = matchCount / minList;  // Use min list for size-agnostic scoring
+    const positionScore = totalScore / matchCount;
+    
+    // Bonus for having similar list sizes
+    const sizeRatio = minList / maxList;
+    const sizeBonus = sizeRatio * 0.1;  // Up to 10% bonus for similar sizes
+    
+    // Final score (0-100)
+    const compatibility = (matchRatio * 0.5 + positionScore * 0.4 + sizeBonus) * 100;
+    
+    return Math.min(Math.round(compatibility), 100);
+  }, []);
+
   // Load compatibility scores for friends and discover compatible users
   const loadCompatibilityScores = useCallback(async () => {
     if (!currentUser || !userLists.length) return;
@@ -3288,61 +3344,6 @@ const TheCanon = ({ supabase }) => {
     return count;
   }, [friends, friendRankings]);
 
-  // Calculate taste compatibility between two users' rankings
-  const calculateTasteCompatibility = useCallback((userRanking, otherRanking) => {
-    if (!userRanking?.artists?.length || !otherRanking?.artists?.length) return 0;
-    
-    const userArtists = userRanking.artists;
-    const otherArtists = otherRanking.artists;
-    
-    // Parameters for scoring
-    const maxList = Math.max(userArtists.length, otherArtists.length);
-    const minList = Math.min(userArtists.length, otherArtists.length);
-    
-    let totalScore = 0;
-    let matchCount = 0;
-    let positionPenalty = 0;
-    
-    // Check each artist in user's list
-    userArtists.forEach((artist, userIndex) => {
-      const otherIndex = otherArtists.findIndex(a => a.id === artist.id);
-      
-      if (otherIndex !== -1) {
-        matchCount++;
-        
-        // Calculate position-based score (higher positions = more weight)
-        const userWeight = 1 / (userIndex + 1);  // 1st place = 1, 2nd = 0.5, 3rd = 0.33...
-        const otherWeight = 1 / (otherIndex + 1);
-        
-        // Position similarity (0 to 1, where 1 = same position)
-        const positionDiff = Math.abs(userIndex - otherIndex);
-        const positionSimilarity = 1 - (positionDiff / maxList);
-        
-        // Combined score for this match
-        const matchScore = (userWeight + otherWeight) * positionSimilarity;
-        totalScore += matchScore;
-        
-        // Track position differences for penalty calculation
-        positionPenalty += positionDiff / maxList;
-      }
-    });
-    
-    // Calculate final compatibility score
-    if (matchCount === 0) return 0;
-    
-    // Base score from matches (normalized by list sizes)
-    const matchRatio = matchCount / minList;  // Use min list for size-agnostic scoring
-    const positionScore = totalScore / matchCount;
-    
-    // Bonus for having similar list sizes
-    const sizeRatio = minList / maxList;
-    const sizeBonus = sizeRatio * 0.1;  // Up to 10% bonus for similar sizes
-    
-    // Final score (0-100)
-    const compatibility = (matchRatio * 0.5 + positionScore * 0.4 + sizeBonus) * 100;
-    
-    return Math.min(Math.round(compatibility), 100);
-  }, []);
 
 
   // Mobile drag handlers
