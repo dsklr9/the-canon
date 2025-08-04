@@ -3267,8 +3267,9 @@ const TheCanon = ({ supabase }) => {
         setTopCompatibleUsers(compatibleUsers.slice(0, 5));
         
         // Generate artist recommendations from highly compatible users
-        const userArtistIds = new Set(userCanon.artists.map(a => a.id));
-        const artistRecommendations = new Map();
+        try {
+          const userArtistIds = new Set(userCanon.artists.map(a => a.id));
+          const artistRecommendations = new Map();
         
         // Consider all compatible users (not just top 5) for recommendations
         const highlyCompatible = compatibleUsers.filter(u => u.score >= 60); // 60%+ compatibility
@@ -3285,11 +3286,12 @@ const TheCanon = ({ supabase }) => {
           if (fullRanking?.ranking_artists) {
             const theirArtists = fullRanking.ranking_artists
               .sort((a, b) => a.position - b.position)
-              .map(ra => ra.artists);
+              .map(ra => ra.artists)
+              .filter(artist => artist && artist.id); // Remove any null/undefined artists
             
             // Find artists they have that user doesn't
             theirArtists.forEach((artist, position) => {
-              if (!userArtistIds.has(artist.id)) {
+              if (artist && artist.id && !userArtistIds.has(artist.id)) {
                 if (!artistRecommendations.has(artist.id)) {
                   artistRecommendations.set(artist.id, {
                     artist,
@@ -3329,7 +3331,11 @@ const TheCanon = ({ supabase }) => {
           .sort((a, b) => b.averageCompatibility - a.averageCompatibility)
           .slice(0, 5); // Top 5 recommendations
         
-        setCompatibilityRecommendations(recommendations);
+          setCompatibilityRecommendations(recommendations);
+        } catch (recError) {
+          console.error('Error generating recommendations:', recError);
+          setCompatibilityRecommendations([]);
+        }
       }
     } catch (error) {
       console.error('Error loading compatibility scores:', error);
@@ -6651,14 +6657,14 @@ const TheCanon = ({ supabase }) => {
                     
                     <div className="space-y-3">
                       {compatibilityRecommendations.map((rec, index) => (
-                        <div key={rec.artist.id} className="bg-gradient-to-r from-green-900/20 to-blue-900/20 border border-green-400/30 p-4 hover:border-green-400/50 transition-all">
+                        <div key={rec.artist?.id || index} className="bg-gradient-to-r from-green-900/20 to-blue-900/20 border border-green-400/30 p-4 hover:border-green-400/50 transition-all">
                           <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-3">
                               <ArtistAvatar artist={rec.artist} size="w-12 h-12" />
                               <div>
-                                <h3 className="font-bold text-green-300">{rec.artist.name}</h3>
+                                <h3 className="font-bold text-green-300">{rec.artist?.name || 'Unknown Artist'}</h3>
                                 <p className="text-xs text-gray-400">
-                                  Recommended by {rec.recommenderCount} compatible user{rec.recommenderCount > 1 ? 's' : ''}
+                                  Recommended by {rec.recommenderCount || 0} compatible user{rec.recommenderCount > 1 ? 's' : ''}
                                 </p>
                               </div>
                             </div>
