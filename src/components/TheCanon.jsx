@@ -471,6 +471,7 @@ const TheCanon = ({ supabase }) => {
   // Compatibility data
   const [compatibilityScores, setCompatibilityScores] = useState({});
   const [topCompatibleUsers, setTopCompatibleUsers] = useState([]);
+  const [compatibilityRecommendations, setCompatibilityRecommendations] = useState([]);
   
   // Toast notifications
   const [toasts, setToasts] = useState([]);
@@ -3264,6 +3265,71 @@ const TheCanon = ({ supabase }) => {
         // Sort by score and take top 5
         compatibleUsers.sort((a, b) => b.score - a.score);
         setTopCompatibleUsers(compatibleUsers.slice(0, 5));
+        
+        // Generate artist recommendations from highly compatible users
+        const userArtistIds = new Set(userCanon.artists.map(a => a.id));
+        const artistRecommendations = new Map();
+        
+        // Consider all compatible users (not just top 5) for recommendations
+        const highlyCompatible = compatibleUsers.filter(u => u.score >= 60); // 60%+ compatibility
+        
+        for (const match of highlyCompatible) {
+          // Get their full ranking for recommendations
+          const { data: fullRanking } = await supabase
+            .from('rankings')
+            .select('ranking_artists(artist_id, position, artists(*))')
+            .eq('user_id', match.user.id)
+            .eq('category', 'top10')
+            .single();
+          
+          if (fullRanking?.ranking_artists) {
+            const theirArtists = fullRanking.ranking_artists
+              .sort((a, b) => a.position - b.position)
+              .map(ra => ra.artists);
+            
+            // Find artists they have that user doesn't
+            theirArtists.forEach((artist, position) => {
+              if (!userArtistIds.has(artist.id)) {
+                if (!artistRecommendations.has(artist.id)) {
+                  artistRecommendations.set(artist.id, {
+                    artist,
+                    compatibilitySum: 0,
+                    recommenderCount: 0,
+                    topPosition: position + 1,
+                    recommenders: []
+                  });
+                }
+                
+                const rec = artistRecommendations.get(artist.id);
+                // Weight by compatibility score and position (earlier = better)
+                const positionWeight = 1 / (position + 1);
+                const weightedScore = match.score * positionWeight;
+                
+                rec.compatibilitySum += weightedScore;
+                rec.recommenderCount += 1;
+                rec.topPosition = Math.min(rec.topPosition, position + 1);
+                rec.recommenders.push({
+                  user: match.user,
+                  position: position + 1,
+                  score: match.score
+                });
+              }
+            });
+          }
+        }
+        
+        // Convert to array and calculate final scores
+        const recommendations = Array.from(artistRecommendations.values())
+          .map(rec => ({
+            ...rec,
+            averageCompatibility: rec.compatibilitySum / rec.recommenderCount,
+            confidence: Math.min(rec.recommenderCount * 20, 100) // More recommenders = higher confidence
+          }))
+          .filter(rec => rec.recommenderCount >= 2) // Must be recommended by at least 2 compatible users
+          .sort((a, b) => b.averageCompatibility - a.averageCompatibility)
+          .slice(0, 5); // Top 5 recommendations
+        
+        setCompatibilityRecommendations(recommendations);
       }
     } catch (error) {
       console.error('Error loading compatibility scores:', error);
@@ -6571,6 +6637,92 @@ const TheCanon = ({ supabase }) => {
                     </div>
                   )}
                 </div>
+
+                {/* Artist Recommendations */}
+                {compatibilityRecommendations.length > 0 && (
+                  <div>
+                    <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
+                      <TrendingUp className="w-5 h-5 text-green-400" />
+                      Recommended Artists
+                      <span className="text-xs bg-green-500/20 text-green-300 px-2 py-1 rounded">
+                        Based on your matches
+                      </span>
+                    </h2>
+                    
+                    <div className="space-y-3">
+                      {compatibilityRecommendations.map((rec, index) => (
+                        <div key={rec.artist.id} className="bg-gradient-to-r from-green-900/20 to-blue-900/20 border border-green-400/30 p-4 hover:border-green-400/50 transition-all">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-3">
+                              <ArtistAvatar artist={rec.artist} size="w-12 h-12" />
+                              <div>
+                                <h3 className="font-bold text-green-300">{rec.artist.name}</h3>
+                                <p className="text-xs text-gray-400">
+                                  Recommended by {rec.recommenderCount} compatible user{rec.recommenderCount > 1 ? 's' : ''}
+                                </p>
+                              </div>
+                            </div>
+                            
+                            <div className="text-right">
+                              <div className="text-lg font-bold text-green-400">
+                                {Math.round(rec.averageCompatibility)}% avg
+                              </div>
+                              <p className="text-xs text-gray-400">
+                                #{rec.topPosition} highest rank
+                              </p>
+                            </div>
+                          </div>
+                          
+                          {/* Show who recommended this artist */}
+                          <div className="flex items-center gap-2 mb-3 pt-2 border-t border-white/10">
+                            <span className="text-xs text-gray-400">Loved by:</span>
+                            <div className="flex gap-1">
+                              {rec.recommenders.slice(0, 3).map((recommender, idx) => (
+                                <span key={recommender.user.id} className="text-xs bg-black/30 px-2 py-1 rounded">
+                                  {recommender.user.username} ({recommender.score}%)
+                                </span>
+                              ))}
+                              {rec.recommenders.length > 3 && (
+                                <span className="text-xs text-gray-400">
+                                  +{rec.recommenders.length - 3} more
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => {
+                                // Add to user's canon ranking
+                                const canonList = userLists.find(l => l.category === 'top10');
+                                if (canonList) {
+                                  const newArtists = [...canonList.artists, rec.artist];
+                                  updateListAndSave(canonList.id, newArtists);
+                                  addToast(`Added ${rec.artist.name} to your Canon!`, 'success');
+                                } else {
+                                  addToast('Create your Canon first to add artists', 'info');
+                                  setActiveTab('mytop10');
+                                }
+                              }}
+                              className="flex-1 py-1.5 bg-green-600 hover:bg-green-700 transition-colors text-sm rounded"
+                            >
+                              Add to Canon
+                            </button>
+                            <button
+                              onClick={() => {
+                                // Show artist details
+                                setShowArtistCard(rec.artist);
+                              }}
+                              className="flex-1 py-1.5 bg-slate-700 hover:bg-slate-600 transition-colors text-sm rounded"
+                            >
+                              Learn More
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Friend Activity Feed */}
                 <div>
