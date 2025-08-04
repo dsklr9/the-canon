@@ -466,6 +466,11 @@ const TheCanon = ({ supabase }) => {
   const [isLoadingFriends, setIsLoadingFriends] = useState(false);
   const [isLoadingBattleHistory, setIsLoadingBattleHistory] = useState(false);
   const [isLoadingSearch, setIsLoadingSearch] = useState(false);
+  const [isLoadingCompatibility, setIsLoadingCompatibility] = useState(false);
+  
+  // Compatibility data
+  const [compatibilityScores, setCompatibilityScores] = useState({});
+  const [topCompatibleUsers, setTopCompatibleUsers] = useState([]);
   
   // Toast notifications
   const [toasts, setToasts] = useState([]);
@@ -746,6 +751,13 @@ const TheCanon = ({ supabase }) => {
       });
     }
   }, [currentUser, activeTab]);
+
+  // Load compatibility scores when user lists or friends change
+  useEffect(() => {
+    if (currentUser && userLists.length > 0 && activeTab === 'mypeople') {
+      loadCompatibilityScores();
+    }
+  }, [currentUser, userLists, friends, activeTab, loadCompatibilityScores]);
 
 
   // Get current user
@@ -3108,6 +3120,157 @@ const TheCanon = ({ supabase }) => {
     });
     return count;
   }, [friends, friendRankings]);
+
+  // Calculate taste compatibility between two users' rankings
+  const calculateTasteCompatibility = useCallback((userRanking, otherRanking) => {
+    if (!userRanking?.artists?.length || !otherRanking?.artists?.length) return 0;
+    
+    const userArtists = userRanking.artists;
+    const otherArtists = otherRanking.artists;
+    
+    // Parameters for scoring
+    const maxList = Math.max(userArtists.length, otherArtists.length);
+    const minList = Math.min(userArtists.length, otherArtists.length);
+    
+    let totalScore = 0;
+    let matchCount = 0;
+    let positionPenalty = 0;
+    
+    // Check each artist in user's list
+    userArtists.forEach((artist, userIndex) => {
+      const otherIndex = otherArtists.findIndex(a => a.id === artist.id);
+      
+      if (otherIndex !== -1) {
+        matchCount++;
+        
+        // Calculate position-based score (higher positions = more weight)
+        const userWeight = 1 / (userIndex + 1);  // 1st place = 1, 2nd = 0.5, 3rd = 0.33...
+        const otherWeight = 1 / (otherIndex + 1);
+        
+        // Position similarity (0 to 1, where 1 = same position)
+        const positionDiff = Math.abs(userIndex - otherIndex);
+        const positionSimilarity = 1 - (positionDiff / maxList);
+        
+        // Combined score for this match
+        const matchScore = (userWeight + otherWeight) * positionSimilarity;
+        totalScore += matchScore;
+        
+        // Track position differences for penalty calculation
+        positionPenalty += positionDiff / maxList;
+      }
+    });
+    
+    // Calculate final compatibility score
+    if (matchCount === 0) return 0;
+    
+    // Base score from matches (normalized by list sizes)
+    const matchRatio = matchCount / minList;  // Use min list for size-agnostic scoring
+    const positionScore = totalScore / matchCount;
+    
+    // Bonus for having similar list sizes
+    const sizeRatio = minList / maxList;
+    const sizeBonus = sizeRatio * 0.1;  // Up to 10% bonus for similar sizes
+    
+    // Final score (0-100)
+    const compatibility = (matchRatio * 0.5 + positionScore * 0.4 + sizeBonus) * 100;
+    
+    return Math.min(Math.round(compatibility), 100);
+  }, []);
+
+  // Load compatibility scores for friends and discover compatible users
+  const loadCompatibilityScores = useCallback(async () => {
+    if (!currentUser || !userLists.length) return;
+    
+    setIsLoadingCompatibility(true);
+    try {
+      // Get user's main canon ranking
+      const userCanon = userLists.find(list => list.category === 'top10');
+      if (!userCanon?.artists?.length) return;
+      
+      // Calculate compatibility with friends
+      const friendScores = {};
+      if (friends && friends.length > 0) {
+        for (const friend of friends) {
+          // Get friend's canon ranking
+          const { data: friendRanking } = await supabase
+            .from('rankings')
+            .select('*, ranking_artists(artist_id, position, artists(id, name, image_url))')
+            .eq('user_id', friend.id)
+            .eq('category', 'top10')
+            .single();
+          
+          if (friendRanking?.ranking_artists) {
+            const friendArtists = friendRanking.ranking_artists
+              .sort((a, b) => a.position - b.position)
+              .map(ra => ra.artists);
+            
+            const score = calculateTasteCompatibility(
+              { artists: userCanon.artists },
+              { artists: friendArtists }
+            );
+            
+            friendScores[friend.id] = {
+              score,
+              matchCount: userCanon.artists.filter(a => 
+                friendArtists.some(fa => fa.id === a.id)
+              ).length,
+              friend: friend
+            };
+          }
+        }
+      }
+      setCompatibilityScores(friendScores);
+      
+      // Discover top compatible strangers (excluding friends)
+      const friendIds = friends?.map(f => f.id) || [];
+      const { data: topRankings } = await supabase
+        .from('rankings')
+        .select(`
+          user_id,
+          profiles!inner(id, username, display_name, profile_picture_url),
+          ranking_artists(artist_id, position, artists(id, name, image_url))
+        `)
+        .eq('category', 'top10')
+        .not('user_id', 'in', `(${[currentUser.id, ...friendIds].join(',')})`)
+        .limit(50);  // Sample 50 users for efficiency
+      
+      if (topRankings) {
+        const compatibleUsers = [];
+        
+        for (const ranking of topRankings) {
+          if (ranking.ranking_artists?.length >= 5) {  // Only consider users with at least 5 artists
+            const otherArtists = ranking.ranking_artists
+              .sort((a, b) => a.position - b.position)
+              .map(ra => ra.artists);
+            
+            const score = calculateTasteCompatibility(
+              { artists: userCanon.artists },
+              { artists: otherArtists }
+            );
+            
+            if (score >= 40) {  // Only include users with at least 40% compatibility
+              compatibleUsers.push({
+                user: ranking.profiles,
+                score,
+                matchCount: userCanon.artists.filter(a => 
+                  otherArtists.some(oa => oa.id === a.id)
+                ).length,
+                topArtists: otherArtists.slice(0, 3)
+              });
+            }
+          }
+        }
+        
+        // Sort by score and take top 5
+        compatibleUsers.sort((a, b) => b.score - a.score);
+        setTopCompatibleUsers(compatibleUsers.slice(0, 5));
+      }
+    } catch (error) {
+      console.error('Error loading compatibility scores:', error);
+    } finally {
+      setIsLoadingCompatibility(false);
+    }
+  }, [currentUser, userLists, friends, supabase, calculateTasteCompatibility]);
 
   // Mobile drag handlers
   const handleMobileDragStart = useCallback((data) => {
@@ -6217,26 +6380,60 @@ const TheCanon = ({ supabase }) => {
                     </div>
                   ) : friends.length > 0 ? (
                     <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'} gap-4`}>
-                      {friends.map(friend => (
-                        <div key={friend.id} className="bg-slate-800/50 border border-white/10 p-4">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <button 
-                                onClick={() => handleUsernameClick(friend)}
-                                className="font-bold hover:text-purple-400 transition-colors cursor-pointer text-left"
-                              >
-                                {friend.username}
-                              </button>
-                              <p className="text-sm text-gray-400">Friend since recently</p>
+                      {friends.map(friend => {
+                        const compatibility = compatibilityScores[friend.id];
+                        return (
+                          <div key={friend.id} className="bg-slate-800/50 border border-white/10 p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex-1">
+                                <button 
+                                  onClick={() => handleUsernameClick(friend)}
+                                  className="font-bold hover:text-purple-400 transition-colors cursor-pointer text-left"
+                                >
+                                  {friend.username}
+                                </button>
+                                <p className="text-sm text-gray-400">Friend since recently</p>
+                              </div>
+                              <UserAvatar 
+                                user={friend} 
+                                profilePicture={friend.profile_picture_url} 
+                                size="w-10 h-10" 
+                              />
                             </div>
-                            <UserAvatar 
-                              user={friend} 
-                              profilePicture={friend.profile_picture_url} 
-                              size="w-10 h-10" 
-                            />
+                            
+                            {/* Compatibility Score */}
+                            {compatibility && (
+                              <div className="mt-3 pt-3 border-t border-white/10">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <div className={`text-2xl font-bold ${
+                                      compatibility.score >= 80 ? 'text-green-400' :
+                                      compatibility.score >= 60 ? 'text-yellow-400' :
+                                      compatibility.score >= 40 ? 'text-orange-400' :
+                                      'text-red-400'
+                                    }`}>
+                                      {compatibility.score}%
+                                    </div>
+                                    <div className="text-xs text-gray-400">
+                                      <div>Taste Match</div>
+                                      <div>{compatibility.matchCount} shared artists</div>
+                                    </div>
+                                  </div>
+                                  <button
+                                    onClick={() => {
+                                      // TODO: Show detailed comparison modal
+                                      addToast('Detailed comparison coming soon!', 'info');
+                                    }}
+                                    className="text-xs text-purple-400 hover:text-purple-300 transition-colors"
+                                  >
+                                    Compare →
+                                  </button>
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="text-center py-8 bg-slate-800/30 border border-dashed border-gray-600 rounded-lg">
@@ -6254,6 +6451,122 @@ const TheCanon = ({ supabase }) => {
                         className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
                       >
                         Search for Friends
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Discover Compatible Users */}
+                <div>
+                  <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-purple-400" />
+                    Discover Compatible Users
+                  </h2>
+                  
+                  {isLoadingCompatibility ? (
+                    <div className="space-y-3">
+                      {[...Array(3)].map((_, index) => (
+                        <div key={index} className="bg-slate-800/50 border border-white/10 p-4 animate-pulse">
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 bg-gray-600 rounded-full"></div>
+                            <div className="flex-1">
+                              <div className="h-4 bg-gray-600 rounded w-24 mb-2"></div>
+                              <div className="h-3 bg-gray-700 rounded w-32"></div>
+                            </div>
+                            <div className="text-right">
+                              <div className="h-6 bg-gray-600 rounded w-12 mb-1"></div>
+                              <div className="h-2 bg-gray-700 rounded w-16"></div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : topCompatibleUsers.length > 0 ? (
+                    <div className="space-y-3">
+                      {topCompatibleUsers.map((match, index) => (
+                        <div key={match.user.id} className="bg-gradient-to-r from-purple-900/20 to-pink-900/20 border border-purple-400/30 p-4 hover:border-purple-400/50 transition-all">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-3">
+                              <UserAvatar 
+                                user={match.user} 
+                                profilePicture={match.user.profile_picture_url} 
+                                size="w-12 h-12" 
+                              />
+                              <div>
+                                <button 
+                                  onClick={() => handleUsernameClick(match.user)}
+                                  className="font-bold hover:text-purple-400 transition-colors"
+                                >
+                                  {match.user.username || match.user.display_name}
+                                </button>
+                                <p className="text-xs text-gray-400">
+                                  {index === 0 && '🥇 Most Compatible'}
+                                  {index === 1 && '🥈 2nd Most Compatible'}
+                                  {index === 2 && '🥉 3rd Most Compatible'}
+                                  {index > 2 && `#${index + 1} Compatible`}
+                                </p>
+                              </div>
+                            </div>
+                            
+                            <div className="text-right">
+                              <div className={`text-2xl font-bold ${
+                                match.score >= 80 ? 'text-green-400' :
+                                match.score >= 60 ? 'text-yellow-400' :
+                                match.score >= 40 ? 'text-orange-400' :
+                                'text-red-400'
+                              }`}>
+                                {match.score}%
+                              </div>
+                              <p className="text-xs text-gray-400">
+                                {match.matchCount} shared
+                              </p>
+                            </div>
+                          </div>
+                          
+                          {/* Show their top 3 artists */}
+                          <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/10">
+                            <span className="text-xs text-gray-400">Their top 3:</span>
+                            <div className="flex gap-2 flex-1">
+                              {match.topArtists.map((artist, idx) => (
+                                <span key={artist.id} className="text-xs bg-black/30 px-2 py-1 rounded">
+                                  {idx + 1}. {artist.name}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                          
+                          <div className="flex gap-2 mt-3">
+                            <button
+                              onClick={() => sendFriendRequest(match.user.id)}
+                              className="flex-1 py-1.5 bg-purple-600 hover:bg-purple-700 transition-colors text-sm rounded"
+                            >
+                              Add Friend
+                            </button>
+                            <button
+                              onClick={() => handleUsernameClick(match.user)}
+                              className="flex-1 py-1.5 bg-slate-700 hover:bg-slate-600 transition-colors text-sm rounded"
+                            >
+                              View Profile
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : userLists.find(l => l.category === 'top10')?.artists?.length > 0 ? (
+                    <div className="text-center py-6 bg-slate-800/30 border border-dashed border-gray-600 rounded-lg">
+                      <Search className="w-10 h-10 text-gray-500 mx-auto mb-2" />
+                      <p className="text-gray-400">No highly compatible users found yet</p>
+                      <p className="text-xs text-gray-500 mt-1">We'll find more as the community grows!</p>
+                    </div>
+                  ) : (
+                    <div className="text-center py-6 bg-slate-800/30 border border-dashed border-gray-600 rounded-lg">
+                      <Target className="w-10 h-10 text-purple-400 mx-auto mb-2" />
+                      <p className="text-gray-300">Create your Canon to find compatible users</p>
+                      <button
+                        onClick={() => setActiveTab('mytop10')}
+                        className="mt-3 px-4 py-2 bg-purple-600 hover:bg-purple-700 transition-colors text-sm rounded"
+                      >
+                        Build Your Canon
                       </button>
                     </div>
                   )}
