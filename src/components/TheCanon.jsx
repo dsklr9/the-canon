@@ -753,6 +753,172 @@ const TheCanon = ({ supabase }) => {
     }
   }, [currentUser, activeTab]);
 
+  // Load compatibility scores for friends and discover compatible users
+  const loadCompatibilityScores = useCallback(async () => {
+    if (!currentUser || !userLists.length) return;
+    
+    setIsLoadingCompatibility(true);
+    try {
+      // Get user's main canon ranking
+      const userCanon = userLists.find(list => list.category === 'top10');
+      if (!userCanon?.artists?.length) return;
+      
+      // Calculate compatibility with friends
+      const friendScores = {};
+      if (friends && friends.length > 0) {
+        for (const friend of friends) {
+          // Get friend's canon ranking
+          const { data: friendRanking } = await supabase
+            .from('rankings')
+            .select('*, ranking_artists(artist_id, position, artists(id, name, image_url))')
+            .eq('user_id', friend.id)
+            .eq('category', 'top10')
+            .single();
+          
+          if (friendRanking?.ranking_artists) {
+            const friendArtists = friendRanking.ranking_artists
+              .sort((a, b) => a.position - b.position)
+              .map(ra => ra.artists);
+            
+            const score = calculateTasteCompatibility(
+              { artists: userCanon.artists },
+              { artists: friendArtists }
+            );
+            
+            friendScores[friend.id] = {
+              score,
+              matchCount: userCanon.artists.filter(a => 
+                friendArtists.some(fa => fa.id === a.id)
+              ).length,
+              friend: friend
+            };
+          }
+        }
+      }
+      setCompatibilityScores(friendScores);
+      
+      // Discover top compatible strangers (excluding friends)
+      const friendIds = friends?.map(f => f.id) || [];
+      const { data: topRankings } = await supabase
+        .from('rankings')
+        .select(`
+          user_id,
+          profiles!inner(id, username, display_name, profile_picture_url),
+          ranking_artists(artist_id, position, artists(id, name, image_url))
+        `)
+        .eq('category', 'top10')
+        .not('user_id', 'in', `(${[currentUser.id, ...friendIds].join(',')})`)
+        .limit(50);  // Sample 50 users for efficiency
+      
+      if (topRankings) {
+        const compatibleUsers = [];
+        
+        for (const ranking of topRankings) {
+          if (ranking.ranking_artists?.length >= 5) {  // Only consider users with at least 5 artists
+            const otherArtists = ranking.ranking_artists
+              .sort((a, b) => a.position - b.position)
+              .map(ra => ra.artists);
+            
+            const score = calculateTasteCompatibility(
+              { artists: userCanon.artists },
+              { artists: otherArtists }
+            );
+            
+            if (score >= 40) {  // Only include users with at least 40% compatibility
+              compatibleUsers.push({
+                user: ranking.profiles,
+                score,
+                matchCount: userCanon.artists.filter(a => 
+                  otherArtists.some(oa => oa.id === a.id)
+                ).length,
+                topArtists: otherArtists.slice(0, 3)
+              });
+            }
+          }
+        }
+        
+        // Sort by score and take top 5
+        compatibleUsers.sort((a, b) => b.score - a.score);
+        setTopCompatibleUsers(compatibleUsers.slice(0, 5));
+        
+        // Generate artist recommendations from highly compatible users
+        try {
+          const userArtistIds = new Set(userCanon.artists.map(a => a.id));
+          const artistRecommendations = new Map();
+        
+        // Consider all compatible users (not just top 5) for recommendations
+        const highlyCompatible = compatibleUsers.filter(u => u.score >= 60); // 60%+ compatibility
+        
+        for (const match of highlyCompatible) {
+          // Get their full ranking for recommendations
+          const { data: fullRanking } = await supabase
+            .from('rankings')
+            .select('ranking_artists(artist_id, position, artists(*))')
+            .eq('user_id', match.user.id)
+            .eq('category', 'top10')
+            .single();
+          
+          if (fullRanking?.ranking_artists) {
+            const theirArtists = fullRanking.ranking_artists
+              .sort((a, b) => a.position - b.position)
+              .map(ra => ra.artists)
+              .filter(artist => artist && artist.id); // Remove any null/undefined artists
+            
+            // Find artists they have that user doesn't
+            theirArtists.forEach((artist, position) => {
+              if (artist && artist.id && !userArtistIds.has(artist.id)) {
+                if (!artistRecommendations.has(artist.id)) {
+                  artistRecommendations.set(artist.id, {
+                    artist,
+                    compatibilitySum: 0,
+                    recommenderCount: 0,
+                    topPosition: position + 1,
+                    recommenders: []
+                  });
+                }
+                
+                const rec = artistRecommendations.get(artist.id);
+                // Weight by compatibility score and position (earlier = better)
+                const positionWeight = 1 / (position + 1);
+                const weightedScore = match.score * positionWeight;
+                
+                rec.compatibilitySum += weightedScore;
+                rec.recommenderCount += 1;
+                rec.topPosition = Math.min(rec.topPosition, position + 1);
+                rec.recommenders.push({
+                  user: match.user,
+                  position: position + 1,
+                  score: match.score
+                });
+              }
+            });
+          }
+        }
+        
+        // Convert to array and calculate final scores
+        const recommendations = Array.from(artistRecommendations.values())
+          .map(rec => ({
+            ...rec,
+            averageCompatibility: rec.compatibilitySum / rec.recommenderCount,
+            confidence: Math.min(rec.recommenderCount * 20, 100) // More recommenders = higher confidence
+          }))
+          .filter(rec => rec.recommenderCount >= 2) // Must be recommended by at least 2 compatible users
+          .sort((a, b) => b.averageCompatibility - a.averageCompatibility)
+          .slice(0, 5); // Top 5 recommendations
+        
+          setCompatibilityRecommendations(recommendations);
+        } catch (recError) {
+          console.error('Error generating recommendations:', recError);
+          setCompatibilityRecommendations([]);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading compatibility scores:', error);
+    } finally {
+      setIsLoadingCompatibility(false);
+    }
+  }, [currentUser, userLists, friends, supabase, calculateTasteCompatibility]);
+
   // Load compatibility scores when user lists or friends change
   useEffect(() => {
     if (currentUser && userLists.length > 0 && activeTab === 'mypeople') {
@@ -3178,171 +3344,6 @@ const TheCanon = ({ supabase }) => {
     return Math.min(Math.round(compatibility), 100);
   }, []);
 
-  // Load compatibility scores for friends and discover compatible users
-  const loadCompatibilityScores = useCallback(async () => {
-    if (!currentUser || !userLists.length) return;
-    
-    setIsLoadingCompatibility(true);
-    try {
-      // Get user's main canon ranking
-      const userCanon = userLists.find(list => list.category === 'top10');
-      if (!userCanon?.artists?.length) return;
-      
-      // Calculate compatibility with friends
-      const friendScores = {};
-      if (friends && friends.length > 0) {
-        for (const friend of friends) {
-          // Get friend's canon ranking
-          const { data: friendRanking } = await supabase
-            .from('rankings')
-            .select('*, ranking_artists(artist_id, position, artists(id, name, image_url))')
-            .eq('user_id', friend.id)
-            .eq('category', 'top10')
-            .single();
-          
-          if (friendRanking?.ranking_artists) {
-            const friendArtists = friendRanking.ranking_artists
-              .sort((a, b) => a.position - b.position)
-              .map(ra => ra.artists);
-            
-            const score = calculateTasteCompatibility(
-              { artists: userCanon.artists },
-              { artists: friendArtists }
-            );
-            
-            friendScores[friend.id] = {
-              score,
-              matchCount: userCanon.artists.filter(a => 
-                friendArtists.some(fa => fa.id === a.id)
-              ).length,
-              friend: friend
-            };
-          }
-        }
-      }
-      setCompatibilityScores(friendScores);
-      
-      // Discover top compatible strangers (excluding friends)
-      const friendIds = friends?.map(f => f.id) || [];
-      const { data: topRankings } = await supabase
-        .from('rankings')
-        .select(`
-          user_id,
-          profiles!inner(id, username, display_name, profile_picture_url),
-          ranking_artists(artist_id, position, artists(id, name, image_url))
-        `)
-        .eq('category', 'top10')
-        .not('user_id', 'in', `(${[currentUser.id, ...friendIds].join(',')})`)
-        .limit(50);  // Sample 50 users for efficiency
-      
-      if (topRankings) {
-        const compatibleUsers = [];
-        
-        for (const ranking of topRankings) {
-          if (ranking.ranking_artists?.length >= 5) {  // Only consider users with at least 5 artists
-            const otherArtists = ranking.ranking_artists
-              .sort((a, b) => a.position - b.position)
-              .map(ra => ra.artists);
-            
-            const score = calculateTasteCompatibility(
-              { artists: userCanon.artists },
-              { artists: otherArtists }
-            );
-            
-            if (score >= 40) {  // Only include users with at least 40% compatibility
-              compatibleUsers.push({
-                user: ranking.profiles,
-                score,
-                matchCount: userCanon.artists.filter(a => 
-                  otherArtists.some(oa => oa.id === a.id)
-                ).length,
-                topArtists: otherArtists.slice(0, 3)
-              });
-            }
-          }
-        }
-        
-        // Sort by score and take top 5
-        compatibleUsers.sort((a, b) => b.score - a.score);
-        setTopCompatibleUsers(compatibleUsers.slice(0, 5));
-        
-        // Generate artist recommendations from highly compatible users
-        try {
-          const userArtistIds = new Set(userCanon.artists.map(a => a.id));
-          const artistRecommendations = new Map();
-        
-        // Consider all compatible users (not just top 5) for recommendations
-        const highlyCompatible = compatibleUsers.filter(u => u.score >= 60); // 60%+ compatibility
-        
-        for (const match of highlyCompatible) {
-          // Get their full ranking for recommendations
-          const { data: fullRanking } = await supabase
-            .from('rankings')
-            .select('ranking_artists(artist_id, position, artists(*))')
-            .eq('user_id', match.user.id)
-            .eq('category', 'top10')
-            .single();
-          
-          if (fullRanking?.ranking_artists) {
-            const theirArtists = fullRanking.ranking_artists
-              .sort((a, b) => a.position - b.position)
-              .map(ra => ra.artists)
-              .filter(artist => artist && artist.id); // Remove any null/undefined artists
-            
-            // Find artists they have that user doesn't
-            theirArtists.forEach((artist, position) => {
-              if (artist && artist.id && !userArtistIds.has(artist.id)) {
-                if (!artistRecommendations.has(artist.id)) {
-                  artistRecommendations.set(artist.id, {
-                    artist,
-                    compatibilitySum: 0,
-                    recommenderCount: 0,
-                    topPosition: position + 1,
-                    recommenders: []
-                  });
-                }
-                
-                const rec = artistRecommendations.get(artist.id);
-                // Weight by compatibility score and position (earlier = better)
-                const positionWeight = 1 / (position + 1);
-                const weightedScore = match.score * positionWeight;
-                
-                rec.compatibilitySum += weightedScore;
-                rec.recommenderCount += 1;
-                rec.topPosition = Math.min(rec.topPosition, position + 1);
-                rec.recommenders.push({
-                  user: match.user,
-                  position: position + 1,
-                  score: match.score
-                });
-              }
-            });
-          }
-        }
-        
-        // Convert to array and calculate final scores
-        const recommendations = Array.from(artistRecommendations.values())
-          .map(rec => ({
-            ...rec,
-            averageCompatibility: rec.compatibilitySum / rec.recommenderCount,
-            confidence: Math.min(rec.recommenderCount * 20, 100) // More recommenders = higher confidence
-          }))
-          .filter(rec => rec.recommenderCount >= 2) // Must be recommended by at least 2 compatible users
-          .sort((a, b) => b.averageCompatibility - a.averageCompatibility)
-          .slice(0, 5); // Top 5 recommendations
-        
-          setCompatibilityRecommendations(recommendations);
-        } catch (recError) {
-          console.error('Error generating recommendations:', recError);
-          setCompatibilityRecommendations([]);
-        }
-      }
-    } catch (error) {
-      console.error('Error loading compatibility scores:', error);
-    } finally {
-      setIsLoadingCompatibility(false);
-    }
-  }, [currentUser, userLists, friends, supabase, calculateTasteCompatibility]);
 
   // Mobile drag handlers
   const handleMobileDragStart = useCallback((data) => {
