@@ -390,6 +390,7 @@ const TheCanon = ({ supabase }) => {
   const [otherRankingDragOverIndex, setOtherRankingDragOverIndex] = useState(null);
   const [userProfilePicture, setUserProfilePicture] = useState(null);
   const [uploadingProfilePicture, setUploadingProfilePicture] = useState(false);
+  const [showAvatarSelector, setShowAvatarSelector] = useState(false);
   const [showArtistCard, setShowArtistCard] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState('all-time');
   const [dailyFaceOffsCompleted, setDailyFaceOffsCompleted] = useState(0);
@@ -584,6 +585,26 @@ const TheCanon = ({ supabase }) => {
     veteran: { icon: '⭐', name: 'Veteran', description: '1000+ points earned' },
     voter: { icon: '🗳️', name: 'Voter', description: '100+ battles voted' }
   };
+
+  // Preset avatar collection for users to choose from
+  const presetAvatars = [
+    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face', // Professional man
+    'https://images.unsplash.com/photo-1494790108755-2616b15a9d79?w=150&h=150&fit=crop&crop=face', // Professional woman
+    'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face', // Casual man
+    'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=face', // Casual woman
+    'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop&crop=face', // Young man
+    'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop&crop=face', // Young woman
+    'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&h=150&fit=crop&crop=face', // Stylish man
+    'https://images.unsplash.com/photo-1507591064344-4c6ce005b128?w=150&h=150&fit=crop&crop=face', // Cool guy
+    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&h=150&fit=crop&crop=face', // Hip woman
+    'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&h=150&fit=crop&crop=face', // Bearded man
+    'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&h=150&fit=crop&crop=face', // Confident woman
+    'https://images.unsplash.com/photo-1463453091185-61582044d556?w=150&h=150&fit=crop&crop=face', // Artist type
+    'https://images.unsplash.com/photo-1552058544-f2b08422138a?w=150&h=150&fit=crop&crop=face', // Creative man
+    'https://images.unsplash.com/photo-1509967419530-da38b4704bc6?w=150&h=150&fit=crop&crop=face', // Music lover
+    'https://images.unsplash.com/photo-1531427186611-ecfd6d936c79?w=150&h=150&fit=crop&crop=face', // Urban style
+    'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=150&h=150&fit=crop&crop=face'  // Cool woman
+  ];
 
   // Combined initialization effect
   useEffect(() => {
@@ -1420,6 +1441,32 @@ const TheCanon = ({ supabase }) => {
       console.error('Error loading friends:', error);
     } finally {
       setIsLoadingFriends(false);
+    }
+  };
+
+  // Select preset avatar
+  const selectPresetAvatar = async (avatarUrl) => {
+    if (!currentUser) return;
+    
+    setUploadingProfilePicture(true);
+    try {
+      // Update profile in database
+      const { error } = await supabase
+        .from('profiles')
+        .update({ profile_picture_url: avatarUrl })
+        .eq('id', currentUser.id);
+
+      if (error) throw error;
+
+      // Update local state
+      setUserProfilePicture(avatarUrl);
+      setShowAvatarSelector(false);
+      addToast('Avatar updated successfully!', 'success');
+    } catch (error) {
+      console.error('Error updating avatar:', error);
+      addToast('Failed to update avatar', 'error');
+    } finally {
+      setUploadingProfilePicture(false);
     }
   };
 
@@ -4363,14 +4410,23 @@ const TheCanon = ({ supabase }) => {
                           className="hidden"
                           id="profile-picture-input"
                         />
-                        <label
-                          htmlFor="profile-picture-input"
-                          className={`px-4 py-2 bg-purple-600 hover:bg-purple-700 transition-colors cursor-pointer inline-block text-center ${
-                            uploadingProfilePicture ? 'opacity-50 cursor-not-allowed' : ''
-                          }`}
-                        >
-                          {uploadingProfilePicture ? 'Uploading...' : 'Change Picture'}
-                        </label>
+                        <div className="flex gap-2">
+                          <label
+                            htmlFor="profile-picture-input"
+                            className={`px-4 py-2 bg-purple-600 hover:bg-purple-700 transition-colors cursor-pointer text-center rounded ${
+                              uploadingProfilePicture ? 'opacity-50 cursor-not-allowed' : ''
+                            }`}
+                          >
+                            {uploadingProfilePicture ? 'Uploading...' : 'Upload Custom'}
+                          </label>
+                          <button
+                            onClick={() => setShowAvatarSelector(true)}
+                            disabled={uploadingProfilePicture}
+                            className="px-4 py-2 bg-slate-600 hover:bg-slate-500 transition-colors rounded disabled:opacity-50"
+                          >
+                            Choose Avatar
+                          </button>
+                        </div>
                         {userProfilePicture && (
                           <button
                             onClick={async () => {
@@ -7569,6 +7625,60 @@ const TheCanon = ({ supabase }) => {
         {/* Artist Card Modal */}
         {showArtistCard && <ArtistCard artist={showArtistCard} onClose={() => setShowArtistCard(null)} />}
 
+        {/* Avatar Selector Modal */}
+        {showAvatarSelector && (
+          <div className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-slate-800 border border-white/20 rounded-lg p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-bold">Choose Your Avatar</h2>
+                <button
+                  onClick={() => setShowAvatarSelector(false)}
+                  className="text-gray-400 hover:text-white transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="grid grid-cols-4 gap-4 mb-6">
+                {presetAvatars.map((avatarUrl, index) => (
+                  <button
+                    key={index}
+                    onClick={() => selectPresetAvatar(avatarUrl)}
+                    disabled={uploadingProfilePicture}
+                    className="relative group aspect-square rounded-lg overflow-hidden border-2 border-transparent hover:border-purple-400 transition-all disabled:opacity-50"
+                  >
+                    <img
+                      src={avatarUrl}
+                      alt={`Preset avatar ${index + 1}`}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                    />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+                  </button>
+                ))}
+              </div>
+              
+              <div className="border-t border-white/10 pt-6">
+                <p className="text-sm text-gray-400 mb-4">Or upload your own:</p>
+                <label className="block">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      if (e.target.files?.[0]) {
+                        uploadProfilePicture(e.target.files[0]);
+                      }
+                    }}
+                    disabled={uploadingProfilePicture}
+                    className="hidden"
+                  />
+                  <div className="px-4 py-2 bg-slate-700 hover:bg-slate-600 transition-colors rounded-lg text-center cursor-pointer disabled:opacity-50">
+                    {uploadingProfilePicture ? 'Uploading...' : 'Upload Custom Image'}
+                  </div>
+                </label>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Artist Request Modal */}
         {showArtistRequestModal && (
