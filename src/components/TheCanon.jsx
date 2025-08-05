@@ -815,8 +815,8 @@ const TheCanon = ({ supabase }) => {
     
     setIsLoadingCompatibility(true);
     try {
-      // Get user's main canon ranking
-      const userCanon = userLists.find(list => list.category === 'top10');
+      // Get user's main canon ranking (Top XX list has isAllTime: true)
+      const userCanon = userLists.find(list => list.isAllTime === true);
       if (!userCanon?.artists?.length) return;
       
       // Calculate compatibility with friends
@@ -828,7 +828,7 @@ const TheCanon = ({ supabase }) => {
             .from('rankings')
             .select('*, ranking_artists(artist_id, position, artists(id, name, image_url))')
             .eq('user_id', friend.id)
-            .eq('category', 'top10')
+            .is('category', null)  // Main canon has null category
             .single();
           
           if (friendRanking?.ranking_artists) {
@@ -862,7 +862,7 @@ const TheCanon = ({ supabase }) => {
           profiles!inner(id, username, display_name, profile_picture_url),
           ranking_artists(artist_id, position, artists(id, name, image_url))
         `)
-        .eq('category', 'top10')
+        .is('category', null)  // Main canon has null category
         .not('user_id', 'in', `(${[currentUser.id, ...friendIds].join(',')})`)
         .limit(50);  // Sample 50 users for efficiency
       
@@ -911,7 +911,7 @@ const TheCanon = ({ supabase }) => {
             .from('rankings')
             .select('ranking_artists(artist_id, position, artists(*))')
             .eq('user_id', match.user.id)
-            .eq('category', 'top10')
+            .is('category', null)  // Main canon has null category
             .single();
           
           if (fullRanking?.ranking_artists) {
@@ -6626,7 +6626,7 @@ const TheCanon = ({ supabase }) => {
                         </div>
                       ))}
                     </div>
-                  ) : userLists.find(l => l.category === 'top10')?.artists?.length > 0 ? (
+                  ) : userLists.find(l => l.isAllTime === true)?.artists?.length > 0 ? (
                     <div className="text-center py-6 bg-slate-800/30 border border-dashed border-gray-600 rounded-lg">
                       <Search className="w-10 h-10 text-gray-500 mx-auto mb-2" />
                       <p className="text-gray-400">No highly compatible users found yet</p>
@@ -6701,8 +6701,8 @@ const TheCanon = ({ supabase }) => {
                           <div className="flex gap-2">
                             <button
                               onClick={() => {
-                                // Add to user's canon ranking
-                                const canonList = userLists.find(l => l.category === 'top10');
+                                // Add to user's canon ranking  
+                                const canonList = userLists.find(l => l.isAllTime === true);
                                 if (canonList) {
                                   const newArtists = [...canonList.artists, rec.artist];
                                   updateListAndSave(canonList.id, newArtists);
