@@ -145,34 +145,39 @@ INSERT INTO debates (
   author_id,
   title,
   content,
+  artist_tags,
   created_at
 ) VALUES 
   (
     '550e8400-e29b-41d4-a716-446655440201',
     '550e8400-e29b-41d4-a716-446655440001',
     'Clipse Album of the Year',
-    'Hot take: Clipse''s "Let God Sort ''Em Out" is hands down the album of the year. The bars, the production, the chemistry between @pusha-t and @malice - it''s peak hip-hop. Nothing else even comes close.',
+    'Hot take: Clipse''s "Let God Sort ''Em Out" is hands down the album of the year. The bars, the production, the chemistry between Pusha T and Malice - it''s peak hip-hop. Nothing else even comes close.',
+    ARRAY[4256, 4257]::integer[],  -- Pusha T, Malice
     NOW()
   ),
   (
     '550e8400-e29b-41d4-a716-446655440202',
     '550e8400-e29b-41d4-a716-446655440002',
     'Jay-Z in Wu-Tang?',
-    'Controversial opinion: @jay-z would NOT be a top 3 member if he was in Wu-Tang Clan. @ghostface, @gza, @raekwon, and @method-man all have better catalogs bar for bar. Fight me.',
+    'Controversial opinion: Jay-Z would NOT be a top 3 member if he was in Wu-Tang Clan. Ghostface, GZA, Raekwon, and Method Man all have better catalogs bar for bar. Fight me.',
+    ARRAY[3769, 3760, 3757, 3759, 3758]::integer[],  -- Jay-Z, Ghostface, GZA, Raekwon, Method Man
     NOW()
   ),
   (
     '550e8400-e29b-41d4-a716-446655440203',
     '550e8400-e29b-41d4-a716-446655440003',
     'Wayne vs Hov: Peak Years',
-    'I''m ready to die on this hill: @lil-wayne in his prime (2005-2010) was better than @jay-z has ever been. The wordplay, the flow switches, the hunger - Wayne was untouchable. Hov got longevity but Wayne got that magic.',
+    'I''m ready to die on this hill: Lil Wayne in his prime (2005-2010) was better than Jay-Z has ever been. The wordplay, the flow switches, the hunger - Wayne was untouchable. Hov got longevity but Wayne got that magic.',
+    ARRAY[3956, 3769]::integer[],  -- Lil Wayne, Jay-Z
     NOW()
   ),
   (
     '550e8400-e29b-41d4-a716-446655440204',
     '550e8400-e29b-41d4-a716-446655440009',
     'The South Changed Hip-Hop Forever',
-    'Y''all can keep debating NY vs LA, but the 2000s belonged to the SOUTH. @jeezy, @ti, @ludacris ran the game while y''all were stuck in the past. Crunk music, trap beats, the whole sound of hip-hop today? That''s all us. Put some respect on it.',
+    'Y''all can keep debating NY vs LA, but the 2000s belonged to the SOUTH. Jeezy, T.I., Ludacris ran the game while y''all were stuck in the past. Crunk music, trap beats, the whole sound of hip-hop today? That''s all us. Put some respect on it.',
+    ARRAY[3958, 3957, 3961]::integer[],  -- Jeezy, T.I., Ludacris
     NOW()
   );
 
