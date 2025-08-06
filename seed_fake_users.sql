@@ -45,7 +45,7 @@ INSERT INTO rankings (
   id,
   user_id,
   list_title,
-  category,
+  list_type,
   is_all_time,
   created_at,
   updated_at
@@ -53,7 +53,7 @@ INSERT INTO rankings (
   '550e8400-e29b-41d4-a716-446655440101',
   '550e8400-e29b-41d4-a716-446655440001',
   'Marcus Johnson''s Top XX',
-  NULL,
+  'all-time',
   true,
   NOW(),
   NOW()
@@ -64,7 +64,7 @@ INSERT INTO rankings (
   id,
   user_id,
   list_title,
-  category,
+  list_type,
   is_all_time,
   created_at,
   updated_at
@@ -72,7 +72,7 @@ INSERT INTO rankings (
   '550e8400-e29b-41d4-a716-446655440102',
   '550e8400-e29b-41d4-a716-446655440002',
   'Sofia Rodriguez''s Top XX',
-  NULL,
+  'all-time',
   true,
   NOW(),
   NOW()
@@ -83,7 +83,7 @@ INSERT INTO rankings (
   id,
   user_id,
   list_title,
-  category,
+  list_type,
   is_all_time,
   created_at,
   updated_at
@@ -91,7 +91,7 @@ INSERT INTO rankings (
   '550e8400-e29b-41d4-a716-446655440103',
   '550e8400-e29b-41d4-a716-446655440003',
   'DJ Nostalgia''s Top XX',
-  NULL,
+  'all-time',
   true,
   NOW(),
   NOW()

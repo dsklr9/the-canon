@@ -55,7 +55,7 @@ INSERT INTO rankings (
   id,
   user_id,
   list_title,
-  category,
+  list_type,
   is_all_time,
   created_at,
   updated_at
@@ -64,7 +64,7 @@ INSERT INTO rankings (
   '550e8400-e29b-41d4-a716-446655440104',
   '550e8400-e29b-41d4-a716-446655440004',
   'Keesha Williams''s Top XX',
-  NULL,
+  'all-time',
   true,
   NOW(),
   NOW()
@@ -73,7 +73,7 @@ INSERT INTO rankings (
   '550e8400-e29b-41d4-a716-446655440105',
   '550e8400-e29b-41d4-a716-446655440005',
   'Andre Thompson''s Top XX',
-  NULL,
+  'all-time',
   true,
   NOW(),
   NOW()
@@ -82,7 +82,7 @@ INSERT INTO rankings (
   '550e8400-e29b-41d4-a716-446655440106',
   '550e8400-e29b-41d4-a716-446655440006',
   'Maya Patel''s Top XX',
-  NULL,
+  'all-time',
   true,
   NOW(),
   NOW()
@@ -91,7 +91,7 @@ INSERT INTO rankings (
   '550e8400-e29b-41d4-a716-446655440107',
   '550e8400-e29b-41d4-a716-446655440007',
   'Jamal Washington''s Top XX',
-  NULL,
+  'all-time',
   true,
   NOW(),
   NOW()
@@ -100,7 +100,7 @@ INSERT INTO rankings (
   '550e8400-e29b-41d4-a716-446655440108',
   '550e8400-e29b-41d4-a716-446655440008',
   'Alex Chen''s Top XX',
-  NULL,
+  'all-time',
   true,
   NOW(),
   NOW()
