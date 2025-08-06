@@ -100,25 +100,29 @@ INSERT INTO rankings (
 -- Create some debates with the topics you requested
 INSERT INTO debates (
   id,
-  user_id,
-  debate_text,
+  author_id,
+  title,
+  content,
   created_at
 ) VALUES 
   (
     '550e8400-e29b-41d4-a716-446655440201',
     '550e8400-e29b-41d4-a716-446655440001',
+    'Clipse Album of the Year',
     'Hot take: Clipse''s "Let God Sort ''Em Out" is hands down the album of the year. The bars, the production, the chemistry between @pusha-t and @malice - it''s peak hip-hop. Nothing else even comes close.',
     NOW()
   ),
   (
     '550e8400-e29b-41d4-a716-446655440202',
     '550e8400-e29b-41d4-a716-446655440002',
+    'Jay-Z in Wu-Tang?',
     'Controversial opinion: @jay-z would NOT be a top 3 member if he was in Wu-Tang Clan. @ghostface, @gza, @raekwon, and @method-man all have better catalogs bar for bar. Fight me.',
     NOW()
   ),
   (
     '550e8400-e29b-41d4-a716-446655440203',
     '550e8400-e29b-41d4-a716-446655440003',
+    'Wayne vs Hov: Peak Years',
     'I''m ready to die on this hill: @lil-wayne in his prime (2005-2010) was better than @jay-z has ever been. The wordplay, the flow switches, the hunger - Wayne was untouchable. Hov got longevity but Wayne got that magic.',
     NOW()
   );
