@@ -12,7 +12,7 @@
 -- REPLACE THE IDs BELOW WITH YOUR ACTUAL ARTIST IDs FROM THE QUERY ABOVE
 
 -- HipHopHead92's East Coast heavy ranking
-INSERT INTO ranking_artists (ranking_id, artist_id, position) VALUES 
+INSERT INTO ranking_items (ranking_id, artist_id, position) VALUES 
 ('550e8400-e29b-41d4-a716-446655440101', 'YOUR_NAS_ID', 1),
 ('550e8400-e29b-41d4-a716-446655440101', 'YOUR_JAY_Z_ID', 2),
 ('550e8400-e29b-41d4-a716-446655440101', 'YOUR_BIGGIE_ID', 3),
@@ -25,7 +25,7 @@ INSERT INTO ranking_artists (ranking_id, artist_id, position) VALUES
 ('550e8400-e29b-41d4-a716-446655440101', 'YOUR_J_COLE_ID', 10);
 
 -- RealMusic88's Golden Era focused ranking  
-INSERT INTO ranking_artists (ranking_id, artist_id, position) VALUES 
+INSERT INTO ranking_items (ranking_id, artist_id, position) VALUES 
 ('550e8400-e29b-41d4-a716-446655440102', 'YOUR_TUPAC_ID', 1),
 ('550e8400-e29b-41d4-a716-446655440102', 'YOUR_BIGGIE_ID', 2),
 ('550e8400-e29b-41d4-a716-446655440102', 'YOUR_NAS_ID', 3),
@@ -38,7 +38,7 @@ INSERT INTO ranking_artists (ranking_id, artist_id, position) VALUES
 ('550e8400-e29b-41d4-a716-446655440102', 'YOUR_KANYE_ID', 10);
 
 -- GoldenEraVibes's 90s purist ranking
-INSERT INTO ranking_artists (ranking_id, artist_id, position) VALUES 
+INSERT INTO ranking_items (ranking_id, artist_id, position) VALUES 
 ('550e8400-e29b-41d4-a716-446655440103', 'YOUR_NAS_ID', 1),
 ('550e8400-e29b-41d4-a716-446655440103', 'YOUR_TUPAC_ID', 2),
 ('550e8400-e29b-41d4-a716-446655440103', 'YOUR_BIGGIE_ID', 3),
@@ -54,8 +54,9 @@ INSERT INTO ranking_artists (ranking_id, artist_id, position) VALUES
 INSERT INTO rankings (
   id,
   user_id,
-  title,
+  list_title,
   category,
+  is_all_time,
   created_at,
   updated_at
 ) VALUES 
@@ -64,6 +65,7 @@ INSERT INTO rankings (
   '550e8400-e29b-41d4-a716-446655440004',
   'Keesha Williams''s Top XX',
   NULL,
+  true,
   NOW(),
   NOW()
 ),
@@ -72,12 +74,40 @@ INSERT INTO rankings (
   '550e8400-e29b-41d4-a716-446655440005',
   'Andre Thompson''s Top XX',
   NULL,
+  true,
+  NOW(),
+  NOW()
+),
+(
+  '550e8400-e29b-41d4-a716-446655440106',
+  '550e8400-e29b-41d4-a716-446655440006',
+  'Maya Patel''s Top XX',
+  NULL,
+  true,
+  NOW(),
+  NOW()
+),
+(
+  '550e8400-e29b-41d4-a716-446655440107',
+  '550e8400-e29b-41d4-a716-446655440007',
+  'Jamal Washington''s Top XX',
+  NULL,
+  true,
+  NOW(),
+  NOW()
+),
+(
+  '550e8400-e29b-41d4-a716-446655440108',
+  '550e8400-e29b-41d4-a716-446655440008',
+  'Alex Chen''s Top XX',
+  NULL,
+  true,
   NOW(),
   NOW()
 );
 
 -- BeatDisciple's modern hip-hop focused ranking
-INSERT INTO ranking_artists (ranking_id, artist_id, position) VALUES 
+INSERT INTO ranking_items (ranking_id, artist_id, position) VALUES 
 ('550e8400-e29b-41d4-a716-446655440104', 'YOUR_KENDRICK_ID', 1),
 ('550e8400-e29b-41d4-a716-446655440104', 'YOUR_J_COLE_ID', 2),
 ('550e8400-e29b-41d4-a716-446655440104', 'YOUR_DRAKE_ID', 3),
@@ -90,7 +120,7 @@ INSERT INTO ranking_artists (ranking_id, artist_id, position) VALUES
 ('550e8400-e29b-41d4-a716-446655440104', 'YOUR_JID_ID', 10);
 
 -- CypherSession's underground-leaning ranking
-INSERT INTO ranking_artists (ranking_id, artist_id, position) VALUES 
+INSERT INTO ranking_items (ranking_id, artist_id, position) VALUES 
 ('550e8400-e29b-41d4-a716-446655440105', 'YOUR_MF_DOOM_ID', 1),
 ('550e8400-e29b-41d4-a716-446655440105', 'YOUR_NAS_ID', 2),
 ('550e8400-e29b-41d4-a716-446655440105', 'YOUR_GHOSTFACE_ID', 3),
@@ -101,6 +131,45 @@ INSERT INTO ranking_artists (ranking_id, artist_id, position) VALUES
 ('550e8400-e29b-41d4-a716-446655440105', 'YOUR_PUSHA_T_ID', 8),
 ('550e8400-e29b-41d4-a716-446655440105', 'YOUR_GZA_ID', 9),
 ('550e8400-e29b-41d4-a716-446655440105', 'YOUR_JAY_Z_ID', 10);
+
+-- LyricalGenius's lyrical-focused ranking
+INSERT INTO ranking_items (ranking_id, artist_id, position) VALUES 
+('550e8400-e29b-41d4-a716-446655440106', 'YOUR_ANDRE_3000_ID', 1),
+('550e8400-e29b-41d4-a716-446655440106', 'YOUR_NAS_ID', 2),
+('550e8400-e29b-41d4-a716-446655440106', 'YOUR_KENDRICK_ID', 3),
+('550e8400-e29b-41d4-a716-446655440106', 'YOUR_GZA_ID', 4),
+('550e8400-e29b-41d4-a716-446655440106', 'YOUR_JAY_Z_ID', 5),
+('550e8400-e29b-41d4-a716-446655440106', 'YOUR_EMINEM_ID', 6),
+('550e8400-e29b-41d4-a716-446655440106', 'YOUR_GHOSTFACE_ID', 7),
+('550e8400-e29b-41d4-a716-446655440106', 'YOUR_MF_DOOM_ID', 8),
+('550e8400-e29b-41d4-a716-446655440106', 'YOUR_J_COLE_ID', 9),
+('550e8400-e29b-41d4-a716-446655440106', 'YOUR_JID_ID', 10);
+
+-- StreetPoetry's streets-focused ranking
+INSERT INTO ranking_items (ranking_id, artist_id, position) VALUES 
+('550e8400-e29b-41d4-a716-446655440107', 'YOUR_TUPAC_ID', 1),
+('550e8400-e29b-41d4-a716-446655440107', 'YOUR_BIGGIE_ID', 2),
+('550e8400-e29b-41d4-a716-446655440107', 'YOUR_JAY_Z_ID', 3),
+('550e8400-e29b-41d4-a716-446655440107', 'YOUR_FREDDIE_GIBBS_ID', 4),
+('550e8400-e29b-41d4-a716-446655440107', 'YOUR_PUSHA_T_ID', 5),
+('550e8400-e29b-41d4-a716-446655440107', 'YOUR_GHOSTFACE_ID', 6),
+('550e8400-e29b-41d4-a716-446655440107', 'YOUR_RAEKWON_ID', 7),
+('550e8400-e29b-41d4-a716-446655440107', 'YOUR_NAS_ID', 8),
+('550e8400-e29b-41d4-a716-446655440107', 'YOUR_LIL_WAYNE_ID', 9),
+('550e8400-e29b-41d4-a716-446655440107', 'YOUR_DANNY_BROWN_ID', 10);
+
+-- UndergroundKing's underground-heavy ranking
+INSERT INTO ranking_items (ranking_id, artist_id, position) VALUES 
+('550e8400-e29b-41d4-a716-446655440108', 'YOUR_MF_DOOM_ID', 1),
+('550e8400-e29b-41d4-a716-446655440108', 'YOUR_DANNY_BROWN_ID', 2),
+('550e8400-e29b-41d4-a716-446655440108', 'YOUR_FREDDIE_GIBBS_ID', 3),
+('550e8400-e29b-41d4-a716-446655440108', 'YOUR_JID_ID', 4),
+('550e8400-e29b-41d4-a716-446655440108', 'YOUR_GHOSTFACE_ID', 5),
+('550e8400-e29b-41d4-a716-446655440108', 'YOUR_GZA_ID', 6),
+('550e8400-e29b-41d4-a716-446655440108', 'YOUR_ANDRE_3000_ID', 7),
+('550e8400-e29b-41d4-a716-446655440108', 'YOUR_PUSHA_T_ID', 8),
+('550e8400-e29b-41d4-a716-446655440108', 'YOUR_KENDRICK_ID', 9),
+('550e8400-e29b-41d4-a716-446655440108', 'YOUR_NAS_ID', 10);
 
 -- Instructions:
 -- 1. Run: SELECT id, name FROM artists ORDER BY name;
