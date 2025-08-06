@@ -588,22 +588,22 @@ const TheCanon = ({ supabase }) => {
 
   // Preset avatar collection for users to choose from
   const presetAvatars = [
-    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face', // Professional man
-    'https://images.unsplash.com/photo-1494790108755-2616b15a9d79?w=150&h=150&fit=crop&crop=face', // Professional woman
-    'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face', // Casual man
-    'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=face', // Casual woman
-    'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop&crop=face', // Young man
-    'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop&crop=face', // Young woman
-    'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&h=150&fit=crop&crop=face', // Stylish man
-    'https://images.unsplash.com/photo-1507591064344-4c6ce005b128?w=150&h=150&fit=crop&crop=face', // Cool guy
-    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&h=150&fit=crop&crop=face', // Hip woman
-    'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&h=150&fit=crop&crop=face', // Bearded man
-    'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&h=150&fit=crop&crop=face', // Confident woman
-    'https://images.unsplash.com/photo-1463453091185-61582044d556?w=150&h=150&fit=crop&crop=face', // Artist type
-    'https://images.unsplash.com/photo-1552058544-f2b08422138a?w=150&h=150&fit=crop&crop=face', // Creative man
-    'https://images.unsplash.com/photo-1509967419530-da38b4704bc6?w=150&h=150&fit=crop&crop=face', // Music lover
-    'https://images.unsplash.com/photo-1531427186611-ecfd6d936c79?w=150&h=150&fit=crop&crop=face', // Urban style
-    'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=150&h=150&fit=crop&crop=face'  // Cool woman
+    'https://djuoisgfwromkvtcenyd.supabase.co/storage/v1/object/public/profile-pictures/guy1.png',
+    'https://djuoisgfwromkvtcenyd.supabase.co/storage/v1/object/public/profile-pictures/gal1.png',
+    'https://djuoisgfwromkvtcenyd.supabase.co/storage/v1/object/public/profile-pictures/dude1.png',
+    'https://djuoisgfwromkvtcenyd.supabase.co/storage/v1/object/public/profile-pictures/gal2.png',
+    'https://djuoisgfwromkvtcenyd.supabase.co/storage/v1/object/public/profile-pictures/guy2.png',
+    'https://djuoisgfwromkvtcenyd.supabase.co/storage/v1/object/public/profile-pictures/gal3.png',
+    'https://djuoisgfwromkvtcenyd.supabase.co/storage/v1/object/public/profile-pictures/dude2.png',
+    'https://djuoisgfwromkvtcenyd.supabase.co/storage/v1/object/public/profile-pictures/gal4.png',
+    'https://djuoisgfwromkvtcenyd.supabase.co/storage/v1/object/public/profile-pictures/guy3.png',
+    'https://djuoisgfwromkvtcenyd.supabase.co/storage/v1/object/public/profile-pictures/gal5.png',
+    'https://djuoisgfwromkvtcenyd.supabase.co/storage/v1/object/public/profile-pictures/dude3.png',
+    'https://djuoisgfwromkvtcenyd.supabase.co/storage/v1/object/public/profile-pictures/gal6.png',
+    'https://djuoisgfwromkvtcenyd.supabase.co/storage/v1/object/public/profile-pictures/guy4.png',
+    'https://djuoisgfwromkvtcenyd.supabase.co/storage/v1/object/public/profile-pictures/gal7.png',
+    'https://djuoisgfwromkvtcenyd.supabase.co/storage/v1/object/public/profile-pictures/dude4.png',
+    'https://djuoisgfwromkvtcenyd.supabase.co/storage/v1/object/public/profile-pictures/gal8.png'
   ];
 
   // Combined initialization effect

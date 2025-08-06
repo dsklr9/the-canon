@@ -32,16 +32,16 @@ INSERT INTO profiles (
   profile_picture_url,
   created_at
 ) VALUES
-  ('550e8400-e29b-41d4-a716-446655440001', 'HipHopHead92', 'Marcus Johnson', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face', NOW()),
-  ('550e8400-e29b-41d4-a716-446655440002', 'RealMusic88', 'Sofia Rodriguez', 'https://images.unsplash.com/photo-1494790108755-2616b15a9d79?w=150&h=150&fit=crop&crop=face', NOW()),
-  ('550e8400-e29b-41d4-a716-446655440003', 'GoldenEraVibes', 'DJ Nostalgia', 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face', NOW()),
-  ('550e8400-e29b-41d4-a716-446655440004', 'BeatDisciple', 'Keesha Williams', 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=face', NOW()),
-  ('550e8400-e29b-41d4-a716-446655440005', 'CypherSession', 'Andre Thompson', 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop&crop=face', NOW()),
-  ('550e8400-e29b-41d4-a716-446655440006', 'LyricalGenius', 'Maya Patel', 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop&crop=face', NOW()),
-  ('550e8400-e29b-41d4-a716-446655440007', 'StreetPoetry', 'Jamal Washington', 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&h=150&fit=crop&crop=face', NOW()),
-  ('550e8400-e29b-41d4-a716-446655440008', 'UndergroundKing', 'Alex Chen', 'https://images.unsplash.com/photo-1507591064344-4c6ce005b128?w=150&h=150&fit=crop&crop=face', NOW()),
-  ('550e8400-e29b-41d4-a716-446655440009', 'CrunkEra2004', 'DeAndre Mitchell', 'https://images.unsplash.com/photo-1506634572416-48cdfe530110?w=150&h=150&fit=crop&crop=face', NOW()),
-  ('550e8400-e29b-41d4-a716-446655440010', 'DirtySouthFan', 'Ashley Taylor', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&h=150&fit=crop&crop=face', NOW());
+  ('550e8400-e29b-41d4-a716-446655440001', 'HipHopHead92', 'Marcus Johnson', 'https://djuoisgfwromkvtcenyd.supabase.co/storage/v1/object/public/profile-pictures/guy1.png', NOW()),
+  ('550e8400-e29b-41d4-a716-446655440002', 'RealMusic88', 'Sofia Rodriguez', 'https://djuoisgfwromkvtcenyd.supabase.co/storage/v1/object/public/profile-pictures/gal1.png', NOW()),
+  ('550e8400-e29b-41d4-a716-446655440003', 'GoldenEraVibes', 'DJ Nostalgia', 'https://djuoisgfwromkvtcenyd.supabase.co/storage/v1/object/public/profile-pictures/dude1.png', NOW()),
+  ('550e8400-e29b-41d4-a716-446655440004', 'BeatDisciple', 'Keesha Williams', 'https://djuoisgfwromkvtcenyd.supabase.co/storage/v1/object/public/profile-pictures/gal2.png', NOW()),
+  ('550e8400-e29b-41d4-a716-446655440005', 'CypherSession', 'Andre Thompson', 'https://djuoisgfwromkvtcenyd.supabase.co/storage/v1/object/public/profile-pictures/guy2.png', NOW()),
+  ('550e8400-e29b-41d4-a716-446655440006', 'LyricalGenius', 'Maya Patel', 'https://djuoisgfwromkvtcenyd.supabase.co/storage/v1/object/public/profile-pictures/gal3.png', NOW()),
+  ('550e8400-e29b-41d4-a716-446655440007', 'StreetPoetry', 'Jamal Washington', 'https://djuoisgfwromkvtcenyd.supabase.co/storage/v1/object/public/profile-pictures/dude2.png', NOW()),
+  ('550e8400-e29b-41d4-a716-446655440008', 'UndergroundKing', 'Alex Chen', 'https://djuoisgfwromkvtcenyd.supabase.co/storage/v1/object/public/profile-pictures/guy3.png', NOW()),
+  ('550e8400-e29b-41d4-a716-446655440009', 'CrunkEra2004', 'DeAndre Mitchell', 'https://djuoisgfwromkvtcenyd.supabase.co/storage/v1/object/public/profile-pictures/dude3.png', NOW()),
+  ('550e8400-e29b-41d4-a716-446655440010', 'DirtySouthFan', 'Ashley Taylor', 'https://djuoisgfwromkvtcenyd.supabase.co/storage/v1/object/public/profile-pictures/gal4.png', NOW());
 
 -- Create rankings (Top XX lists) for each fake user
 -- First user's ranking - HipHopHead92 (East Coast focused)
