@@ -171,6 +171,32 @@ INSERT INTO ranking_items (ranking_id, artist_id, position) VALUES
 ('550e8400-e29b-41d4-a716-446655440108', 4030, 9),  -- Kendrick Lamar
 ('550e8400-e29b-41d4-a716-446655440108', 3768, 10); -- Nas
 
+-- CrunkEra2004's early 2000s southern ranking
+INSERT INTO ranking_items (ranking_id, artist_id, position) VALUES 
+('550e8400-e29b-41d4-a716-446655440109', 3958, 1),  -- Jeezy
+('550e8400-e29b-41d4-a716-446655440109', 3957, 2),  -- T.I.
+('550e8400-e29b-41d4-a716-446655440109', 3956, 3),  -- Lil Wayne
+('550e8400-e29b-41d4-a716-446655440109', 3961, 4),  -- Ludacris
+('550e8400-e29b-41d4-a716-446655440109', 3792, 5),  -- Krayzie Bone
+('550e8400-e29b-41d4-a716-446655440109', 3959, 6),  -- Rick Ross
+('550e8400-e29b-41d4-a716-446655440109', 3967, 7),  -- Fabolous
+('550e8400-e29b-41d4-a716-446655440109', 3960, 8),  -- The Game
+('550e8400-e29b-41d4-a716-446655440109', 3810, 9),  -- Fat Joe
+('550e8400-e29b-41d4-a716-446655440109', 3769, 10); -- Jay-Z
+
+-- DirtySouthFan's early 2000s Atlanta/Houston ranking
+INSERT INTO ranking_items (ranking_id, artist_id, position) VALUES 
+('550e8400-e29b-41d4-a716-446655440110', 3961, 1),  -- Ludacris
+('550e8400-e29b-41d4-a716-446655440110', 3957, 2),  -- T.I.
+('550e8400-e29b-41d4-a716-446655440110', 3780, 3),  -- Master P
+('550e8400-e29b-41d4-a716-446655440110', 3781, 4),  -- Juvenile
+('550e8400-e29b-41d4-a716-446655440110', 3789, 5),  -- Pimp C
+('550e8400-e29b-41d4-a716-446655440110', 3790, 6),  -- Bun B
+('550e8400-e29b-41d4-a716-446655440110', 3972, 7),  -- Freeway
+('550e8400-e29b-41d4-a716-446655440110', 3813, 8),  -- Cam'ron
+('550e8400-e29b-41d4-a716-446655440110', 3958, 9),  -- Jeezy
+('550e8400-e29b-41d4-a716-446655440110', 3793, 10); -- Bizzy Bone
+
 -- Note: In the debates, we mention:
 -- Pusha T (4256), Jay-Z (3769), Ghostface Killah (3760), 
 -- GZA (3757), Raekwon (3759), Method Man (3758), Lil Wayne (3956)

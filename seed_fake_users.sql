@@ -20,7 +20,9 @@ INSERT INTO auth.users (
   ('550e8400-e29b-41d4-a716-446655440005', 'cyphersession@gmail.com', NOW(), NOW(), NOW(), '{"provider":"email","providers":["email"]}', '{}', false, 'authenticated'),
   ('550e8400-e29b-41d4-a716-446655440006', 'lyricalgenius@gmail.com', NOW(), NOW(), NOW(), '{"provider":"email","providers":["email"]}', '{}', false, 'authenticated'),
   ('550e8400-e29b-41d4-a716-446655440007', 'streetpoetry@gmail.com', NOW(), NOW(), NOW(), '{"provider":"email","providers":["email"]}', '{}', false, 'authenticated'),
-  ('550e8400-e29b-41d4-a716-446655440008', 'undergroundking@gmail.com', NOW(), NOW(), NOW(), '{"provider":"email","providers":["email"]}', '{}', false, 'authenticated');
+  ('550e8400-e29b-41d4-a716-446655440008', 'undergroundking@gmail.com', NOW(), NOW(), NOW(), '{"provider":"email","providers":["email"]}', '{}', false, 'authenticated'),
+  ('550e8400-e29b-41d4-a716-446655440009', 'crunkera2004@gmail.com', NOW(), NOW(), NOW(), '{"provider":"email","providers":["email"]}', '{}', false, 'authenticated'),
+  ('550e8400-e29b-41d4-a716-446655440010', 'dirtysouthfan@gmail.com', NOW(), NOW(), NOW(), '{"provider":"email","providers":["email"]}', '{}', false, 'authenticated');
 
 -- Create profiles for these users
 INSERT INTO profiles (
@@ -37,7 +39,9 @@ INSERT INTO profiles (
   ('550e8400-e29b-41d4-a716-446655440005', 'CypherSession', 'Andre Thompson', 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop&crop=face', NOW()),
   ('550e8400-e29b-41d4-a716-446655440006', 'LyricalGenius', 'Maya Patel', 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop&crop=face', NOW()),
   ('550e8400-e29b-41d4-a716-446655440007', 'StreetPoetry', 'Jamal Washington', 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150&h=150&fit=crop&crop=face', NOW()),
-  ('550e8400-e29b-41d4-a716-446655440008', 'UndergroundKing', 'Alex Chen', 'https://images.unsplash.com/photo-1507591064344-4c6ce005b128?w=150&h=150&fit=crop&crop=face', NOW());
+  ('550e8400-e29b-41d4-a716-446655440008', 'UndergroundKing', 'Alex Chen', 'https://images.unsplash.com/photo-1507591064344-4c6ce005b128?w=150&h=150&fit=crop&crop=face', NOW()),
+  ('550e8400-e29b-41d4-a716-446655440009', 'CrunkEra2004', 'DeAndre Mitchell', 'https://images.unsplash.com/photo-1506634572416-48cdfe530110?w=150&h=150&fit=crop&crop=face', NOW()),
+  ('550e8400-e29b-41d4-a716-446655440010', 'DirtySouthFan', 'Ashley Taylor', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&h=150&fit=crop&crop=face', NOW());
 
 -- Create rankings (Top XX lists) for each fake user
 -- First user's ranking - HipHopHead92 (East Coast focused)
@@ -97,6 +101,44 @@ INSERT INTO rankings (
   NOW()
 );
 
+-- Fourth user's ranking - CrunkEra2004 (Early 2000s southern focused)
+INSERT INTO rankings (
+  id,
+  user_id,
+  list_title,
+  list_type,
+  is_all_time,
+  created_at,
+  updated_at
+) VALUES (
+  '550e8400-e29b-41d4-a716-446655440109',
+  '550e8400-e29b-41d4-a716-446655440009',
+  'DeAndre Mitchell''s Top XX',
+  'all-time',
+  true,
+  NOW(),
+  NOW()
+);
+
+-- Fifth user's ranking - DirtySouthFan (Early 2000s Atlanta/Houston)
+INSERT INTO rankings (
+  id,
+  user_id,
+  list_title,
+  list_type,
+  is_all_time,
+  created_at,
+  updated_at
+) VALUES (
+  '550e8400-e29b-41d4-a716-446655440110',
+  '550e8400-e29b-41d4-a716-446655440010',
+  'Ashley Taylor''s Top XX',
+  'all-time',
+  true,
+  NOW(),
+  NOW()
+);
+
 -- Create some debates with the topics you requested
 INSERT INTO debates (
   id,
@@ -124,6 +166,13 @@ INSERT INTO debates (
     '550e8400-e29b-41d4-a716-446655440003',
     'Wayne vs Hov: Peak Years',
     'I''m ready to die on this hill: @lil-wayne in his prime (2005-2010) was better than @jay-z has ever been. The wordplay, the flow switches, the hunger - Wayne was untouchable. Hov got longevity but Wayne got that magic.',
+    NOW()
+  ),
+  (
+    '550e8400-e29b-41d4-a716-446655440204',
+    '550e8400-e29b-41d4-a716-446655440009',
+    'The South Changed Hip-Hop Forever',
+    'Y''all can keep debating NY vs LA, but the 2000s belonged to the SOUTH. @jeezy, @ti, @ludacris ran the game while y''all were stuck in the past. Crunk music, trap beats, the whole sound of hip-hop today? That''s all us. Put some respect on it.',
     NOW()
   );
 
