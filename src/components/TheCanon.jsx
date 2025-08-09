@@ -3110,6 +3110,69 @@ const TheCanon = ({ supabase }) => {
     }
   };
 
+  // Create notification for challenge
+  const createChallengeNotification = async (challengedId, challengerId, challengeType, message) => {
+    try {
+      // Create in-app notification
+      const { error: notifError } = await supabase
+        .from('notifications')
+        .insert({
+          to_user_id: challengedId,
+          from_user_id: challengerId,
+          type: 'challenge',
+          content: `challenged you to a ${challengeType === 'random' ? 'random' : 'custom'} battle${message ? `: "${message}"` : ''}`,
+          read: false,
+          created_at: new Date().toISOString()
+        });
+      
+      if (notifError) {
+        console.error('Error creating notification:', notifError);
+      }
+
+      // Send email notification if user has it enabled
+      try {
+        // First check if user has email notifications enabled for challenges
+        const { data: emailSettings } = await supabase
+          .from('email_subscriptions')
+          .select('friend_challenges')
+          .eq('user_id', challengedId)
+          .single();
+        
+        if (emailSettings?.friend_challenges) {
+          // Get challenger's profile info
+          const { data: challengerProfile } = await supabase
+            .from('profiles')
+            .select('username, display_name')
+            .eq('id', challengerId)
+            .single();
+          
+          if (challengerProfile) {
+            // Trigger email notification via Edge Function
+            // The Edge Function will handle getting the user's email securely
+            const { error: emailError } = await supabase.functions.invoke('send-challenge-email', {
+              body: {
+                challengedUserId: challengedId,
+                challengerName: challengerProfile.username || challengerProfile.display_name,
+                challengeType: challengeType,
+                message: message,
+                appUrl: window.location.origin
+              }
+            });
+            
+            if (emailError) {
+              console.error('Error sending challenge email:', emailError);
+            }
+          }
+        }
+      } catch (emailError) {
+        // Don't throw - email is secondary to the challenge being created
+        console.error('Error with email notification:', emailError);
+      }
+    } catch (error) {
+      console.error('Error creating challenge notification:', error);
+    }
+  };
+
   // Mark notifications as read
   const markNotificationsAsRead = async (notificationIds) => {
     try {
@@ -5194,6 +5257,14 @@ const TheCanon = ({ supabase }) => {
                           console.log('Challenge insert result - data:', data, 'error:', error);
                           
                           if (error) throw error;
+                          
+                          // Send notification and email
+                          await createChallengeNotification(
+                            selectedFriend,
+                            currentUser.id,
+                            battleType,
+                            battleMessage
+                          );
                           
                           setShowBattleModal(false);
                           setSelectedFriend('');

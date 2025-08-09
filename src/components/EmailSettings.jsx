@@ -7,6 +7,7 @@ const EmailSettings = ({ supabase, currentUser, onClose }) => {
     tournament_reminders: true,
     tournament_results: true,
     friend_requests: true,
+    friend_challenges: true,
     debate_replies: true,
     comment_replies: true,
     ranking_updates: true,
@@ -109,6 +110,7 @@ const EmailSettings = ({ supabase, currentUser, onClose }) => {
       icon: '👥',
       settings: [
         { key: 'friend_requests', label: 'Friend requests' },
+        { key: 'friend_challenges', label: 'Friend challenges' },
         { key: 'debate_replies', label: 'Replies to your debates' },
         { key: 'comment_replies', label: 'Replies to your comments' }
       ]
