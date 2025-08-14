@@ -14,6 +14,8 @@ const TournamentReview = ({ supabase, currentUser, tournament }) => {
 
   const loadSubmissions = async () => {
     try {
+      console.log('🔍 Loading submissions for tournament:', tournament.id);
+      
       const { data, error } = await supabase
         .from('tournament_submissions')
         .select(`
@@ -23,10 +25,24 @@ const TournamentReview = ({ supabase, currentUser, tournament }) => {
         .eq('tournament_id', tournament.id)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      console.log('📊 Tournament submissions query result:', { data, error });
+      
+      if (error) {
+        console.error('❌ Error loading submissions:', error);
+        throw error;
+      }
+      
+      console.log('✅ Loaded submissions:', data?.length || 0);
+      console.log('📋 Submissions details:', data?.map(s => ({ 
+        id: s.id, 
+        artist: s.artist_name, 
+        status: s.status, 
+        user: s.profiles?.username 
+      })));
+      
       setSubmissions(data || []);
     } catch (error) {
-      console.error('Error loading submissions:', error);
+      console.error('💥 Error loading submissions:', error);
     } finally {
       setLoading(false);
     }
@@ -36,12 +52,22 @@ const TournamentReview = ({ supabase, currentUser, tournament }) => {
     setProcessing(prev => new Set(prev).add(submissionId));
     
     try {
+      console.log('🔄 Updating submission status:', { submissionId, status });
+      
       const { error } = await supabase
         .from('tournament_submissions')
         .update({ status })
         .eq('id', submissionId);
 
-      if (error) throw error;
+      console.log('📝 Update submission status result:', { error });
+
+      if (error) {
+        console.error('❌ RLS Policy Error - Update failed:', error);
+        alert(`Update failed: ${error.message}. You may need admin permissions to review submissions.`);
+        throw error;
+      }
+
+      console.log('✅ Submission status updated successfully');
 
       // Update local state
       setSubmissions(prev => 
@@ -50,7 +76,7 @@ const TournamentReview = ({ supabase, currentUser, tournament }) => {
         )
       );
     } catch (error) {
-      console.error('Error updating submission:', error);
+      console.error('💥 Error updating submission:', error);
     } finally {
       setProcessing(prev => {
         const newSet = new Set(prev);

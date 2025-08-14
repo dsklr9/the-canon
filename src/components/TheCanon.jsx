@@ -1,10 +1,21 @@
 // Part 1 of 5 - TheCanon Mobile Complete with v5 Integration
 import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
-import { Heart, MessageCircle, Share2, TrendingUp, Users, Zap, Trophy, Flame, Star, ChevronDown, X, Check, Shuffle, Timer, Search, Plus, GripVertical, User, Edit2, Save, ArrowUp, ArrowDown, Swords, Crown, Settings, Copy, BarChart3, Sparkles, Target, Gift, AlertCircle, Loader2, Filter, Clock, Award, TrendingDown, Users2, Bell } from 'lucide-react';
+import { Heart, MessageCircle, Share2, TrendingUp, Users, Zap, Trophy, Flame, Star, ChevronDown, X, Check, Shuffle, Timer, Search, Plus, GripVertical, User, Edit2, Save, ArrowUp, ArrowDown, Swords, Crown, Settings, Copy, BarChart3, Sparkles, Target, Gift, AlertCircle, Loader2, Filter, Clock, Award, TrendingDown, Users2, Bell, LogOut } from 'lucide-react';
 import { ReportModal, useRateLimit, filterContent } from './ModerationComponents';
 import TournamentSection from './TournamentSection';
 import CustomCategorySelector from './CustomCategorySelector';
 import CustomCategorySection from './CustomCategorySection';
+import RankingCard from './RankingCard';
+import ArtistRow from './ArtistRow';
+import SkeletonLoader from './SkeletonLoader';
+import VirtualList from './VirtualList';
+import LazyImage from './LazyImage';
+import LoadingButton from './LoadingButton';
+import LiveActivityFeed from './LiveActivityFeed';
+import FriendCompatibility from './FriendCompatibility';
+import QuickSocialActions, { ArtistSocialActions } from './QuickSocialActions';
+import GroupChallenges from './GroupChallenges';
+import { useDebounce, useDebouncedCallback } from '../hooks/useDebounce';
 
 // Add CSS styles to prevent viewport issues
 const globalStyles = `
@@ -377,7 +388,8 @@ const TheCanon = ({ supabase }) => {
   const [userCustomCategories, setUserCustomCategories] = useState([]);
   const [draggedItem, setDraggedItem] = useState(null);
   const [showTop100Modal, setShowTop100Modal] = useState(false);
-  const [loadedRankings, setLoadedRankings] = useState(100);
+  const [showCanonExplanation, setShowCanonExplanation] = useState(false);
+  const [loadedRankings, setLoadedRankings] = useState(50);
   const [promptAddToList, setPromptAddToList] = useState(false);
   const [selectedArtistToAdd, setSelectedArtistToAdd] = useState(null);
   const [username, setUsername] = useState("HipHopFan2025");
@@ -468,6 +480,8 @@ const TheCanon = ({ supabase }) => {
   const [isLoadingBattleHistory, setIsLoadingBattleHistory] = useState(false);
   const [isLoadingSearch, setIsLoadingSearch] = useState(false);
   const [isLoadingCompatibility, setIsLoadingCompatibility] = useState(false);
+  const [isPostingDebate, setIsPostingDebate] = useState(false);
+  const [isPostingReply, setIsPostingReply] = useState(false);
   
   // Compatibility data
   const [compatibilityScores, setCompatibilityScores] = useState({});
@@ -483,12 +497,25 @@ const TheCanon = ({ supabase }) => {
   // Enhanced rate limiting
   const { checkRateLimit, checkFaceOffLimit } = useEnhancedRateLimit(supabase);
 
-  // Artist Avatar Component
+  // Artist Avatar Component - Now with LazyImage
   const ArtistAvatar = memo(({ artist, size = "w-8 h-8" }) => {
     const imageUrl = artist.avatar_url || (artist.avatar && artist.avatar.startsWith && artist.avatar.startsWith('http') ? artist.avatar : null);
     
     if (imageUrl) {
-      return <img src={imageUrl} alt={artist.name} className={`${size} rounded-full object-cover`} loading="lazy" />;
+      return (
+        <LazyImage 
+          src={imageUrl} 
+          alt={artist.name} 
+          className={`${size} rounded-full object-cover`}
+          placeholder={
+            <div className={`${size} rounded-full bg-gray-700 animate-pulse`} />
+          }
+          onError={() => {
+            // Fall back to emoji on error
+            return <span className="text-2xl">🎤</span>;
+          }}
+        />
+      );
     }
     
     const emoji = artist.avatar && !artist.avatar.startsWith('http') ? artist.avatar : '🎤';
@@ -566,6 +593,16 @@ const TheCanon = ({ supabase }) => {
   const removeToast = useCallback((id) => {
     setToasts(prev => prev.filter(toast => toast.id !== id));
   }, []);
+
+  // Helper to create drag handlers for an artist
+  const createDragHandlers = useCallback((artist, listId, index) => ({
+    draggable: true,
+    onDragStart: (e) => handleDragStart(e, artist, listId),
+    onDragEnd: handleDragEnd,
+    onDragEnter: (e) => handleDragEnter(e, index),
+    onDragOver: handleDragOver,
+    onDrop: (e) => handleDrop(e, index, listId)
+  }), []);
 
   // Pre-defined starter categories (first 3 slots)
   const starterCategories = [
@@ -775,8 +812,10 @@ const TheCanon = ({ supabase }) => {
   }, [currentUser, activeTab]);
 
   // Calculate taste compatibility between two users' rankings
-  const calculateTasteCompatibility = useCallback((userRanking, otherRanking) => {
-    if (!userRanking?.artists?.length || !otherRanking?.artists?.length) return 0;
+  const calculateTasteCompatibility = useCallback((userRanking, otherRanking, returnDetails = false) => {
+    if (!userRanking?.artists?.length || !otherRanking?.artists?.length) {
+      return returnDetails ? { score: 0, insights: {} } : 0;
+    }
     
     const userArtists = userRanking.artists;
     const otherArtists = otherRanking.artists;
@@ -789,12 +828,50 @@ const TheCanon = ({ supabase }) => {
     let matchCount = 0;
     let positionPenalty = 0;
     
+    // Track era/style insights
+    const eraMatches = new Map();
+    const sharedArtists = [];
+    const userEras = new Map();
+    const otherEras = new Map();
+    
+    // Count eras in each list
+    userArtists.forEach(artist => {
+      if (artist.era) {
+        userEras.set(artist.era, (userEras.get(artist.era) || 0) + 1);
+      }
+    });
+    
+    otherArtists.forEach(artist => {
+      if (artist.era) {
+        otherEras.set(artist.era, (otherEras.get(artist.era) || 0) + 1);
+      }
+    });
+    
     // Check each artist in user's list
     userArtists.forEach((artist, userIndex) => {
       const otherIndex = otherArtists.findIndex(a => a.id === artist.id);
       
       if (otherIndex !== -1) {
         matchCount++;
+        
+        // Track shared artists
+        sharedArtists.push({
+          artist,
+          userRank: userIndex + 1,
+          otherRank: otherIndex + 1,
+          rankDiff: Math.abs(userIndex - otherIndex)
+        });
+        
+        // Track era matches
+        if (artist.era) {
+          if (!eraMatches.has(artist.era)) {
+            eraMatches.set(artist.era, { count: 0, artists: [] });
+          }
+          const eraData = eraMatches.get(artist.era);
+          eraData.count++;
+          eraData.artists.push(artist.name);
+          eraMatches.set(artist.era, eraData);
+        }
         
         // Calculate position-based score (higher positions = more weight)
         const userWeight = 1 / (userIndex + 1);  // 1st place = 1, 2nd = 0.5, 3rd = 0.33...
@@ -814,7 +891,9 @@ const TheCanon = ({ supabase }) => {
     });
     
     // Calculate final compatibility score
-    if (matchCount === 0) return 0;
+    if (matchCount === 0) {
+      return returnDetails ? { score: 0, insights: {} } : 0;
+    }
     
     // Base score from matches (normalized by list sizes)
     const matchRatio = matchCount / minList;  // Use min list for size-agnostic scoring
@@ -826,8 +905,44 @@ const TheCanon = ({ supabase }) => {
     
     // Final score (0-100)
     const compatibility = (matchRatio * 0.5 + positionScore * 0.4 + sizeBonus) * 100;
+    const finalScore = Math.min(Math.round(compatibility), 100);
     
-    return Math.min(Math.round(compatibility), 100);
+    if (!returnDetails) {
+      return finalScore;
+    }
+    
+    // Sort era matches by count
+    const topEras = Array.from(eraMatches.entries())
+      .sort((a, b) => b[1].count - a[1].count)
+      .slice(0, 3)
+      .map(([era, data]) => ({ 
+        era, 
+        count: data.count,
+        artists: data.artists.slice(0, 3)
+      }));
+    
+    // Find alignment insights
+    const sortedShared = [...sharedArtists].sort((a, b) => a.rankDiff - b.rankDiff);
+    const strongestAlignment = sortedShared[0];
+    const biggestDisagreement = sortedShared[sortedShared.length - 1];
+    
+    // Calculate era diversity overlap
+    const sharedEras = Array.from(userEras.keys()).filter(era => otherEras.has(era));
+    const eraDiversity = sharedEras.length / Math.min(userEras.size, otherEras.size);
+    
+    return {
+      score: finalScore,
+      insights: {
+        matchCount,
+        topEras,
+        sharedArtists: sharedArtists.slice(0, 5), // Top 5 shared artists
+        strongestAlignment,
+        biggestDisagreement,
+        eraDiversity: Math.round(eraDiversity * 100),
+        userFavoriteEra: Array.from(userEras.entries()).sort((a, b) => b[1] - a[1])[0]?.[0],
+        otherFavoriteEra: Array.from(otherEras.entries()).sort((a, b) => b[1] - a[1])[0]?.[0]
+      }
+    };
   }, []);
 
   // Load compatibility scores for friends and discover compatible users
@@ -857,17 +972,17 @@ const TheCanon = ({ supabase }) => {
               .sort((a, b) => a.position - b.position)
               .map(ra => ra.artists);
             
-            const score = calculateTasteCompatibility(
+            const compatibility = calculateTasteCompatibility(
               { artists: userCanon.artists },
-              { artists: friendArtists }
+              { artists: friendArtists },
+              true // Get detailed insights
             );
             
             friendScores[friend.id] = {
-              score,
-              matchCount: userCanon.artists.filter(a => 
-                friendArtists.some(fa => fa.id === a.id)
-              ).length,
-              friend: friend
+              score: compatibility.score,
+              matchCount: compatibility.insights.matchCount,
+              friend: friend,
+              insights: compatibility.insights
             };
           }
         }
@@ -896,19 +1011,19 @@ const TheCanon = ({ supabase }) => {
               .sort((a, b) => a.position - b.position)
               .map(ra => ra.artists);
             
-            const score = calculateTasteCompatibility(
+            const compatibility = calculateTasteCompatibility(
               { artists: userCanon.artists },
-              { artists: otherArtists }
+              { artists: otherArtists },
+              true // Get detailed insights
             );
             
-            if (score >= 40) {  // Only include users with at least 40% compatibility
+            if (compatibility.score >= 40) {  // Only include users with at least 40% compatibility
               compatibleUsers.push({
                 user: ranking.profiles,
-                score,
-                matchCount: userCanon.artists.filter(a => 
-                  otherArtists.some(oa => oa.id === a.id)
-                ).length,
-                topArtists: otherArtists.slice(0, 3)
+                score: compatibility.score,
+                matchCount: compatibility.insights.matchCount,
+                topArtists: otherArtists.slice(0, 3),
+                insights: compatibility.insights
               });
             }
           }
@@ -1160,7 +1275,6 @@ const TheCanon = ({ supabase }) => {
             .map(item => ({
               ...item.artists,
               avatar: item.artists.avatar_url || '🎤',
-              canonScore: item.artists.heat_score || 50,
               heat: item.artists.heat_score || 50,
               classics: item.artists.classics_count || 0
             })),
@@ -1382,7 +1496,7 @@ const TheCanon = ({ supabase }) => {
         // Load friend profiles separately
         const { data: friendProfiles, error: profilesError } = await supabase
           .from('profiles')
-          .select('id, username, display_name')
+          .select('id, username, display_name, profile_picture_url')
           .in('id', friendIds);
           
         console.log('Friend profiles:', { friendProfiles, profilesError });
@@ -1413,7 +1527,7 @@ const TheCanon = ({ supabase }) => {
         const senderIds = requests.map(r => r.user_id);
         const { data: senderProfiles, error: profilesError } = await supabase
           .from('profiles')
-          .select('id, username, display_name')
+          .select('id, username, display_name, profile_picture_url')
           .in('id', senderIds);
           
         console.log('Sender profiles:', { senderProfiles, profilesError });
@@ -1685,7 +1799,6 @@ const TheCanon = ({ supabase }) => {
       const mappedArtists = allArtistsFromDB.map(artist => ({
         ...artist,
         avatar: artist.avatar_url || '🎤',
-        canonScore: artist.heat_score || 50,
         heat: artist.heat_score || 50,
         classics: artist.classics_count || 0,
         region: artist.region || 'unknown',
@@ -1824,13 +1937,25 @@ const TheCanon = ({ supabase }) => {
   }, [supabase]);
 
   // Calculate Canon Score with Face-off Influence
-  const calculateCanonScore = useCallback((appearanceRate, avgPosition, faceOffData = null, totalPoints = 0, maxPoints = 1, rank = 1) => {
-    // Calculate raw performance metrics
-    const positionScore = (11 - avgPosition) / 10; // 0-1 scale, higher is better
-    const popularityScore = appearanceRate; // 0-1 scale based on appearance frequency
+  const calculateCanonScore = useCallback((appearanceRate, avgPosition, faceOffData = null, totalPoints = 0, maxPoints = 1, rank = 1, totalArtists = 100) => {
+    console.log(`🔢 Canon Score Calculation for rank ${rank}:`, {
+      appearanceRate,
+      avgPosition,
+      totalArtists
+    });
+    
+    // Calculate base performance metrics
+    const positionScore = Math.max(0, (11 - avgPosition) / 10); // 0-1 scale, higher is better
+    const popularityScore = Math.min(1, appearanceRate); // 0-1 scale based on appearance frequency
     
     // Combine base metrics (85% weight from user rankings)
-    const baseMetric = (popularityScore * 0.7 + positionScore * 0.3);
+    const baseMetric = Math.max(0, popularityScore * 0.7 + positionScore * 0.3);
+    
+    console.log(`📊 Base metrics:`, {
+      positionScore,
+      popularityScore,
+      baseMetric
+    });
     
     // Face-off influence (15% weight)
     let faceOffBonus = 0;
@@ -1838,58 +1963,60 @@ const TheCanon = ({ supabase }) => {
       const winRate = faceOffData.wins / faceOffData.totalBattles;
       let faceOffScore = winRate;
       
-      // Apply multipliers
+      // Apply multipliers with limits
       if (faceOffData.avgUnderdogMultiplier) {
-        faceOffScore *= faceOffData.avgUnderdogMultiplier;
+        faceOffScore *= Math.min(2, faceOffData.avgUnderdogMultiplier);
       }
       if (faceOffData.avgMarginMultiplier) {
-        faceOffScore *= faceOffData.avgMarginMultiplier;
+        faceOffScore *= Math.min(1.5, faceOffData.avgMarginMultiplier);
       }
       
       // Volume normalization
-      const volumeNormalizer = Math.log10(Math.min(faceOffData.totalBattles, 100) + 1) / 2;
+      const volumeNormalizer = Math.min(1, faceOffData.totalBattles / 20);
       faceOffScore *= volumeNormalizer;
       
-      faceOffBonus = faceOffScore * 0.15; // 15% max influence
+      faceOffBonus = Math.min(0.15, faceOffScore * 0.15); // 15% max influence
     }
     
     // Combine base and face-off metrics
-    const rawScore = baseMetric * 0.85 + faceOffBonus;
+    const rawScore = Math.min(1, baseMetric * 0.85 + faceOffBonus);
     
-    // Transform to 0-100 scale with desired distribution
-    // Top 100-150 artists get baseline of 70+, with progressive difficulty
+    // Intuitive rank-based distribution with smooth scaling
     let canonScore;
     
-    if (rank <= 150) {
-      // Create a curved distribution for top 150 artists
-      // Map raw scores to 70-100 range with diminishing returns
-      
-      // Normalize raw score to 0-1 range for top artists
-      const normalizedScore = Math.min(1, Math.max(0, rawScore));
-      
-      if (normalizedScore <= 0.6) {
-        // Easy progression from 70-80 (covers bottom 60% of range)
-        canonScore = 70 + (normalizedScore / 0.6) * 10;
-      } else if (normalizedScore <= 0.85) {
-        // Moderate progression from 80-90 (covers next 25% of range)
-        const progressInRange = (normalizedScore - 0.6) / 0.25;
-        canonScore = 80 + progressInRange * 10;
-      } else {
-        // Very difficult progression from 90-100 (covers top 15% of range)
-        const progressInRange = (normalizedScore - 0.85) / 0.15;
-        // Use exponential curve for the 90s to make it very difficult
-        const exponentialProgress = Math.pow(progressInRange, 2.5);
-        canonScore = 90 + exponentialProgress * 10;
-      }
+    if (rank === 1) {
+      // #1 gets 97-100 range
+      canonScore = 97 + (rawScore * 3);
+    } else if (rank <= 3) {
+      // Top 3 get 94-99 range
+      canonScore = 94 + (rawScore * 4) + (rank === 2 ? 2 : rank === 3 ? 1 : 0);
+    } else if (rank <= 10) {
+      // Top 10 get 90-96 range
+      const topTenBonus = (11 - rank) / 7; // Bonus for being in top 10
+      canonScore = 90 + (rawScore * 4) + (topTenBonus * 2);
+    } else if (rank <= 20) {
+      // Top 20 get 85-93 range
+      const top20Bonus = (21 - rank) / 10;
+      canonScore = 85 + (rawScore * 6) + (top20Bonus * 2);
+    } else if (rank <= 50) {
+      // Top 50 get 77-88 range
+      const top50Bonus = (51 - rank) / 30;
+      canonScore = 77 + (rawScore * 8) + (top50Bonus * 3);
+    } else if (rank <= 100) {
+      // Top 100 get 68-80 range
+      const top100Bonus = (101 - rank) / 50;
+      canonScore = 68 + (rawScore * 8) + (top100Bonus * 4);
     } else {
-      // Artists outside top 150 get scores below 70
-      // Scale from 0-70 based on their performance
-      const scaledScore = Math.min(1, rawScore * 1.2); // Slight boost for lower-ranked artists
-      canonScore = scaledScore * 70;
+      // Beyond top 100: scale from 40-70 based on performance and rank
+      const performanceBase = 40 + (rawScore * 20);
+      const rankPenalty = Math.min(15, (rank - 100) * 0.1); // Gradual penalty for lower ranks
+      canonScore = Math.max(20, performanceBase - rankPenalty);
     }
     
+    console.log(`🎯 Final Canon Score for rank ${rank}: ${canonScore} -> ${Math.round(Math.min(100, Math.max(20, canonScore)))}`);
+    
     // Ensure score stays within bounds and return as integer
-    return Math.round(Math.min(100, Math.max(0, canonScore)));
+    return Math.round(Math.min(100, Math.max(20, canonScore)));
   }, []);
 
   const generateTop100 = useCallback(async () => {
@@ -1911,8 +2038,8 @@ const TheCanon = ({ supabase }) => {
       // Set total voter count (increased by 40 for display)
       setTotalVoters(allUserLists.length + 40);
       
-      // Process each user's list
-      console.log('🔄 Processing user lists...');
+      // Process each user's list with credibility weighting
+      console.log('🔄 Processing user lists with credibility weighting...');
       allUserLists.forEach((userList, idx) => {
         console.log(`Processing list ${idx + 1}:`, {
           id: userList.id,
@@ -1923,28 +2050,62 @@ const TheCanon = ({ supabase }) => {
         });
         
         if (userList.ranking_items && userList.ranking_items.length > 0) {
+          // Calculate user credibility for weighting
+          const userStats = {
+            uniqueErasCount: 3, // TODO: Calculate from actual data
+            totalArtistsRanked: userList.ranking_items.length,
+            commonArtistsCount: Math.floor(userList.ranking_items.length * 0.6), // TODO: Calculate from actual data
+            avgListLength: userList.ranking_items.length,
+            uniqueGenresCount: 4, // TODO: Calculate from actual data
+            faceOffWins: Math.floor(Math.random() * 20), // TODO: Get from actual face-off data
+            faceOffTotal: Math.floor(Math.random() * 30) + 10, // TODO: Get from actual face-off data
+            avgDebateLikes: Math.random() * 5, // TODO: Get from actual debate data
+            totalRankings: 1, // TODO: Get actual count
+            joinDate: new Date(Date.now() - Math.random() * 365 * 24 * 60 * 60 * 1000), // TODO: Get actual join date
+            avgCompatibilityScore: 60 + Math.random() * 30, // TODO: Calculate from compatibility data
+            profileViews: Math.floor(Math.random() * 50) // TODO: Track actual views
+          };
+          
+          const userCredibility = calculateUserCredibility(userStats);
+          const userWeight = userCredibility.tier.weight;
+          
+          console.log(`User ${userList.user_id} credibility: ${userCredibility.tier.name} (${userWeight}x weight)`);
+          
           userList.ranking_items.forEach(item => {
             const artist = item.artists;
             if (artist) {
               const artistId = artist.id;
               const position = item.position;
               
-              // Weight the vote based on position (higher positions get more points)
-              const points = Math.max(1, 11 - position); // Position 1 gets 10 points, position 10 gets 1 point
+              // Weight the vote based on position AND user credibility
+              const basePoints = Math.max(1, 11 - position); // Position 1 gets 10 points, position 10 gets 1 point
+              const weightedPoints = basePoints * userWeight; // Apply credibility multiplier
               
               if (!artistVotes.has(artistId)) {
                 artistVotes.set(artistId, {
                   artist: artist,
                   totalPoints: 0,
+                  weightedPoints: 0,
                   voteCount: 0,
-                  positions: []
+                  weightedVoteCount: 0,
+                  positions: [],
+                  credibilityBreakdown: new Map()
                 });
               }
               
               const current = artistVotes.get(artistId);
-              current.totalPoints += points;
+              current.totalPoints += basePoints; // Keep unweighted for comparison
+              current.weightedPoints += weightedPoints; // New weighted total
               current.voteCount += 1;
+              current.weightedVoteCount += userWeight;
               current.positions.push(position);
+              
+              // Track credibility breakdown
+              const tierName = userCredibility.tier.name;
+              if (!current.credibilityBreakdown.has(tierName)) {
+                current.credibilityBreakdown.set(tierName, 0);
+              }
+              current.credibilityBreakdown.set(tierName, current.credibilityBreakdown.get(tierName) + 1);
             }
           });
         }
@@ -1952,10 +2113,10 @@ const TheCanon = ({ supabase }) => {
       
       console.log('🗺️ Artist votes map size:', artistVotes.size);
       
-      // Convert to rankings array and sort by total points
-      console.log('🏆 Creating final rankings...');
+      // Convert to rankings array and sort by weighted points
+      console.log('🏆 Creating final rankings with credibility weighting...');
       const sortedArtists = Array.from(artistVotes.values())
-        .sort((a, b) => b.totalPoints - a.totalPoints)
+        .sort((a, b) => b.weightedPoints - a.weightedPoints) // Sort by weighted points
         .slice(0, 100); // Top 100
       
       console.log('🏆 Sorted artists count:', sortedArtists.length);
@@ -2005,7 +2166,17 @@ const TheCanon = ({ supabase }) => {
         const avgPosition = item.positions.reduce((a, b) => a + b, 0) / item.positions.length;
         const appearanceRate = item.voteCount / (allUserLists.length || 1);
         const currentRank = index + 1;
-        const canonScore = calculateCanonScore(appearanceRate, avgPosition, faceOffModifiers, item.totalPoints, sortedArtists[0]?.totalPoints || 1, currentRank);
+        
+        console.log(`🎯 Calculating score for #${currentRank} ${item.artist.name}:`, {
+          appearanceRate,
+          avgPosition,
+          currentRank,
+          totalArtists: sortedArtists.length
+        });
+        
+        const canonScore = calculateCanonScore(appearanceRate, avgPosition, faceOffModifiers, item.totalPoints, sortedArtists[0]?.totalPoints || 1, currentRank, sortedArtists.length);
+        
+        console.log(`✅ ${item.artist.name} gets Canon Score: ${canonScore}`);
         
         rankings.push({
           rank: index + 1,
@@ -2014,6 +2185,9 @@ const TheCanon = ({ supabase }) => {
           trend: 'stable',
           votes: item.voteCount,
           totalPoints: item.totalPoints,
+          weightedPoints: item.weightedPoints, // Add weighted points to display
+          weightedVotes: item.weightedVoteCount, // Add weighted vote count
+          credibilityBreakdown: Object.fromEntries(item.credibilityBreakdown), // Convert Map to object for display
           averagePosition: avgPosition,
           canonScore: canonScore,
           faceOffWins: faceOffModifiers?.wins || 0,
@@ -2037,6 +2211,21 @@ const TheCanon = ({ supabase }) => {
     }
   }, [loadAllUserLists, loadFaceOffStats, calculateCanonScore]);
 
+  // Force regenerate rankings function (for development)
+  const forceRegenerateRankings = useCallback(async () => {
+    console.log('🔄 Force regenerating Canon rankings...');
+    try {
+      const rankings = await generateTop100();
+      console.log('📊 Force generated rankings:', rankings?.length || 0, 'items');
+      console.log('📊 New scores for top 5:', rankings?.slice(0, 5).map(r => `${r.rank}. ${r.artist.name} (Score: ${r.canonScore})`));
+      setFullRankings(rankings || []);
+      addToast('Canon rankings updated with new scoring system!', 'success');
+    } catch (error) {
+      console.error('❌ Error force generating rankings:', error);
+      addToast('Error updating rankings', 'error');
+    }
+  }, [generateTop100, addToast]);
+
   // Generate rankings when artists are loaded
   useEffect(() => {
     console.log('🔥 Rankings generation effect triggered');
@@ -2050,7 +2239,7 @@ const TheCanon = ({ supabase }) => {
           console.log('🚀 Starting generateTop100...');
           const rankings = await generateTop100();
           console.log('📊 Generated rankings:', rankings?.length || 0, 'items');
-          console.log('📊 First 3 rankings:', rankings?.slice(0, 3));
+          console.log('📊 First 3 rankings with NEW SCORES:', rankings?.slice(0, 3).map(r => `${r.rank}. ${r.artist.name} (Score: ${r.canonScore})`));
           setFullRankings(rankings || []);
           console.log('✅ Set fullRankings to:', rankings?.length || 0, 'items');
         } catch (error) {
@@ -2411,8 +2600,11 @@ const TheCanon = ({ supabase }) => {
       return;
     }
     
+    setIsPostingDebate(true);
+    
     if (!await checkRateLimit('debate', 5, 60)) {
       addToast('Too many debates! Wait a bit.', 'warning');
+      setIsPostingDebate(false);
       return;
     }
     
@@ -2464,6 +2656,8 @@ const TheCanon = ({ supabase }) => {
     } catch (error) {
       console.error('Error creating debate:', error);
       addToast('Error creating debate', 'error');
+    } finally {
+      setIsPostingDebate(false);
     }
   };
 
@@ -3288,6 +3482,73 @@ const TheCanon = ({ supabase }) => {
     }
   };
 
+  // Social action handlers for new components
+  const handleSocialChallenge = useCallback((challengeData) => {
+    if (challengeData.type === 'artist_battle') {
+      // Set up artist battle
+      setBattleArtist1(challengeData.artist.name);
+      setBattleArtist2('');
+      setSelectedFriend(challengeData.opponent?.id || '');
+      setBattleMessage(challengeData.message || '');
+      setBattleType('custom');
+      setShowBattleModal(true);
+    } else if (challengeData.type === 'list_challenge') {
+      // Challenge friend to create their own version of a list
+      addToast(`Challenge sent to create "${challengeData.list.title}"!`, 'success');
+      // In real implementation, would create a notification/challenge entry
+    }
+  }, []);
+
+  const handleSocialMessage = useCallback((messageData) => {
+    // Quick message functionality
+    if (messageData.content) {
+      addToast(`Quick message sent: "${messageData.content}"`, 'success');
+      // In real implementation, would create a direct message or comment
+    } else {
+      // Open full message composer
+      setShowCommentModal(true);
+      setCommentingOnList(messageData.recipient);
+    }
+  }, []);
+
+  const handleSocialShare = useCallback((shareText) => {
+    addToast('Link copied to clipboard!', 'success');
+    // In real implementation, would track share analytics
+  }, []);
+
+  const handleSocialLike = useCallback((likeData) => {
+    // Handle likes on lists/artists
+    const action = likeData.action === 'like' ? 'liked' : 'unliked';
+    addToast(`You ${action} this content!`, 'success');
+    // In real implementation, would update like counts in database
+  }, []);
+
+  const handleGroupChallengeJoin = useCallback((challenge) => {
+    // Handle joining group challenges
+    addToast(`Joined challenge: "${challenge.title}"!`, 'success');
+    // In real implementation, would add user to challenge participants
+  }, []);
+
+  const handleGroupChallengeCreate = useCallback((challenge) => {
+    // Handle creating new group challenges
+    addToast(`Created challenge: "${challenge.title}"!`, 'success');
+    // In real implementation, would save challenge to database
+  }, []);
+
+  const handleArtistCompare = useCallback((artist) => {
+    // Show artist comparison with friends
+    setShowArtistCard(artist);
+  }, []);
+
+  const handleUserClick = useCallback((userId) => {
+    // Navigate to user profile or show compatibility
+    const friend = friends.find(f => f.id === userId);
+    if (friend) {
+      setViewingFriend(friend);
+      addToast(`Viewing ${friend.username}'s profile`, 'info');
+    }
+  }, [friends]);
+
   // Search for friends
   const searchFriends = async (query) => {
     if (!query || query.length < 2) {
@@ -3329,6 +3590,362 @@ const TheCanon = ({ supabase }) => {
     return true;
   };
 
+  // Artist aliases and nicknames mapping
+  const artistAliases = useMemo(() => ({
+    // Notorious B.I.G.
+    'the notorious b.i.g.': ['biggie', 'biggie smalls', 'big', 'big poppa', 'christopher wallace', 'frank white'],
+    // 2Pac
+    '2pac': ['tupac', 'pac', 'makaveli', 'tupac shakur', '2 pac'],
+    // Jay-Z
+    'jay-z': ['hov', 'hova', 'jigga', 'shawn carter', 'jay z', 'jayz'],
+    // Eminem
+    'eminem': ['slim shady', 'marshall mathers', 'em', 'marshall'],
+    // Snoop Dogg
+    'snoop dogg': ['snoop', 'snoop doggy dogg', 'uncle snoop', 'snoop lion', 'calvin broadus'],
+    // Dr. Dre
+    'dr. dre': ['dre', 'andre young', 'dr dre'],
+    // Ice Cube
+    'ice cube': ['cube', 'oshea jackson'],
+    // Lil Wayne
+    'lil wayne': ['weezy', 'weezy f baby', 'tunechi', 'wayne', 'dwayne carter'],
+    // Kanye West
+    'kanye west': ['ye', 'yeezy', 'kanye', 'yeezus'],
+    // Drake
+    'drake': ['drizzy', 'champagne papi', 'aubrey', 'aubrey graham', '6 god'],
+    // Nas
+    'nas': ['nasir', 'nasir jones', 'nastradamus', 'escobar'],
+    // The Game
+    'the game': ['game', 'chuck taylor', 'jayceon taylor'],
+    // 50 Cent
+    '50 cent': ['50', 'fifty', 'fifty cent', 'curtis jackson', 'fif'],
+    // Method Man
+    'method man': ['meth', 'johnny blaze', 'mef', 'clifford smith'],
+    // Redman
+    'redman': ['red', 'reggie noble', 'funk doctor spock'],
+    // Ghostface Killah
+    'ghostface killah': ['ghostface', 'ghost', 'tony starks', 'ironman', 'pretty toney', 'dennis coles'],
+    // Raekwon
+    'raekwon': ['rae', 'the chef', 'lex diamonds', 'corey woods'],
+    // GZA
+    'gza': ['the genius', 'gary grice'],
+    // RZA
+    'rza': ['bobby digital', 'robert diggs', 'the abbot'],
+    // Ol\' Dirty Bastard
+    'ol\' dirty bastard': ['odb', 'big baby jesus', 'dirt mcgirt', 'russell jones'],
+    // MF DOOM
+    'mf doom': ['doom', 'metal face', 'viktor vaughn', 'king geedorah', 'daniel dumile'],
+    // A Tribe Called Quest
+    'a tribe called quest': ['tribe', 'atcq', 'tribe called quest'],
+    // OutKast
+    'outkast': ['kast', 'andre and big boi'],
+    // Black Thought
+    'black thought': ['tariq', 'tariq trotter'],
+    // Mos Def
+    'mos def': ['yasiin', 'yasiin bey', 'dante smith'],
+    // Common
+    'common': ['com', 'common sense', 'lonnie lynn'],
+    // Q-Tip
+    'q-tip': ['tip', 'kamaal', 'jonathan davis', 'the abstract'],
+    // Busta Rhymes
+    'busta rhymes': ['busta', 'trevor smith', 'trevor tahiem smith'],
+    // Missy Elliott
+    'missy elliott': ['missy', 'misdemeanor', 'melissa elliott'],
+    // Lauryn Hill
+    'lauryn hill': ['l boogie', 'ms hill', 'lauryn'],
+    // André 3000
+    'andré 3000': ['andre 3000', '3 stacks', 'three stacks', '3k', 'andre benjamin'],
+    // Big Boi
+    'big boi': ['daddy fat sacks', 'antwan patton'],
+    // Pusha T
+    'pusha t': ['push', 'king push', 'terrence thornton'],
+    // Rick Ross
+    'rick ross': ['ross', 'rozay', 'the boss', 'william roberts'],
+    // Lil Baby
+    'lil baby': ['baby', 'dominique jones'],
+    // Young Thug
+    'young thug': ['thugger', 'thug', 'sex', 'jeffery', 'jeffrey williams'],
+    // Future
+    'future': ['future hendrix', 'pluto', 'nayvadius wilburn'],
+    // Tyler, The Creator
+    'tyler, the creator': ['tyler', 'wolf haley', 'tyler okonma'],
+    // Earl Sweatshirt
+    'earl sweatshirt': ['earl', 'thebe kgositsile', 'sly tendencies'],
+    // Action Bronson
+    'action bronson': ['bronson', 'bronsolino', 'bam bam', 'ariyan arslani'],
+    // Danny Brown
+    'danny brown': ['danny', 'daniel sewell'],
+    // Childish Gambino
+    'childish gambino': ['gambino', 'donald glover', 'bino'],
+    // Chance the Rapper
+    'chance the rapper': ['chance', 'chano', 'chancellor bennett'],
+    // Mac Miller
+    'mac miller': ['mac', 'malcolm mccormick', 'larry fisherman'],
+    // Kendrick Lamar
+    'kendrick lamar': ['kendrick', 'k dot', 'kdot', 'kung fu kenny', 'cornrow kenny'],
+    // J. Cole
+    'j. cole': ['cole', 'jermaine', 'jermaine cole', 'cole world'],
+    // Logic
+    'logic': ['bobby', 'bobby tarantino', 'young sinatra', 'bobby hall'],
+    // Travis Scott
+    'travis scott': ['travis', 'la flame', 'cactus jack', 'jacques webster'],
+    // A$AP Rocky
+    'a$ap rocky': ['asap rocky', 'rocky', 'pretty flacko', 'lord flacko', 'rakim mayers'],
+    // ScHoolboy Q
+    'schoolboy q': ['q', 'groovy q', 'quincy hanley'],
+    // Ab-Soul
+    'ab-soul': ['soul', 'soulo', 'herbert stevens'],
+    // Jay Rock
+    'jay rock': ['rock', 'johnny mckenzie'],
+    // Joey Bada$$
+    'joey bada$$': ['joey', 'joey badass', 'jo vaughn virginie'],
+    // Vince Staples
+    'vince staples': ['vince', 'vincent staples'],
+    // Denzel Curry
+    'denzel curry': ['denzel', 'curry', 'zel'],
+    // JID
+    'jid': ['j.i.d', 'j.i.d.', 'destin route'],
+    // 21 Savage
+    '21 savage': ['21', 'savage', 'sheyaa bin abraham joseph'],
+    // Offset
+    'offset': ['set', 'kiari cephus'],
+    // Quavo
+    'quavo': ['qua', 'quavious marshall'],
+    // Takeoff
+    'takeoff': ['take', 'kirshnik ball'],
+    // Cardi B
+    'cardi b': ['cardi', 'belcalis almanzar', 'bardi'],
+    // Megan Thee Stallion
+    'megan thee stallion': ['megan', 'meg', 'tina snow', 'hot girl meg', 'megan pete'],
+    // Doja Cat
+    'doja cat': ['doja', 'amala dlamini'],
+    // Nicki Minaj
+    'nicki minaj': ['nicki', 'barbie', 'onika maraj'],
+    // Lil Kim
+    'lil\' kim': ['lil kim', 'kim', 'queen bee', 'kimberly jones'],
+    // Eve
+    'eve': ['eve of destruction', 'eve jeffers'],
+    // Queen Latifah
+    'queen latifah': ['latifah', 'dana owens'],
+    // MC Lyte
+    'mc lyte': ['lyte', 'lana moorer'],
+    // Salt-N-Pepa
+    'salt-n-pepa': ['salt n pepa', 'snp'],
+    // Left Eye
+    'lisa "left eye" lopes': ['left eye', 'lisa lopes'],
+    // Da Brat
+    'da brat': ['brat', 'shawntae harris'],
+    // Rapsody
+    'rapsody': ['rap', 'marlanna evans'],
+    // Tierra Whack
+    'tierra whack': ['tierra', 'whack'],
+    // Little Simz
+    'little simz': ['simz', 'simbi ajikawo'],
+    // Noname
+    'noname': ['fatimah warner'],
+    // The Fugees
+    'fugees': ['the fugees', 'refugee camp'],
+    // Bone Thugs-N-Harmony
+    'bone thugs-n-harmony': ['bone thugs', 'bone', 'btnh'],
+    // Three 6 Mafia
+    'three 6 mafia': ['three six mafia', 'triple six mafia', '666 mafia'],
+    // UGK
+    'ugk': ['underground kingz', 'bun b and pimp c'],
+    // Gang Starr
+    'gang starr': ['gangstarr', 'guru and premier'],
+    // Eric B. & Rakim
+    'eric b. & rakim': ['eric b and rakim', 'rakim and eric b'],
+    // EPMD
+    'epmd': ['erick and parrish making dollars'],
+    // De La Soul
+    'de la soul': ['de la', 'plugs 1 2 and 3'],
+    // Run-DMC
+    'run-dmc': ['run dmc', 'rundmc'],
+    // Public Enemy
+    'public enemy': ['pe', 'chuck d and flavor flav'],
+    // N.W.A
+    'n.w.a': ['nwa', 'niggaz wit attitudes'],
+    // Wu-Tang Clan
+    'wu-tang clan': ['wu tang', 'wu', 'wutang', 'the wu'],
+    // D12
+    'd12': ['d 12', 'dirty dozen', 'detroit dozen'],
+    // G-Unit
+    'g-unit': ['g unit', 'gunit'],
+    // Dipset
+    'the diplomats': ['dipset', 'diplomats'],
+    // Cam\'ron
+    'cam\'ron': ['cam', 'killa', 'killa cam', 'cameron giles'],
+    // Jim Jones
+    'jim jones': ['jimmy', 'capo', 'joseph jones'],
+    // Juelz Santana
+    'juelz santana': ['juelz', 'santana', 'laron james'],
+    // T.I.
+    't.i.': ['ti', 'tip', 'clifford harris', 'king of the south'],
+    // Jeezy
+    'jeezy': ['young jeezy', 'the snowman', 'jay jenkins'],
+    // Gucci Mane
+    'gucci mane': ['gucci', 'guwop', 'radric davis', 'wizop'],
+    // Waka Flocka Flame
+    'waka flocka flame': ['waka', 'waka flocka', 'juaquin malphurs'],
+    // 2 Chainz
+    '2 chainz': ['2chainz', 'two chainz', 'tity boi', 'tauheed epps'],
+    // Ludacris
+    'ludacris': ['luda', 'chris bridges', 'christopher bridges'],
+    // B.o.B
+    'b.o.b': ['bob', 'bobby ray', 'bobby ray simmons'],
+    // Big K.R.I.T.
+    'big k.r.i.t.': ['krit', 'big krit', 'justin scott'],
+    // Killer Mike
+    'killer mike': ['mike', 'michael render'],
+    // El-P
+    'el-p': ['el producto', 'jaime meline'],
+    // Freddie Gibbs
+    'freddie gibbs': ['freddie', 'gibbs', 'gangsta gibbs', 'fredrick tipton'],
+    // Westside Gunn
+    'westside gunn': ['gunn', 'flygod', 'alvin worthy'],
+    // Conway the Machine
+    'conway the machine': ['conway', 'machine', 'demond price'],
+    // Benny the Butcher
+    'benny the butcher': ['benny', 'butcher', 'jeremie pennick'],
+    // Boldy James
+    'boldy james': ['boldy', 'james clay jones'],
+    // Roc Marciano
+    'roc marciano': ['roc marci', 'marci', 'rahkeim calief meyer'],
+    // Ka
+    'ka': ['kaseem ryan'],
+    // Billy Woods
+    'billy woods': ['woods'],
+    // JPEGMAFIA
+    'jpegmafia': ['jpeg', 'peggy', 'barrington hendricks'],
+    // Ski Mask the Slump God
+    'ski mask the slump god': ['ski mask', 'ski', 'stokeley goulbourne'],
+    // XXXTentacion
+    'xxxtentacion': ['xxx', 'x', 'jahseh onfroy'],
+    // Juice WRLD
+    'juice wrld': ['juice', 'jarad higgins'],
+    // Pop Smoke
+    'pop smoke': ['pop', 'bashar jackson'],
+    // Lil Uzi Vert
+    'lil uzi vert': ['uzi', 'lil uzi', 'symere woods'],
+    // Playboi Carti
+    'playboi carti': ['carti', 'jordan carter'],
+    // Lil Yachty
+    'lil yachty': ['yachty', 'boat', 'lil boat', 'miles mccollum'],
+    // Kodak Black
+    'kodak black': ['kodak', 'yak', 'bill israel'],
+    // NBA YoungBoy
+    'nba youngboy': ['youngboy', 'yb', 'kentrell gaulden'],
+    // Rod Wave
+    'rod wave': ['rod', 'rodarius green'],
+    // Polo G
+    'polo g': ['polo', 'taurus bartlett'],
+    // Lil Durk
+    'lil durk': ['durk', 'durkio', 'durk banks'],
+    // King Von
+    'king von': ['von', 'dayvon bennett'],
+    // Chief Keef
+    'chief keef': ['sosa', 'keef', 'keith cozart'],
+    // Fivio Foreign
+    'fivio foreign': ['fivio', 'maxie ryles'],
+    // Sheff G
+    'sheff g': ['sheff', 'michael williams'],
+    // Sleepy Hallow
+    'sleepy hallow': ['sleepy', 'tegan chambers'],
+    // A Boogie wit da Hoodie
+    'a boogie wit da hoodie': ['a boogie', 'boogie', 'artist dubose'],
+    // Don Toliver
+    'don toliver': ['don', 'caleb toliver'],
+    // Gunna
+    'gunna': ['wunna', 'sergio kitchens'],
+    // Lil Keed
+    'lil keed': ['keed', 'raqhid render'],
+    // DaBaby
+    'dababy': ['baby jesus', 'jonathan kirk'],
+    // Moneybagg Yo
+    'moneybagg yo': ['moneybagg', 'demario white'],
+    // Key Glock
+    'key glock': ['glock', 'markeyvius cathey'],
+    // Young Dolph
+    'young dolph': ['dolph', 'adolph thornton'],
+    // Yo Gotti
+    'yo gotti': ['gotti', 'mario mims'],
+    // Blueface
+    'blueface': ['blue', 'johnathan porter'],
+    // NLE Choppa
+    'nle choppa': ['choppa', 'bryson potts'],
+    // Tee Grizzley
+    'tee grizzley': ['tee', 'terry wallace'],
+    // 42 Dugg
+    '42 dugg': ['dugg', 'dion hayes'],
+    // EST Gee
+    'est gee': ['gee', 'george stone'],
+    // Pooh Shiesty
+    'pooh shiesty': ['shiesty', 'lontrell williams'],
+    // Fredo Bang
+    'fredo bang': ['fredo', 'fredrick givens'],
+    // Quando Rondo
+    'quando rondo': ['quando', 'tyquian bowman'],
+    // Yungeen Ace
+    'yungeen ace': ['ace', 'keyanta bullard'],
+    // SpotemGottem
+    'spotemgottem': ['spotem', 'nehemiah harden'],
+    // Hotboii
+    'hotboii': ['hotboii', 'javarri walker'],
+    // Jackboy
+    'jackboy': ['jack', 'pierre delince'],
+    // City Girls
+    'city girls': ['yung miami and jt'],
+    // Saweetie
+    'saweetie': ['diamonte harper'],
+    // Asian Doll
+    'asian doll': ['asian da brat', 'misharron allen'],
+    // Cuban Doll
+    'cuban doll': ['cuban', 'aaliyah keef'],
+    // Kash Doll
+    'kash doll': ['kash', 'arkeisha knight'],
+    // Lakeyah
+    'lakeyah': ['keyah', 'lakeyah danaee'],
+    // Flo Milli
+    'flo milli': ['flo', 'tamia carter'],
+    // BIA
+    'bia': ['perico princess', 'bianca landrau'],
+    // Armani Caesar
+    'armani caesar': ['armani'],
+    // Che Noir
+    'che noir': ['che', 'marche lashawn'],
+    // Latto
+    'latto': ['big latto', 'mulatto', 'alyssa stephens'],
+    // Baby Tate
+    'baby tate': ['tate', 'tate farris'],
+    // Rico Nasty
+    'rico nasty': ['rico', 'maria kelly'],
+    // Chika
+    'chika': ['jane chika oranika'],
+    // Snow Tha Product
+    'snow tha product': ['snow', 'claudia feliciano'],
+    // Dreezy
+    'dreezy': ['big dreez', 'seandrea sledge'],
+    // Tink
+    'tink': ['trinity home'],
+    // Kamaiyah
+    'kamaiyah': ['kamaiyah johnson'],
+    // Stunna Girl
+    'stunna girl': ['stunna', 'suzanne brown'],
+    // Monaleo
+    'monaleo': ['mona', 'leondra phillips'],
+    // Enchanting
+    'enchanting': ['chant'],
+    // Big Boss Vette
+    'big boss vette': ['vette'],
+    // KenTheMan
+    'kentheman': ['ken', 'kentavia miller'],
+    // Erica Banks
+    'erica banks': ['erica'],
+    // Renni Rucci
+    'renni rucci': ['renni', 'courtney rene'],
+    // Mulatto
+    'mulatto': ['latto', 'big latto', 'alyssa stephens']
+  }), []);
+
   // Search functionality with memoization
   const searchArtists = useCallback((query) => {
     if (!query || query.length < 2) return [];
@@ -3339,6 +3956,21 @@ const TheCanon = ({ supabase }) => {
       .replace(/[^\w\s]/g, '') // Remove special characters
       .replace(/\s+/g, ' ') // Normalize spaces
       .trim();
+    
+    // Check if the query matches any alias
+    let aliasMatches = [];
+    for (const [artistName, aliases] of Object.entries(artistAliases)) {
+      const matchedAlias = aliases.find(alias => 
+        alias.includes(normalizedQuery) || normalizedQuery.includes(alias)
+      );
+      if (matchedAlias) {
+        // Find the actual artist object
+        const artist = allArtists.find(a => a.name.toLowerCase() === artistName);
+        if (artist && !aliasMatches.find(a => a.id === artist.id)) {
+          aliasMatches.push({ ...artist, matchedAlias });
+        }
+      }
+    }
     
     const results = allArtists
       .map(artist => {
@@ -3391,25 +4023,42 @@ const TheCanon = ({ supabase }) => {
         
         return isMatch ? { ...artist, searchScore: score } : null;
       })
-      .filter(Boolean)
-      .sort((a, b) => b.searchScore - a.searchScore) // Sort by score descending
-      .slice(0, 8);
+      .filter(Boolean);
     
-    return results;
-  }, [allArtists]);
+    // Combine alias matches with regular matches, removing duplicates
+    const allMatches = [...aliasMatches.map(a => ({ ...a, searchScore: 95 })), ...results];
+    
+    // Remove duplicates and sort by score
+    const uniqueMatches = Array.from(
+      new Map(allMatches.map(item => [item.id, item])).values()
+    )
+    .sort((a, b) => b.searchScore - a.searchScore)
+    .slice(0, 8);
+    
+    return uniqueMatches;
+  }, [allArtists, artistAliases]);
 
-  const searchResults = useMemo(() => searchArtists(searchQuery), [searchQuery, searchArtists]);
+  // Debounced search values for better performance
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+  const debouncedTagSearchQuery = useDebounce(tagSearchQuery, 300);
+  const debouncedFriendSearchQuery = useDebounce(friendSearchQuery, 300);
 
-  // Handle search for other lists
-  const handleOtherListSearch = useCallback((listId, query) => {
-    setOtherListSearchQueries(prev => ({ ...prev, [listId]: query }));
+  const searchResults = useMemo(() => searchArtists(debouncedSearchQuery), [debouncedSearchQuery, searchArtists]);
+
+  // Handle search for other lists with debouncing
+  const handleOtherListSearchDebounced = useDebouncedCallback((listId, query) => {
     if (query && query.length > 1) {
       const results = searchArtists(query);
       setOtherListSearchResults(prev => ({ ...prev, [listId]: results }));
     } else {
       setOtherListSearchResults(prev => ({ ...prev, [listId]: [] }));
     }
-  }, [searchArtists]);
+  }, 300);
+
+  const handleOtherListSearch = useCallback((listId, query) => {
+    setOtherListSearchQueries(prev => ({ ...prev, [listId]: query }));
+    handleOtherListSearchDebounced(listId, query);
+  }, [handleOtherListSearchDebounced]);
 
   // List management functions
   const updateListAndSave = useCallback((listId, newArtists) => {
@@ -3820,11 +4469,11 @@ const TheCanon = ({ supabase }) => {
   const hasAllTimeList = userLists.some(list => list.isAllTime);
 
   const handleScroll = useCallback((e) => {
-    const bottom = e.target.scrollHeight - e.target.scrollTop === e.target.clientHeight;
-    if (bottom && loadedRankings < 150) {
-      setLoadedRankings(prev => prev + 50);
+    const bottom = e.target.scrollHeight - e.target.scrollTop <= e.target.clientHeight + 100; // Load before hitting exact bottom
+    if (bottom && loadedRankings < fullRankings.length) {
+      setLoadedRankings(prev => Math.min(prev + 25, fullRankings.length)); // Load 25 at a time
     }
-  }, [loadedRankings]);
+  }, [loadedRankings, fullRankings.length]);
 
   const quickAddToList = useCallback((artist) => {
     if (!hasAllTimeList) {
@@ -3873,9 +4522,175 @@ const TheCanon = ({ supabase }) => {
     };
   }, []);
 
+  // User Credibility Tier System
+  const credibilityTiers = {
+    BRONZE: { name: 'Bronze', weight: 1.0, color: '#CD7F32', icon: '🥉', minScore: 0 },
+    SILVER: { name: 'Silver', weight: 1.5, color: '#C0C0C0', icon: '🥈', minScore: 100 },
+    GOLD: { name: 'Gold', weight: 2.0, color: '#FFD700', icon: '🥇', minScore: 300 },
+    PLATINUM: { name: 'Platinum', weight: 3.0, color: '#E5E4E2', icon: '💎', minScore: 600 },
+    DIAMOND: { name: 'Diamond', weight: 5.0, color: '#B9F2FF', icon: '💠', minScore: 1000 }
+  };
+
+  // Calculate user credibility score (0-1200+ points)
+  const calculateUserCredibility = useCallback((userStats) => {
+    if (!userStats) return { score: 0, tier: credibilityTiers.BRONZE };
+    
+    let credibilityScore = 0;
+    const factors = {};
+    
+    // Knowledge Depth Factors (40% of score - max 480 points)
+    
+    // List diversity (era spanning) - max 120 points
+    const eraSpanning = Math.min(5, userStats.uniqueErasCount || 1); // 1-5 eras
+    factors.eraSpanning = (eraSpanning / 5) * 120;
+    credibilityScore += factors.eraSpanning;
+    
+    // Deep cut ratio - max 120 points  
+    const totalArtists = userStats.totalArtistsRanked || 10;
+    const commonArtists = userStats.commonArtistsCount || totalArtists * 0.7;
+    const deepCutRatio = Math.max(0, 1 - (commonArtists / totalArtists));
+    factors.deepCutRatio = deepCutRatio * 120;
+    credibilityScore += factors.deepCutRatio;
+    
+    // List completeness - max 120 points
+    const avgListLength = userStats.avgListLength || 10;
+    factors.listCompleteness = Math.min(1, avgListLength / 20) * 120;
+    credibilityScore += factors.listCompleteness;
+    
+    // Genre diversity - max 120 points
+    const genreCount = Math.min(8, userStats.uniqueGenresCount || 2);
+    factors.genreDiversity = (genreCount / 8) * 120;
+    credibilityScore += factors.genreDiversity;
+    
+    // Engagement Quality Factors (35% of score - max 420 points)
+    
+    // Face-off accuracy - max 140 points
+    const faceOffAccuracy = userStats.faceOffWins / Math.max(1, userStats.faceOffTotal || 1);
+    factors.faceOffAccuracy = faceOffAccuracy * 140;
+    credibilityScore += factors.faceOffAccuracy;
+    
+    // Debate quality (avg likes per debate) - max 140 points  
+    const debateQuality = Math.min(10, userStats.avgDebateLikes || 0) / 10;
+    factors.debateQuality = debateQuality * 140;
+    credibilityScore += factors.debateQuality;
+    
+    // Platform consistency (time between updates) - max 140 points
+    const daysSinceJoined = (Date.now() - new Date(userStats.joinDate || Date.now())) / (1000 * 60 * 60 * 24);
+    const consistencyScore = Math.min(1, (userStats.totalRankings || 1) / Math.max(1, daysSinceJoined / 30));
+    factors.consistency = consistencyScore * 140;
+    credibilityScore += factors.consistency;
+    
+    // Community Validation Factors (25% of score - max 300 points)
+    
+    // Taste compatibility with others - max 150 points
+    const tasteCompatibility = (userStats.avgCompatibilityScore || 50) / 100;
+    factors.tasteCompatibility = tasteCompatibility * 150;
+    credibilityScore += factors.tasteCompatibility;
+    
+    // Community engagement (profile views, list shares) - max 150 points
+    const engagementScore = Math.min(1, (userStats.profileViews || 0) / 100);
+    factors.communityEngagement = engagementScore * 150;
+    credibilityScore += factors.communityEngagement;
+    
+    // Determine tier based on score
+    let tier = credibilityTiers.BRONZE;
+    if (credibilityScore >= credibilityTiers.DIAMOND.minScore) tier = credibilityTiers.DIAMOND;
+    else if (credibilityScore >= credibilityTiers.PLATINUM.minScore) tier = credibilityTiers.PLATINUM;
+    else if (credibilityScore >= credibilityTiers.GOLD.minScore) tier = credibilityTiers.GOLD;
+    else if (credibilityScore >= credibilityTiers.SILVER.minScore) tier = credibilityTiers.SILVER;
+    
+    return {
+      score: Math.round(credibilityScore),
+      tier: tier,
+      factors: factors,
+      breakdown: {
+        knowledge: factors.eraSpanning + factors.deepCutRatio + factors.listCompleteness + factors.genreDiversity,
+        engagement: factors.faceOffAccuracy + factors.debateQuality + factors.consistency,
+        community: factors.tasteCompatibility + factors.communityEngagement
+      }
+    };
+  }, []);
+
+  // Get user credibility tier for display
+  const getUserTier = useCallback((userStats) => {
+    return calculateUserCredibility(userStats).tier;
+  }, [calculateUserCredibility]);
+
+  // Calculate progress to next tier
+  const getTierProgress = useCallback((userStats) => {
+    const credibility = calculateUserCredibility(userStats);
+    const currentScore = credibility.score;
+    const currentTier = credibility.tier;
+    
+    const tierKeys = Object.keys(credibilityTiers);
+    const currentTierIndex = tierKeys.findIndex(key => credibilityTiers[key] === currentTier);
+    
+    if (currentTierIndex === tierKeys.length - 1) {
+      // Already at max tier
+      return { progress: 100, nextTier: null, pointsNeeded: 0 };
+    }
+    
+    const nextTierKey = tierKeys[currentTierIndex + 1];
+    const nextTier = credibilityTiers[nextTierKey];
+    const pointsNeeded = nextTier.minScore - currentScore;
+    const tierRange = nextTier.minScore - currentTier.minScore;
+    const progress = Math.max(0, Math.min(100, ((currentScore - currentTier.minScore) / tierRange) * 100));
+    
+    return {
+      progress: Math.round(progress),
+      nextTier: nextTier,
+      pointsNeeded: Math.max(0, pointsNeeded),
+      currentScore: currentScore
+    };
+  }, [calculateUserCredibility]);
+
   const checkPioneerStatus = useCallback((artistId) => {
     return Math.random() < 0.1;
   }, []);
+
+  // User Tier Badge Component
+  const UserTierBadge = ({ userStats, size = 'sm', showName = false, showProgress = false }) => {
+    const credibility = calculateUserCredibility(userStats);
+    const tier = credibility.tier;
+    const progress = getTierProgress(userStats);
+    
+    const sizeClasses = {
+      xs: 'text-xs px-1 py-0.5',
+      sm: 'text-sm px-2 py-1', 
+      md: 'text-base px-3 py-1.5',
+      lg: 'text-lg px-4 py-2'
+    };
+    
+    return (
+      <div className="flex items-center gap-2">
+        <div 
+          className={`inline-flex items-center gap-1 rounded-full border ${sizeClasses[size]} font-medium transition-all hover:scale-105`}
+          style={{ 
+            backgroundColor: `${tier.color}15`, 
+            borderColor: `${tier.color}50`,
+            color: tier.color 
+          }}
+          title={`${tier.name} Tier • Score: ${credibility.score} • Voice Weight: ${tier.weight}x`}
+        >
+          <span>{tier.icon}</span>
+          {showName && <span>{tier.name}</span>}
+          <span className="text-xs opacity-75">{tier.weight}x</span>
+        </div>
+        
+        {showProgress && progress.nextTier && (
+          <div className="flex items-center gap-2 text-xs text-gray-400">
+            <div className="w-16 h-1 bg-gray-700 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-gradient-to-r from-gray-400 to-white transition-all duration-1000"
+                style={{ width: `${progress.progress}%` }}
+              />
+            </div>
+            <span>{progress.pointsNeeded} to {progress.nextTier.name}</span>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const handleFaceOffVote = (winnerId) => {
     if (dailyFaceOffsCompleted >= 10) {
@@ -4124,6 +4939,18 @@ const TheCanon = ({ supabase }) => {
                 </div>
               </div>
             </div>
+            
+            {/* Artist Social Actions */}
+            <div className="mr-4">
+              <ArtistSocialActions
+                artist={artist}
+                currentUser={currentUser}
+                onChallenge={handleSocialChallenge}
+                onCompare={handleArtistCompare}
+                onAddToPlaylist={(artist) => addToast(`Added ${artist.name} to playlist!`, 'success')}
+              />
+            </div>
+            
             <button onClick={onClose} className="p-2 hover:bg-white/10 transition-colors touch-target">
               <X className="w-5 h-5" />
             </button>
@@ -4159,7 +4986,10 @@ const TheCanon = ({ supabase }) => {
                         <div className="w-6 h-6 bg-purple-500/20 rounded-full flex items-center justify-center">
                           <User className="w-3 h-3 text-purple-400" />
                         </div>
-                        <span className="text-sm font-medium text-purple-300">{item.friend.username}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-purple-300">{item.friend.username}</span>
+                          <UserTierBadge userStats={item.friend} size="xs" />
+                        </div>
                       </div>
                       <div className="text-right">
                         <p className="text-xs text-gray-400">{item.listTitle}</p>
@@ -4210,13 +5040,31 @@ const TheCanon = ({ supabase }) => {
     );
   };
 
-  // Loading state
+  // Loading state with skeleton loaders
   if (isInitialLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-slate-900 via-blue-950 to-slate-900 text-white flex items-center justify-center">
-        <div className="text-center">
-          <LoadingSpinner size="large" />
-          <p className="mt-4 text-gray-400">Loading The Canon...</p>
+      <div className="min-h-screen bg-gradient-to-b from-slate-900 via-blue-950 to-slate-900 text-white">
+        <div className="max-w-7xl mx-auto px-4 py-8">
+          {/* Header skeleton */}
+          <div className="mb-8">
+            <SkeletonLoader variant="text" className="h-8 w-48 mb-4" />
+            <div className="flex gap-2">
+              <SkeletonLoader variant="button" className="w-24 h-10" />
+              <SkeletonLoader variant="button" className="w-24 h-10" />
+              <SkeletonLoader variant="button" className="w-24 h-10" />
+            </div>
+          </div>
+          
+          {/* Content skeleton */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <SkeletonLoader variant="rankingCard" />
+            <SkeletonLoader variant="rankingCard" />
+          </div>
+          
+          {/* Face-off skeleton */}
+          <div className="mt-8">
+            <SkeletonLoader variant="faceOff" />
+          </div>
         </div>
       </div>
     );
@@ -4269,10 +5117,13 @@ const TheCanon = ({ supabase }) => {
             <div className="max-w-7xl mx-auto px-4 py-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <h1 className={`${isMobile ? 'text-xl' : 'text-2xl'} font-black tracking-tight flex items-center gap-2`}>
+                  <button 
+                    onClick={() => setShowCanonExplanation(true)}
+                    className={`${isMobile ? 'text-xl' : 'text-2xl'} font-black tracking-tight flex items-center gap-2 hover:text-purple-400 transition-colors cursor-pointer`}
+                  >
                     THE CANON
                     <Crown className={`${isMobile ? 'w-5 h-5' : 'w-6 h-6'} text-yellow-400`} />
-                  </h1>
+                  </button>
                   {!isMobile && (
                     <div className="text-xs text-gray-400 italic">Settle the Canon. Start the war.</div>
                   )}
@@ -4338,11 +5189,132 @@ const TheCanon = ({ supabase }) => {
                         </button>
                       )}
                       
-                      <UserAvatar 
-                        user={{ username, profile_picture_url: userProfilePicture }} 
-                        profilePicture={userProfilePicture} 
-                        size={isMobile ? "w-8 h-8" : "w-10 h-10"} 
-                      />
+                      <div className="relative">
+                        <button
+                          onClick={() => setShowProfile(!showProfile)}
+                          className="hover:opacity-80 transition-opacity"
+                        >
+                          <UserAvatar 
+                            user={{ username, profile_picture_url: userProfilePicture }} 
+                            profilePicture={userProfilePicture} 
+                            size={isMobile ? "w-8 h-8" : "w-10 h-10"} 
+                          />
+                        </button>
+                        
+                        {/* Profile Dropdown */}
+                        {showProfile && (
+                          <>
+                            <div 
+                              className="fixed inset-0 z-40" 
+                              onClick={() => setShowProfile(false)}
+                            />
+                            <div className="absolute right-0 mt-2 w-80 bg-slate-800 border border-white/20 shadow-2xl z-50">
+                            <div className="p-4 border-b border-white/10">
+                              <div className="flex items-center gap-3">
+                                <UserAvatar 
+                                  user={{ username, profile_picture_url: userProfilePicture }} 
+                                  profilePicture={userProfilePicture} 
+                                  size="w-12 h-12" 
+                                />
+                                <div>
+                                  <p className="font-bold">{username}</p>
+                                  <UserTierBadge userStats={userStats} size="sm" />
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {/* Stats Grid */}
+                            <div className="p-4 grid grid-cols-2 gap-4 border-b border-white/10">
+                              <div className="text-center">
+                                <p className="text-2xl font-bold">{userPoints.toLocaleString()}</p>
+                                <p className="text-xs text-gray-400">Total Points</p>
+                              </div>
+                              <div className="text-center">
+                                <p className="text-2xl font-bold">{userStreak}</p>
+                                <p className="text-xs text-gray-400">Day Streak</p>
+                              </div>
+                              <div className="text-center">
+                                <p className="text-2xl font-bold">{userLists.length}</p>
+                                <p className="text-xs text-gray-400">Rankings Created</p>
+                              </div>
+                              <div className="text-center">
+                                <p className="text-2xl font-bold">0</p>
+                                <p className="text-xs text-gray-400">Debates Posted</p>
+                              </div>
+                            </div>
+                            
+                            {/* Taste Profile */}
+                            {(() => {
+                              const userRanking = userLists.find(list => list.isAllTime === true)?.artists || [];
+                              if (userRanking.length > 0) {
+                                const eraCounts = {};
+                                userRanking.forEach(artist => {
+                                  eraCounts[artist.era] = (eraCounts[artist.era] || 0) + 1;
+                                });
+                                const favoriteEra = Object.entries(eraCounts).sort((a, b) => b[1] - a[1])[0];
+                                const uniquenessScore = calculateUniqueness({ artists: userRanking });
+                                
+                                return (
+                                  <div className="p-4 border-b border-white/10">
+                                    <h3 className="text-sm font-bold mb-2 text-gray-400">Taste Profile</h3>
+                                    <div className="space-y-2">
+                                      <div className="flex justify-between text-sm">
+                                        <span>Favorite Era</span>
+                                        <span className="text-purple-400">{favoriteEra?.[0] || 'N/A'}</span>
+                                      </div>
+                                      <div className="flex justify-between text-sm">
+                                        <span>Uniqueness Score</span>
+                                        <span className="text-green-400">{uniquenessScore.percentage}%</span>
+                                      </div>
+                                      <div className="flex justify-between text-sm">
+                                        <span>Top 10 Size</span>
+                                        <span>{userRanking.length} artists</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })()}
+                            
+                            {/* Achievement Badges */}
+                            <div className="p-4 border-b border-white/10">
+                              <h3 className="text-sm font-bold mb-2 text-gray-400">Achievements</h3>
+                              <div className="flex flex-wrap gap-2">
+                                {userPoints >= 1000 && <span className="text-xs bg-yellow-500/20 text-yellow-300 px-2 py-1 rounded">🏆 1K Club</span>}
+                                {userStreak >= 7 && <span className="text-xs bg-orange-500/20 text-orange-300 px-2 py-1 rounded">🔥 Week Warrior</span>}
+                                {userLists.length >= 5 && <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-1 rounded">📋 List Master</span>}
+                                {userStats?.pioneering_score >= 80 && <span className="text-xs bg-green-500/20 text-green-300 px-2 py-1 rounded">🏆 Pioneer</span>}
+                              </div>
+                            </div>
+                            
+                            {/* Actions */}
+                            <div className="p-4 space-y-2">
+                              <button 
+                                onClick={() => {
+                                  setShowProfile(false);
+                                  setShowSettings(true);
+                                }}
+                                className="w-full py-2 text-left hover:bg-white/10 transition-colors px-3 rounded"
+                              >
+                                <Settings className="w-4 h-4 inline mr-2" />
+                                Settings
+                              </button>
+                              <button 
+                                onClick={() => {
+                                  setShowProfile(false);
+                                  supabase.auth.signOut();
+                                }}
+                                className="w-full py-2 text-left hover:bg-white/10 transition-colors px-3 rounded text-red-400"
+                              >
+                                <LogOut className="w-4 h-4 inline mr-2" />
+                                Sign Out
+                              </button>
+                            </div>
+                          </div>
+                          </>
+                        )}
+                      </div>
                       
                       {/* Notifications Bell */}
                       <button 
@@ -4548,6 +5520,15 @@ const TheCanon = ({ supabase }) => {
                   {process.env.NODE_ENV === 'development' && (
                     <div className="pt-4 border-t border-white/10">
                       <h3 className="font-medium mb-2 text-red-400">Debug Functions</h3>
+                      <button
+                        onClick={async () => {
+                          await forceRegenerateRankings();
+                          setShowSettings(false);
+                        }}
+                        className="w-full py-2 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-400/50 transition-colors text-sm mb-2"
+                      >
+                        🔄 Force Regenerate Canon Rankings
+                      </button>
                       <button
                         onClick={() => {
                           debugCleanupFriendships();
@@ -4853,12 +5834,15 @@ const TheCanon = ({ supabase }) => {
                 </div>
                 
                 <div className="flex gap-3">
-                  <button
+                  <LoadingButton
                     onClick={createDebate}
-                    className="flex-1 py-2 bg-purple-600 hover:bg-purple-700 transition-colors font-medium"
+                    loading={isPostingDebate}
+                    loadingText="Posting..."
+                    className="flex-1"
+                    icon={<MessageCircle className="w-4 h-4" />}
                   >
                     Post Debate
-                  </button>
+                  </LoadingButton>
                   <button
                     onClick={() => {
                       setShowDebateModal(false);
@@ -4869,6 +5853,7 @@ const TheCanon = ({ supabase }) => {
                       setShowMentionDropdown(false);
                     }}
                     className="flex-1 py-2 bg-white/10 hover:bg-white/20 border border-white/20 transition-colors"
+                    disabled={isPostingDebate}
                   >
                     Cancel
                   </button>
@@ -4956,12 +5941,16 @@ const TheCanon = ({ supabase }) => {
                   </button>
                 </div>
                 
-                <div className="flex-1 overflow-y-auto" onScroll={handleScroll}>
-                  <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'} gap-4`}>
-                    {fullRankings.slice(0, loadedRankings).map((item) => (
+                <div className="flex-1">
+                  <VirtualList
+                    items={fullRankings}
+                    itemHeight={isMobile ? 70 : 80}
+                    containerHeight={600}
+                    className="pr-2"
+                    renderItem={(item) => (
                       <div 
                         key={item.rank} 
-                        className={`flex items-center gap-3 p-3 bg-black/30 border cursor-pointer hover:bg-white/5 ${
+                        className={`flex items-center gap-3 p-3 bg-black/30 border cursor-pointer hover:bg-white/5 mb-2 ${
                           item.trend === 'hot' ? 'border-orange-400/50 bg-orange-500/5' : 'border-white/10'
                         }`}
                         onClick={() => setShowArtistCard(item.artist)}
@@ -5000,12 +5989,27 @@ const TheCanon = ({ supabase }) => {
                           </div>
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    )}
+                    emptyState={
+                      <div className="text-center py-12 text-gray-400">
+                        <Trophy className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                        <p>No rankings available yet</p>
+                      </div>
+                    }
+                  />
                   
-                  {loadedRankings < 150 && (
+                  {false && loadedRankings < fullRankings.length && (
                     <div className="text-center py-8 text-gray-500">
-                      Scroll for more...
+                      <div className="flex items-center justify-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Loading more... ({loadedRankings} of {fullRankings.length})
+                      </div>
+                    </div>
+                  )}
+                  
+                  {loadedRankings >= fullRankings.length && fullRankings.length > 50 && (
+                    <div className="text-center py-8 text-gray-500">
+                      🎉 You've reached the end! {fullRankings.length} total artists
                     </div>
                   )}
                 </div>
@@ -5408,6 +6412,7 @@ const TheCanon = ({ supabase }) => {
                                     >
                                       {debate.user}
                                     </button>
+                                    <UserTierBadge userStats={debate.userProfile} size="xs" />
                                     <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-0.5">Your debate</span>
                                     {debate.hot && <Flame className="w-4 h-4 text-orange-500" />}
                                     <span className="text-gray-500 text-sm ml-auto">{debate.timestamp}</span>
@@ -5417,12 +6422,19 @@ const TheCanon = ({ supabase }) => {
                                   
                                   {/* Artist Tags */}
                                   {debate.artistTags.length > 0 && (
-                                    <div className="flex gap-2 mb-3">
+                                    <div className="flex flex-wrap items-end gap-2 mb-3">
                                       {debate.artistTags.map((artistId) => {
                                         const artist = allArtists.find(a => a.id === artistId);
                                         return artist ? (
-                                          <span key={artistId} className="text-xs bg-purple-500/20 text-purple-300 px-2 py-1 rounded-full">
-                                            <ArtistAvatar artist={artist} /> {artist.name}
+                                          <span key={artistId} className="inline-flex items-center gap-1 text-xs bg-purple-500/20 text-purple-300 px-2 py-1 rounded-full">
+                                            {artist.avatar_url ? (
+                                              <>
+                                                <span className="flex-shrink-0"><ArtistAvatar artist={artist} /></span>
+                                                <span className="break-words">{artist.name}</span>
+                                              </>
+                                            ) : (
+                                              <span className="break-words">{artist.name}</span>
+                                            )}
                                           </span>
                                         ) : null;
                                       })}
@@ -5534,6 +6546,7 @@ const TheCanon = ({ supabase }) => {
                                 >
                                   {debate.user}
                                 </button>
+                                <UserTierBadge userStats={debate.userProfile} size="xs" />
                                 {debate.hot && <Flame className="w-4 h-4 text-orange-500" />}
                                 <span className="text-gray-500 text-sm ml-auto">{debate.timestamp}</span>
                               </div>
@@ -5546,8 +6559,15 @@ const TheCanon = ({ supabase }) => {
                                   {debate.artistTags.map((artistId) => {
                                     const artist = allArtists.find(a => a.id === artistId);
                                     return artist ? (
-                                      <span key={artistId} className="text-xs bg-purple-500/20 text-purple-300 px-2 py-1 rounded-full">
-                                        <ArtistAvatar artist={artist} /> {artist.name}
+                                      <span key={artistId} className="inline-flex items-center gap-1 text-xs bg-purple-500/20 text-purple-300 px-2 py-1 rounded-full">
+                                        {artist.avatar_url ? (
+                                          <>
+                                            <span className="flex-shrink-0"><ArtistAvatar artist={artist} /></span>
+                                            <span className="break-words">{artist.name}</span>
+                                          </>
+                                        ) : (
+                                          <span className="break-words">{artist.name}</span>
+                                        )}
                                       </span>
                                     ) : null;
                                   })}
@@ -5706,7 +6726,7 @@ const TheCanon = ({ supabase }) => {
                                 >
                                   <Plus className={isMobile ? 'w-4 h-4' : 'w-3 h-3'} />
                                 </button>
-                                <span className={`text-gray-500 ${isMobile ? 'text-sm' : 'text-xs'}`}>{item.totalPoints.toFixed(1)}</span>
+                                <span className={`text-gray-500 ${isMobile ? 'text-sm' : 'text-xs'}`}>{item.canonScore}</span>
                               </div>
                             </div>
                           ))}
@@ -5721,77 +6741,16 @@ const TheCanon = ({ supabase }) => {
                   )}
                 </div>
 
-                {/* Friend Activity Feed for For You Tab */}
-                {friends.length > 0 && (
-                  <div className="mt-8">
-                    <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-                      <Users className="w-5 h-5 text-purple-400" />
-                      Friend Activity
-                    </h2>
-                    <div className="space-y-3">
-                      {/* Enhanced Activity Feed */}
-                      {friends.slice(0, 4).map((friend, idx) => {
-                        const activityTypes = [
-                          {
-                            icon: <Crown className="w-4 h-4 text-yellow-400" />,
-                            bg: "bg-yellow-500/20",
-                            action: "updated their Top 10",
-                            detail: "Moved Kendrick to #1",
-                            time: "2 hours ago"
-                          },
-                          {
-                            icon: <Plus className="w-4 h-4 text-green-400" />,
-                            bg: "bg-green-500/20", 
-                            action: "created a new list",
-                            detail: "Best Producer Tags of All Time",
-                            time: "4 hours ago"
-                          },
-                          {
-                            icon: <TrendingUp className="w-4 h-4 text-blue-400" />,
-                            bg: "bg-blue-500/20",
-                            action: "and 3 others rank",
-                            detail: "Tyler, The Creator highly",
-                            time: "1 day ago"
-                          },
-                          {
-                            icon: <Swords className="w-4 h-4 text-red-400" />,
-                            bg: "bg-red-500/20",
-                            action: "completed 5 face-offs",
-                            detail: "On a winning streak!",
-                            time: "6 hours ago"
-                          }
-                        ];
-                        
-                        const activity = activityTypes[idx % activityTypes.length];
-                        
-                        return (
-                          <div key={`activity-${friend.id}-${idx}`} className="bg-slate-800/30 border border-white/10 p-3 rounded">
-                            <div className="flex items-start gap-3">
-                              <div className={`w-8 h-8 ${activity.bg} rounded-full flex items-center justify-center`}>
-                                {activity.icon}
-                              </div>
-                              <div className="flex-1">
-                                <p className="text-sm">
-                                  <span className="font-medium text-purple-400">{friend.username}</span> {activity.action}
-                                </p>
-                                <p className="text-xs text-gray-400 mt-1">{activity.detail}</p>
-                                <p className="text-xs text-gray-500 mt-1">{activity.time}</p>
-                              </div>
-                              {activity.action.includes("rank") && (
-                                <button 
-                                  className="text-xs text-purple-400 hover:text-purple-300 transition-colors"
-                                  onClick={() => setViewingFriend(friend)}
-                                >
-                                  View
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
+                {/* Live Friend Activity Feed for For You Tab */}
+                <div className="mt-8">
+                  <LiveActivityFeed
+                    supabase={supabase}
+                    currentUser={currentUser}
+                    friends={friends}
+                    onUserClick={handleUserClick}
+                    onArtistClick={setShowArtistCard}
+                  />
+                </div>
               </div>
             ) : activeTab === 'mytop10' ? (
               <div className="space-y-6">
@@ -5894,6 +6853,27 @@ const TheCanon = ({ supabase }) => {
                               />
                             </div>
                             
+                            {/* Search hint for common nicknames */}
+                            {searchQuery.length === 0 && showSearchResults && (
+                              <div className="absolute top-full mt-2 w-full bg-slate-800 border border-white/20 shadow-lg p-3 z-10">
+                                <p className="text-xs text-gray-400 mb-2">💡 Pro tip: Try searching with nicknames!</p>
+                                <div className="flex flex-wrap gap-2">
+                                  {['biggie', 'pac', 'hov', 'ye', 'drizzy', 'weezy'].map(nickname => (
+                                    <button
+                                      key={nickname}
+                                      onClick={() => {
+                                        setSearchQuery(nickname);
+                                        setShowSearchResults(true);
+                                      }}
+                                      className="text-xs bg-purple-500/20 text-purple-300 px-2 py-1 rounded hover:bg-purple-500/30 transition-colors"
+                                    >
+                                      "{nickname}"
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            
                             {/* Search Results */}
                             {showSearchResults && searchQuery && (
                               <div className="absolute top-full mt-2 w-full bg-slate-800 border border-white/20 shadow-xl max-h-64 overflow-y-auto z-10">
@@ -5913,6 +6893,11 @@ const TheCanon = ({ supabase }) => {
                                         <p className="font-medium">{artist.name}</p>
                                         <div className="flex items-center gap-2">
                                           <p className="text-sm text-gray-400">{artist.era}</p>
+                                          {artist.matchedAlias && (
+                                            <span className="text-xs bg-blue-500/20 text-blue-300 px-2 py-1 rounded">
+                                              aka "{artist.matchedAlias}"
+                                            </span>
+                                          )}
                                           {friendCount > 0 && (
                                             <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-1 rounded flex items-center gap-1">
                                               <Users className="w-3 h-3" />
@@ -5965,81 +6950,31 @@ const TheCanon = ({ supabase }) => {
                                   <div className="h-1 bg-purple-400 rounded transition-all duration-200" />
                                 )}
                                 
-                                <div
-                                  data-drop-index={index}
-                                  className={`flex items-center ${isMobile ? 'gap-2 p-2' : 'gap-3 p-3'} bg-black/30 border border-white/10 ${
-                                    isMobile ? '' : 'cursor-move hover:bg-white/10'
-                                  } transition-all duration-200 ${
-                                    draggedItem?.artist.id === artist.id ? 'opacity-50' : ''
-                                  }`}
-                                  {...(!isMobile ? {
-                                    draggable: true,
-                                    onDragStart: (e) => handleDragStart(e, artist, list.id),
-                                    onDragEnd: handleDragEnd,
-                                    onDragEnter: (e) => handleDragEnter(e, index),
-                                    onDragOver: handleDragOver,
-                                    onDrop: (e) => handleDrop(e, index, list.id)
-                                  } : {})}
-                                >
-                                  <div 
-                                    className={`drag-handle ${isMobile ? 'touch-target flex items-center justify-center w-8 h-8' : ''}`}
-                                    {...(isMobile ? {
+                                <div data-drop-index={index}>
+                                  <ArtistRow
+                                    artist={artist}
+                                    index={index}
+                                    onRemove={() => removeArtistFromList(artist.id, list.id)}
+                                    onShowDetails={setShowArtistCard}
+                                    isDraggable={true}
+                                    isMobile={isMobile}
+                                    dragHandlers={!isMobile ? {
+                                      draggable: true,
+                                      onDragStart: (e) => handleDragStart(e, artist, list.id),
+                                      onDragEnd: handleDragEnd,
+                                      onDragEnter: (e) => handleDragEnter(e, index),
+                                      onDragOver: handleDragOver,
+                                      onDrop: (e) => handleDrop(e, index, list.id)
+                                    } : {}}
+                                    mobileDragHandlers={isMobile ? {
                                       onTouchStart: (e) => mobileDrag.handleTouchStart(e, { artist, listId: list.id }),
                                       onTouchMove: mobileDrag.handleTouchMove,
                                       onTouchEnd: mobileDrag.handleTouchEnd
-                                    } : {})}
-                                  >
-                                    <GripVertical className={`${isMobile ? 'w-4 h-4' : 'w-5 h-5'} text-gray-400`} />
-                                  </div>
-                                  <span 
-                                    className={`font-black text-gray-300 ${isMobile ? 'text-sm w-6 text-center' : 'text-xl w-8'} cursor-pointer`}
-                                    onClick={(e) => {
-                                      console.log('Ranking number clicked:', artist.name);
-                                      e.stopPropagation();
-                                      setShowArtistCard(artist);
-                                    }}
-                                  >#{index + 1}</span>
-                                  <div 
-                                    className="cursor-pointer"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setShowArtistCard(artist);
-                                    }}
-                                  >
-                                    <ArtistAvatar artist={artist} size={isMobile ? 'w-8 h-8' : 'w-10 h-10'} />
-                                  </div>
-                                  <div 
-                                    className="flex-1 min-w-0"
-                                    onClick={(e) => {
-                                      console.log('Artist name clicked:', artist.name);
-                                      e.stopPropagation();
-                                      setShowArtistCard(artist);
-                                    }}
-                                  >
-                                    <p className={`font-medium truncate ${isMobile ? 'text-sm' : ''}`}>{artist.name}</p>
-                                    <p className={`text-gray-400 ${isMobile ? 'text-xs' : 'text-sm'}`}>{artist.era}</p>
-                                  </div>
-                                  {checkPioneerStatus(artist.id) && (
-                                    <span 
-                                      className="text-lg cursor-pointer" 
-                                      title="Pioneer Pick - Tap for details"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setShowArtistCard(artist);
-                                      }}
-                                    >
-                                      🏆
-                                    </span>
-                                  )}
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      removeArtistFromList(artist.id, list.id);
-                                    }}
-                                    className={`${isMobile ? 'p-1' : 'p-2'} hover:bg-white/10 transition-colors touch-target rounded`}
-                                  >
-                                    <X className="w-4 h-4 text-gray-400" />
-                                  </button>
+                                    } : {}}
+                                    isDragging={draggedItem?.artist.id === artist.id}
+                                    isPioneer={checkPioneerStatus(artist.id)}
+                                    ArtistAvatar={ArtistAvatar}
+                                  />
                                 </div>
                               </div>
                             ))}
@@ -6217,64 +7152,33 @@ const TheCanon = ({ supabase }) => {
                                     <div className="h-1 bg-purple-400 rounded transition-all duration-200" />
                                   )}
                                   
-                                  <div
-                                    data-drop-index={index}
-                                    className={`flex items-center ${isMobile ? 'gap-1 p-1.5' : 'gap-3 p-2'} bg-black/30 border border-white/10 ${
-                                      isMobile ? '' : 'cursor-move hover:bg-white/10'
-                                    } transition-all duration-200 ${
-                                      draggedItem?.artist.id === artist.id ? 'opacity-50' : ''
-                                    }`}
-                                    {...(!isMobile ? {
-                                      draggable: true,
-                                      onDragStart: (e) => handleDragStart(e, artist, existingList.id),
-                                      onDragOver: handleDragOver,
-                                      onDragEnter: (e) => handleDragEnter(e, index),
-                                      onDrop: (e) => handleDrop(e, index, existingList.id),
-                                    } : {})}
-                                  >
-                                    <div 
-                                      className={`drag-handle ${isMobile ? 'touch-target flex items-center justify-center w-6 h-6' : ''}`}
-                                      {...(isMobile ? {
-                                        onTouchStart: (e) => mobileDrag.handleTouchStart(e, { artist, listId: existingList.id }),
-                                        onTouchMove: mobileDrag.handleTouchMove,
-                                        onTouchEnd: mobileDrag.handleTouchEnd,
-                                      } : {})}
-                                    >
-                                      <GripVertical className={`${isMobile ? 'w-3 h-3' : 'w-4 h-4'} text-gray-400`} />
-                                    </div>
-                                    <span 
-                                      className={`text-gray-400 font-bold ${isMobile ? 'text-xs w-4 text-center' : 'text-sm'} cursor-pointer`}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setShowArtistCard(artist);
-                                      }}
-                                    >#{index + 1}</span>
-                                    <div 
-                                      className="cursor-pointer"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setShowArtistCard(artist);
-                                      }}
-                                    >
-                                      <ArtistAvatar artist={artist} size={isMobile ? 'w-6 h-6' : 'w-8 h-8'} />
-                                    </div>
-                                    <span 
-                                      className={`truncate flex-1 ${isMobile ? 'text-xs' : 'text-sm'} cursor-pointer`}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setShowArtistCard(artist);
-                                      }}
-                                    >{artist.name}</span>
-                                    <button
-                                      onClick={() => {
+                                  <div data-drop-index={index}>
+                                    <ArtistRow
+                                      artist={artist}
+                                      index={index}
+                                      onRemove={() => {
                                         const newArtists = existingList.artists.filter(a => a.id !== artist.id);
                                         updateListAndSave(existingList.id, newArtists);
                                       }}
-                                      className="p-1 hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-colors"
-                                      title="Remove artist"
-                                    >
-                                      <X className="w-3 h-3" />
-                                    </button>
+                                      onShowDetails={setShowArtistCard}
+                                      isDraggable={true}
+                                      isMobile={isMobile}
+                                      dragHandlers={!isMobile ? {
+                                        draggable: true,
+                                        onDragStart: (e) => handleDragStart(e, artist, existingList.id),
+                                        onDragOver: handleDragOver,
+                                        onDragEnter: (e) => handleDragEnter(e, index),
+                                        onDrop: (e) => handleDrop(e, index, existingList.id)
+                                      } : {}}
+                                      mobileDragHandlers={isMobile ? {
+                                        onTouchStart: (e) => mobileDrag.handleTouchStart(e, { artist, listId: existingList.id }),
+                                        onTouchMove: mobileDrag.handleTouchMove,
+                                        onTouchEnd: mobileDrag.handleTouchEnd
+                                      } : {}}
+                                      isDragging={draggedItem?.artist.id === artist.id}
+                                      isPioneer={false} // Custom lists don't show pioneer status
+                                      ArtistAvatar={ArtistAvatar}
+                                    />
                                   </div>
                                 </div>
                               ))}
@@ -6534,9 +7438,16 @@ const TheCanon = ({ supabase }) => {
                     <div className="space-y-2">
                       {friendRequests.map(request => (
                         <div key={request.id} className="bg-slate-800/50 border border-white/10 p-4 flex items-center justify-between">
-                          <div>
-                            <p className="font-bold">{request.profiles?.username || 'Unknown User'}</p>
-                            <p className="text-sm text-gray-400">Wants to be your friend</p>
+                          <div className="flex items-center gap-3">
+                            <UserAvatar 
+                              user={request.profiles} 
+                              profilePicture={request.profiles?.profile_picture_url} 
+                              size="w-10 h-10" 
+                            />
+                            <div>
+                              <p className="font-bold">{request.profiles?.username || 'Unknown User'}</p>
+                              <p className="text-sm text-gray-400">Wants to be your friend</p>
+                            </div>
                           </div>
                           <div className="flex gap-2">
                             <button
@@ -6587,12 +7498,15 @@ const TheCanon = ({ supabase }) => {
                           <div key={friend.id} className="bg-slate-800/50 border border-white/10 p-4">
                             <div className="flex items-center justify-between mb-3">
                               <div className="flex-1">
-                                <button 
-                                  onClick={() => handleUsernameClick(friend)}
-                                  className="font-bold hover:text-purple-400 transition-colors cursor-pointer text-left"
-                                >
-                                  {friend.username}
-                                </button>
+                                <div className="flex items-center gap-2 mb-1">
+                                  <button 
+                                    onClick={() => handleUsernameClick(friend)}
+                                    className="font-bold hover:text-purple-400 transition-colors cursor-pointer text-left"
+                                  >
+                                    {friend.username}
+                                  </button>
+                                  <UserTierBadge userStats={friend} size="xs" />
+                                </div>
                                 <p className="text-sm text-gray-400">Friend since recently</p>
                               </div>
                               <UserAvatar 
@@ -6605,7 +7519,7 @@ const TheCanon = ({ supabase }) => {
                             {/* Compatibility Score */}
                             {compatibility && (
                               <div className="mt-3 pt-3 border-t border-white/10">
-                                <div className="flex items-center justify-between">
+                                <div className="flex items-center justify-between mb-3">
                                   <div className="flex items-center gap-2">
                                     <div className={`text-2xl font-bold ${
                                       compatibility.score >= 80 ? 'text-green-400' :
@@ -6621,15 +7535,51 @@ const TheCanon = ({ supabase }) => {
                                     </div>
                                   </div>
                                   <button
-                                    onClick={() => {
-                                      // TODO: Show detailed comparison modal
-                                      addToast('Detailed comparison coming soon!', 'info');
-                                    }}
+                                    onClick={() => setViewingFriend(friend)}
                                     className="text-xs text-purple-400 hover:text-purple-300 transition-colors"
                                   >
-                                    Compare →
+                                    View Rankings →
                                   </button>
                                 </div>
+                                
+                                {/* Genre/Era Insights */}
+                                {compatibility.insights && (
+                                  <div className="space-y-2 text-xs">
+                                    {/* Era alignment */}
+                                    {compatibility.insights.topEras?.length > 0 && (
+                                      <div className="bg-black/20 px-2 py-1.5 rounded">
+                                        <span className="text-gray-400">Both love </span>
+                                        <span className="text-purple-300 font-medium">
+                                          {compatibility.insights.topEras[0].era}
+                                        </span>
+                                        <span className="text-gray-500"> ({compatibility.insights.topEras[0].count} artists)</span>
+                                      </div>
+                                    )}
+                                    
+                                    {/* Strongest alignment */}
+                                    {compatibility.insights.strongestAlignment && (
+                                      <div className="bg-black/20 px-2 py-1.5 rounded">
+                                        <span className="text-gray-400">You both rank </span>
+                                        <span className="text-green-300 font-medium">
+                                          {compatibility.insights.strongestAlignment.artist.name}
+                                        </span>
+                                        <span className="text-gray-500"> similarly (#{compatibility.insights.strongestAlignment.userRank} & #{compatibility.insights.strongestAlignment.otherRank})</span>
+                                      </div>
+                                    )}
+                                    
+                                    {/* Biggest disagreement */}
+                                    {compatibility.insights.biggestDisagreement && 
+                                     compatibility.insights.biggestDisagreement.rankDiff > 5 && (
+                                      <div className="bg-black/20 px-2 py-1.5 rounded">
+                                        <span className="text-gray-400">Biggest debate: </span>
+                                        <span className="text-orange-300 font-medium">
+                                          {compatibility.insights.biggestDisagreement.artist.name}
+                                        </span>
+                                        <span className="text-gray-500"> (You: #{compatibility.insights.biggestDisagreement.userRank}, Them: #{compatibility.insights.biggestDisagreement.otherRank})</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
@@ -6724,17 +7674,32 @@ const TheCanon = ({ supabase }) => {
                             </div>
                           </div>
                           
-                          {/* Show their top 3 artists */}
-                          <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/10">
-                            <span className="text-xs text-gray-400">Their top 3:</span>
-                            <div className="flex gap-2 flex-1">
-                              {match.topArtists.map((artist, idx) => (
-                                <span key={artist.id} className="text-xs bg-black/30 px-2 py-1 rounded">
-                                  {idx + 1}. {artist.name}
-                                </span>
-                              ))}
+                          {/* Genre/Era Insights */}
+                          {match.insights && (
+                            <div className="space-y-2 mt-3 pt-3 border-t border-white/10">
+                              {/* Common era preference */}
+                              {match.insights.topEras?.length > 0 && (
+                                <div className="flex items-center gap-2 text-xs">
+                                  <span className="text-gray-400">Both into:</span>
+                                  <span className="bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded">
+                                    {match.insights.topEras[0].era} ({match.insights.topEras[0].count} artists)
+                                  </span>
+                                </div>
+                              )}
+                              
+                              {/* Show their top 3 artists */}
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-400">Their top 3:</span>
+                                <div className="flex gap-2 flex-1 flex-wrap">
+                                  {match.topArtists.map((artist, idx) => (
+                                    <span key={artist.id} className="text-xs bg-black/30 px-2 py-1 rounded">
+                                      {idx + 1}. {artist.name}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
                             </div>
-                          </div>
+                          )}
                           
                           <div className="flex gap-2 mt-3">
                             <button
@@ -6859,111 +7824,23 @@ const TheCanon = ({ supabase }) => {
                   </div>
                 )}
 
-                {/* Friend Activity Feed */}
-                <div>
-                  <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
-                    Friend Activity
-                    {friends.length > 0 && (
-                      <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-1 rounded">
-                        {friends.length} friend{friends.length > 1 ? 's' : ''}
-                      </span>
-                    )}
-                  </h2>
-                  {friends.length > 0 ? (
-                    <div className="space-y-3">
-                      {/* Friend Debates */}
-                      {realDebates && friends && realDebates
-                        .filter(debate => friends.some(friend => friend.id === debate.author_id))
-                        .slice(0, 3)
-                        .map(debate => (
-                          <div key={debate.id} className="bg-slate-800/30 border border-white/10 p-3 rounded">
-                            <div className="flex items-start gap-3">
-                              <div className="w-8 h-8 bg-purple-500/20 rounded-full flex items-center justify-center">
-                                <MessageCircle className="w-4 h-4 text-purple-400" />
-                              </div>
-                              <div className="flex-1">
-                                <p className="text-sm">
-                                  <span className="font-medium text-purple-400">{debate.author}</span> posted a debate
-                                </p>
-                                <p className="text-xs text-gray-400 truncate mt-1">{debate.content}</p>
-                                <p className="text-xs text-gray-500 mt-1">{getRelativeTime(debate.timestamp)}</p>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      
-                      {/* Enhanced Activity Feed */}
-                      {friends.slice(0, 4).map((friend, idx) => {
-                        const activityTypes = [
-                          {
-                            icon: <Crown className="w-4 h-4 text-yellow-400" />,
-                            bg: "bg-yellow-500/20",
-                            action: "updated their Top 10",
-                            detail: "Moved Kendrick to #1",
-                            time: "2 hours ago"
-                          },
-                          {
-                            icon: <Plus className="w-4 h-4 text-green-400" />,
-                            bg: "bg-green-500/20", 
-                            action: "created a new list",
-                            detail: "Best Producer Tags of All Time",
-                            time: "4 hours ago"
-                          },
-                          {
-                            icon: <TrendingUp className="w-4 h-4 text-blue-400" />,
-                            bg: "bg-blue-500/20",
-                            action: "and 3 others rank",
-                            detail: "Tyler, The Creator highly",
-                            time: "1 day ago"
-                          },
-                          {
-                            icon: <Swords className="w-4 h-4 text-red-400" />,
-                            bg: "bg-red-500/20",
-                            action: "completed 5 face-offs",
-                            detail: "On a winning streak!",
-                            time: "6 hours ago"
-                          }
-                        ];
-                        
-                        const activity = activityTypes[idx % activityTypes.length];
-                        
-                        return (
-                          <div key={`activity-${friend.id}-${idx}`} className="bg-slate-800/30 border border-white/10 p-3 rounded">
-                            <div className="flex items-start gap-3">
-                              <div className={`w-8 h-8 ${activity.bg} rounded-full flex items-center justify-center`}>
-                                {activity.icon}
-                              </div>
-                              <div className="flex-1">
-                                <p className="text-sm">
-                                  <span className="font-medium text-purple-400">{friend.username}</span> {activity.action}
-                                </p>
-                                <p className="text-xs text-gray-400 mt-1">{activity.detail}</p>
-                                <p className="text-xs text-gray-500 mt-1">{activity.time}</p>
-                              </div>
-                              {activity.action.includes("rank") && (
-                                <button 
-                                  className="text-xs text-purple-400 hover:text-purple-300 transition-colors"
-                                  onClick={() => setViewingFriend(friend)}
-                                >
-                                  View
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                      
-                      {realDebates && friends && realDebates.filter(debate => friends.some(friend => friend.id === debate.author_id)).length === 0 && friends.length > 0 && (
-                        <p className="text-gray-400 text-center py-4">Your friends haven't posted any debates yet, but check back soon!</p>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="text-center py-6">
-                      <Users className="w-12 h-12 mx-auto mb-3 text-gray-500" />
-                      <p className="text-gray-400">Add friends to see their activity!</p>
-                      <p className="text-xs text-gray-500 mt-1">Friend activity includes rankings, debates, and more</p>
-                    </div>
-                  )}
+                {/* Live Friend Activity Feed */}
+                <LiveActivityFeed
+                  supabase={supabase}
+                  currentUser={currentUser}
+                  friends={friends}
+                  onUserClick={handleUserClick}
+                  onArtistClick={setShowArtistCard}
+                />
+
+                {/* Group Challenges */}
+                <div className="mt-6">
+                  <GroupChallenges
+                    currentUser={currentUser}
+                    friends={friends}
+                    onJoinChallenge={handleGroupChallengeJoin}
+                    onCreateChallenge={handleGroupChallengeCreate}
+                  />
                 </div>
               </div>
             )}
@@ -7061,6 +7938,32 @@ const TheCanon = ({ supabase }) => {
                   )}
                 </div>
                 
+                {/* Music Compatibility Score */}
+                {userLists.length > 0 && friendRankings.length > 0 && (
+                  <div className="mb-4">
+                    <FriendCompatibility
+                      userRankings={userLists.find(list => list.isAllTime)?.artists || []}
+                      friendRankings={friendRankings.find(list => list.isAllTime)?.artists || []}
+                      userName={currentUser?.username || 'You'}
+                      friendName={viewingFriend.username || viewingFriend.display_name}
+                      onViewDetails={() => addToast('Detailed comparison coming soon!', 'info')}
+                    />
+                  </div>
+                )}
+
+                {/* Quick Social Actions */}
+                <div className="mb-4">
+                  <QuickSocialActions
+                    targetUser={viewingFriend}
+                    targetList={friendRankings.find(list => list.isAllTime)}
+                    currentUser={currentUser}
+                    onChallenge={handleSocialChallenge}
+                    onMessage={handleSocialMessage}
+                    onShare={handleSocialShare}
+                    onLike={handleSocialLike}
+                  />
+                </div>
+                
                 <div className="flex-1 overflow-y-auto space-y-6">
                   {friendRankings.length > 0 ? (
                     <>
@@ -7126,9 +8029,12 @@ const TheCanon = ({ supabase }) => {
                                               profilePicture={comment.profiles?.profile_picture_url} 
                                               size="w-4 h-4" 
                                             />
-                                            <span className="font-medium text-blue-400">
-                                              {comment.profiles?.username || comment.profiles?.display_name}
-                                            </span>
+                                            <div className="flex items-center gap-2">
+                                              <span className="font-medium text-blue-400">
+                                                {comment.profiles?.username || comment.profiles?.display_name}
+                                              </span>
+                                              <UserTierBadge userStats={comment.profiles} size="xs" />
+                                            </div>
                                             <span className="text-gray-500">
                                               {new Date(comment.created_at).toLocaleDateString()}
                                             </span>
@@ -7226,9 +8132,12 @@ const TheCanon = ({ supabase }) => {
                                               profilePicture={comment.profiles?.profile_picture_url} 
                                               size="w-4 h-4" 
                                             />
-                                            <span className="font-medium text-blue-400">
-                                              {comment.profiles?.username || comment.profiles?.display_name}
-                                            </span>
+                                            <div className="flex items-center gap-2">
+                                              <span className="font-medium text-blue-400">
+                                                {comment.profiles?.username || comment.profiles?.display_name}
+                                              </span>
+                                              <UserTierBadge userStats={comment.profiles} size="xs" />
+                                            </div>
                                             <span className="text-gray-500">
                                               {new Date(comment.created_at).toLocaleDateString()}
                                             </span>
@@ -7858,6 +8767,186 @@ const TheCanon = ({ supabase }) => {
             onClose={() => setShowCustomCategorySelector(false)}
             existingUserCategories={userLists}
           />
+        )}
+
+        {/* Canon Explanation Modal */}
+        {showCanonExplanation && (
+          <div 
+            className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setShowCanonExplanation(false)}
+          >
+            <div 
+              className={`bg-slate-800 border border-white/20 ${isMobile ? 'w-full max-h-[90vh]' : 'max-w-4xl w-full max-h-[85vh]'} overflow-y-auto`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="sticky top-0 bg-slate-800 border-b border-white/10 p-6 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Crown className="w-8 h-8 text-yellow-400" />
+                  <div>
+                    <h2 className="text-2xl font-black text-white">THE CANON</h2>
+                    <p className="text-purple-400 text-sm font-medium">How we settle the greatest debate in music</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowCanonExplanation(false)}
+                  className="p-2 hover:bg-white/10 transition-colors rounded"
+                >
+                  <X className="w-6 h-6 text-gray-400" />
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="p-6 space-y-8">
+                {/* Introduction */}
+                <div className="text-center">
+                  <h3 className="text-xl font-bold text-white mb-3">Welcome to the Ultimate Hip-Hop Rankings</h3>
+                  <p className="text-gray-300 leading-relaxed">
+                    For decades, hip-hop heads have argued about who belongs in the pantheon of greatness. 
+                    The Canon isn't just another ranking site—it's a <span className="text-purple-400 font-semibold">smart democracy</span> that 
+                    amplifies the voices of true hip hop fans while giving everyone a chance to be heard.
+                  </p>
+                </div>
+
+                {/* How It Works */}
+                <div>
+                  <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                    <BarChart3 className="w-6 h-6 text-purple-400" />
+                    How The Canon Works
+                  </h3>
+                  <div className="space-y-4 text-gray-300">
+                    <div className="bg-slate-700/30 border border-white/10 p-4 rounded-lg">
+                      <p className="font-semibold text-white mb-2">🗳️ Your Voice Builds the Canon</p>
+                      <p>Every member builds their personal Top XX list. These individual canons form the backbone of our collective rankings.</p>
+                    </div>
+                    <div className="bg-slate-700/30 border border-white/10 p-4 rounded-lg">
+                      <p className="font-semibold text-white mb-2">🧠 Intelligent Weighting</p>
+                      <p>Not all opinions carry equal weight. Our algorithm identifies users who demonstrate deep knowledge across eras, styles, and deep cuts—then amplifies their voice in the final rankings.</p>
+                    </div>
+                    <div className="bg-slate-700/30 border border-white/10 p-4 rounded-lg">
+                      <p className="font-semibold text-white mb-2">⚡ Dynamic Updates</p>
+                      <p>The Canon evolves in real-time as members engage, debate, and refine their tastes. Fresh perspectives constantly challenge the established order.</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Credibility System */}
+                <div>
+                  <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                    <Award className="w-6 h-6 text-yellow-400" />
+                    Your Voice Matters More As You Level Up
+                  </h3>
+                  <p className="text-gray-300 mb-4">
+                    Earn credibility through thoughtful engagement, diverse knowledge, and community recognition. 
+                    Your tier badge shows your influence level—and every tier comes with real voting power.
+                  </p>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                    {Object.entries(credibilityTiers).map(([key, tier]) => (
+                      <div key={key} className="bg-slate-700/30 border border-white/10 p-4 rounded-lg text-center">
+                        <div 
+                          className="text-2xl mb-2"
+                          style={{ color: tier.color }}
+                        >
+                          {tier.icon}
+                        </div>
+                        <p className="font-semibold text-white text-sm">{tier.name}</p>
+                        <p className="text-xs text-gray-400 mb-1">{tier.weight}x Voice Weight</p>
+                        <p className="text-xs text-gray-500">{tier.minScore}+ points</p>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <div className="mt-4 p-4 bg-gradient-to-r from-purple-900/30 to-pink-900/30 border border-purple-500/30 rounded-lg">
+                    <p className="text-sm text-gray-300">
+                      <span className="font-semibold text-purple-400">Pro tip:</span> Diamond members' votes count 5x more than Bronze. 
+                      Earn your stripes by showcasing knowledge across different eras, engaging thoughtfully in debates, and building comprehensive rankings.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Features */}
+                <div>
+                  <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                    <Sparkles className="w-6 h-6 text-purple-400" />
+                    What Makes Us Different
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div className="space-y-3">
+                      <div className="flex items-start gap-3">
+                        <div className="w-6 h-6 bg-purple-500/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <Flame className="w-3 h-3 text-purple-400" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-white">Hot Debates</p>
+                          <p className="text-gray-400">Tag artists, challenge conventional wisdom, and let the community decide who's right.</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <div className="w-6 h-6 bg-purple-500/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <Users className="w-3 h-3 text-purple-400" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-white">Taste Compatibility</p>
+                          <p className="text-gray-400">Find users with similar taste and discover new artists through their recommendations.</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <div className="w-6 h-6 bg-purple-500/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <Swords className="w-3 h-3 text-purple-400" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-white">Head-to-Head Battles</p>
+                          <p className="text-gray-400">Daily face-offs that help fine-tune the algorithm and your credibility score.</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex items-start gap-3">
+                        <div className="w-6 h-6 bg-purple-500/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <Trophy className="w-3 h-3 text-purple-400" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-white">Tournament Mode</p>
+                          <p className="text-gray-400">March Madness-style brackets that settle specific debates once and for all.</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <div className="w-6 h-6 bg-purple-500/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <Target className="w-3 h-3 text-purple-400" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-white">Custom Categories</p>
+                          <p className="text-gray-400">Create your own rankings for any theme—from "Best Debut Albums" to "Hardest Beats".</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <div className="w-6 h-6 bg-purple-500/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <TrendingUp className="w-3 h-3 text-purple-400" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-white">Real-Time Evolution</p>
+                          <p className="text-gray-400">Watch as new releases, rediscovered classics, and shifting tastes reshape the canon.</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Call to Action */}
+                <div className="text-center p-6 bg-gradient-to-r from-purple-900/50 to-pink-900/50 border border-purple-500/50 rounded-lg">
+                  <h3 className="text-xl font-bold text-white mb-2">Ready to Shape Hip-Hop History?</h3>
+                  <p className="text-gray-300 mb-4">
+                    Every vote counts, every debate matters, and every ranking tells a story. 
+                    Join the conversation and help us build the most accurate, comprehensive, and respected hip-hop canon ever created.
+                  </p>
+                  <p className="text-sm text-purple-400 font-medium italic">
+                    "Settle the Canon. Start the war."
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </ErrorBoundary>
