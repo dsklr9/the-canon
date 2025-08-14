@@ -132,7 +132,7 @@ const Toast = ({ message, type = "info", onClose }) => {
   };
 
   return (
-    <div className={`fixed bottom-4 right-4 ${bgColors[type]} text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-3 z-50 animate-slide-up`}>
+    <div className={`fixed bottom-4 right-4 ${bgColors[type]} text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-3 z-[60] animate-slide-up`}>
       <span>{message}</span>
       <button onClick={onClose} className="hover:opacity-75">
         <X className="w-4 h-4" />
@@ -431,6 +431,7 @@ const TheCanon = ({ supabase }) => {
   const [showReplyModal, setShowReplyModal] = useState(false);
   const [replyingTo, setReplyingTo] = useState(null);
   const [replyContent, setReplyContent] = useState('');
+  const [isPostingReply, setIsPostingReply] = useState(false);
   const [friends, setFriends] = useState([]);
   const [friendRequests, setFriendRequests] = useState([]);
   
@@ -1670,11 +1671,14 @@ const TheCanon = ({ supabase }) => {
 
   // Post reply to debate
   const postReply = async () => {
-    if (!currentUser || !replyingTo || !replyContent.trim()) return;
+    if (!currentUser || !replyingTo || !replyContent.trim() || isPostingReply) return;
+
+    setIsPostingReply(true);
 
     // Check rate limit
     if (!await checkRateLimit('comment', 10, 5)) {
       addToast('Too many comments! Take a breather.', 'warning');
+      setIsPostingReply(false);
       return;
     }
 
@@ -1706,6 +1710,8 @@ const TheCanon = ({ supabase }) => {
     } catch (error) {
       console.error('Error posting reply:', error);
       addToast('Error posting reply', 'error');
+    } finally {
+      setIsPostingReply(false);
     }
   };
 
@@ -5928,16 +5934,28 @@ const TheCanon = ({ supabase }) => {
                 <textarea
                   value={replyContent}
                   onChange={(e) => setReplyContent(e.target.value)}
-                  placeholder="Share your thoughts..."
-                  className="w-full px-4 py-2 bg-black/50 border border-white/20 focus:border-purple-400 focus:outline-none h-32 mb-4"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      if (replyContent.trim() && !isPostingReply) {
+                        postReply();
+                      }
+                    }
+                  }}
+                  placeholder="Share your thoughts... (Enter to post, Shift+Enter for new line)"
+                  className="w-full px-4 py-2 bg-black/50 border border-white/20 focus:border-purple-400 focus:outline-none h-32 mb-4 resize-none"
                 />
                 
                 <div className="flex gap-3">
                   <button
                     onClick={postReply}
-                    className="flex-1 py-2 bg-purple-600 hover:bg-purple-700 transition-colors font-medium"
+                    disabled={isPostingReply || !replyContent.trim()}
+                    className="flex-1 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-600/50 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center gap-2"
                   >
-                    Post Reply
+                    {isPostingReply && (
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    )}
+                    {isPostingReply ? 'Posting...' : 'Post Reply'}
                   </button>
                   <button
                     onClick={() => {
@@ -5970,11 +5988,11 @@ const TheCanon = ({ supabase }) => {
           {/* Top 100 Modal */}
           {showTop100Modal && (
             <div 
-              className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4"
+              className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4 overflow-hidden"
               onClick={() => setShowTop100Modal(false)}
             >
               <div 
-                className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-4xl w-full'} max-h-[80vh] flex flex-col`}
+                className={`bg-slate-800 border border-white/20 ${isMobile ? 'p-3 w-full h-full' : 'p-6 max-w-4xl w-full'} ${isMobile ? 'max-h-full' : 'max-h-[80vh]'} flex flex-col overflow-hidden rounded-lg`}
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="flex justify-between items-center mb-6">
@@ -5987,51 +6005,58 @@ const TheCanon = ({ supabase }) => {
                   </button>
                 </div>
                 
-                <div className="flex-1">
+                <div className="flex-1 overflow-hidden">
                   <VirtualList
                     items={fullRankings}
-                    itemHeight={isMobile ? 70 : 80}
-                    containerHeight={600}
+                    itemHeight={isMobile ? 60 : 80}
+                    containerHeight={isMobile ? window.innerHeight - 200 : 600}
                     className="pr-2"
                     renderItem={(item) => (
                       <div 
                         key={item.rank} 
-                        className={`flex items-center gap-3 p-3 bg-black/30 border cursor-pointer hover:bg-white/5 mb-2 ${
+                        className={`flex items-center ${isMobile ? 'gap-2 p-2' : 'gap-3 p-3'} bg-black/30 border cursor-pointer hover:bg-white/5 mb-2 ${
                           item.trend === 'hot' ? 'border-orange-400/50 bg-orange-500/5' : 'border-white/10'
                         }`}
                         onClick={() => setShowArtistCard(item.artist)}
                       >
-                        <div className="w-12 text-center">
-                          <span className={`${isMobile ? 'text-lg' : 'text-xl'} font-bold text-gray-400`}>#{item.rank}</span>
+                        <div className={`${isMobile ? 'w-8' : 'w-12'} text-center flex-shrink-0`}>
+                          <span className={`${isMobile ? 'text-sm' : 'text-xl'} font-bold text-gray-400`}>#{item.rank}</span>
                         </div>
                         
-                        <div className="w-8">
-                          {item.trend === 'up' && <ArrowUp className="w-4 h-4 text-green-400" />}
-                          {item.trend === 'down' && <ArrowDown className="w-4 h-4 text-red-400" />}
-                          {item.trend === 'hot' && <Flame className="w-4 h-4 text-orange-400" />}
+                        <div className={`${isMobile ? 'w-5' : 'w-8'} flex-shrink-0`}>
+                          {item.trend === 'up' && <ArrowUp className={`${isMobile ? 'w-3 h-3' : 'w-4 h-4'} text-green-400`} />}
+                          {item.trend === 'down' && <ArrowDown className={`${isMobile ? 'w-3 h-3' : 'w-4 h-4'} text-red-400`} />}
+                          {item.trend === 'hot' && <Flame className={`${isMobile ? 'w-3 h-3' : 'w-4 h-4'} text-orange-400`} />}
                         </div>
                         
-                        <div className="text-2xl"><ArtistAvatar artist={item.artist} /></div>
-                        
-                        <div className="flex-1">
-                          <p className="font-bold">{item.artist.name}</p>
-                          <p className="text-sm text-gray-400">{item.artist.era}</p>
+                        <div className={`${isMobile ? 'w-8 h-8' : 'w-10 h-10'} flex-shrink-0`}>
+                          <ArtistAvatar artist={item.artist} size={isMobile ? 'w-8 h-8' : 'w-10 h-10'} />
                         </div>
                         
-                        <div className="flex items-center gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className={`font-bold truncate ${isMobile ? 'text-sm' : 'text-base'}`}>{item.artist.name}</p>
+                          {!isMobile && item.artist.era && (
+                            <p className="text-sm text-gray-400 truncate">{item.artist.era}</p>
+                          )}
+                          {isMobile && item.artist.era && (
+                            <p className="text-xs text-gray-400 truncate">{item.artist.era}</p>
+                          )}
+                        </div>
+                        
+                        <div className={`flex items-center ${isMobile ? 'gap-1' : 'gap-2'} flex-shrink-0`}>
                           <button 
                             onClick={(e) => {
                               e.stopPropagation();
                               quickAddToList(item.artist);
                             }}
-                            className="p-1.5 hover:bg-white/10 border border-white/10 transition-colors touch-target"
+                            className={`${isMobile ? 'p-1' : 'p-1.5'} hover:bg-white/10 border border-white/10 transition-colors touch-target`}
                             title="Add to My Top 10"
                           >
-                            <Plus className="w-4 h-4" />
+                            <Plus className={`${isMobile ? 'w-3 h-3' : 'w-4 h-4'}`} />
                           </button>
                           <div className="text-right">
-                            <p className="text-sm font-medium">{item.totalPoints.toFixed(1)}</p>
-                            <p className="text-xs text-gray-500">{item.votes} vote{item.votes !== 1 ? 's' : ''}</p>
+                            <p className={`${isMobile ? 'text-xs' : 'text-sm'} font-medium`}>{item.canonScore || item.totalPoints.toFixed(1)}</p>
+                            <p className={`${isMobile ? 'text-xs' : 'text-xs'} text-gray-500`}>{item.votes} vote{item.votes !== 1 ? 's' : ''}</p>
                           </div>
                         </div>
                       </div>
@@ -6569,6 +6594,16 @@ const TheCanon = ({ supabase }) => {
                               </div>
                             </div>
                           ))}
+                          
+                          {/* Bottom expand button */}
+                          <div className="mt-3 pt-2 border-t border-white/10">
+                            <button 
+                              onClick={() => setShowTop100Modal(true)}
+                              className={`w-full py-2 text-center text-yellow-400 hover:text-yellow-300 hover:bg-white/5 rounded transition-colors ${isMobile ? 'text-sm' : 'text-xs'}`}
+                            >
+                              View Full Top 100+ →
+                            </button>
+                          </div>
                         </div>
                       </div>
                     )}
@@ -6772,7 +6807,7 @@ const TheCanon = ({ supabase }) => {
                                 >
                                   <Plus className={isMobile ? 'w-4 h-4' : 'w-3 h-3'} />
                                 </button>
-                                <span className={`text-gray-500 ${isMobile ? 'text-sm' : 'text-xs'}`}>{item.canonScore}</span>
+                                <span className={`text-gray-500 ${isMobile ? 'text-sm' : 'text-xs'}`}>{item.canonScore || Math.round(item.totalPoints)}</span>
                               </div>
                             </div>
                           ))}
