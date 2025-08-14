@@ -7853,10 +7853,11 @@ const TheCanon = ({ supabase }) => {
               onClick={() => setViewingFriend(null)}
             >
               <div 
-                className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-4xl w-full'} max-h-[80vh] flex flex-col`}
+                className={`bg-slate-800 border border-white/20 ${isMobile ? 'w-full h-full' : 'max-w-4xl w-full max-h-[90vh]'} flex flex-col rounded-lg overflow-hidden`}
                 onClick={(e) => e.stopPropagation()}
               >
-                <div className="flex justify-between items-center mb-6">
+                {/* Fixed Header */}
+                <div className="flex justify-between items-center p-6 border-b border-white/10 flex-shrink-0">
                   <h2 className={`font-bold tracking-tight flex items-center gap-3 ${isMobile ? 'text-xl' : 'text-2xl'}`}>
                     <UserAvatar 
                       user={viewingFriend} 
@@ -7882,6 +7883,9 @@ const TheCanon = ({ supabase }) => {
                     <X className="w-5 h-5" />
                   </button>
                 </div>
+                
+                {/* Scrollable Content */}
+                <div className="flex-1 overflow-y-auto p-6">
                 
                 {/* User Profile Stats Section - Compact Version */}
                 <div className="mb-4 p-3 bg-slate-700/30 border border-white/10 rounded-lg">
@@ -7964,9 +7968,8 @@ const TheCanon = ({ supabase }) => {
                   />
                 </div>
                 
-                <div className="flex-1 overflow-y-auto space-y-6">
                   {friendRankings.length > 0 ? (
-                    <>
+                    <div className="space-y-6">
                       {/* Top 10 Lists */}
                       {friendRankings.filter(list => list.isAllTime).length > 0 && (
                         <div>
@@ -8173,7 +8176,7 @@ const TheCanon = ({ supabase }) => {
                           </div>
                         </div>
                       )}
-                    </>
+                    </div>
                   ) : (
                     <div className="text-center py-8 text-gray-400">
                       <User className="w-12 h-12 mx-auto mb-3 opacity-50" />
