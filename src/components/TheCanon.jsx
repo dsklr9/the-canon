@@ -147,12 +147,16 @@ const useIsMobile = () => {
   
   useEffect(() => {
     const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
+      if (typeof window !== 'undefined' && typeof navigator !== 'undefined') {
+        setIsMobile(window.innerWidth < 768 || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
+      }
     };
     
     checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', checkMobile);
+      return () => window.removeEventListener('resize', checkMobile);
+    }
   }, []);
   
   return isMobile;
@@ -482,7 +486,6 @@ const TheCanon = ({ supabase }) => {
   const [isLoadingSearch, setIsLoadingSearch] = useState(false);
   const [isLoadingCompatibility, setIsLoadingCompatibility] = useState(false);
   const [isPostingDebate, setIsPostingDebate] = useState(false);
-  const [isPostingReply, setIsPostingReply] = useState(false);
   
   // Compatibility data
   const [compatibilityScores, setCompatibilityScores] = useState({});
