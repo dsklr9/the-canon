@@ -6009,7 +6009,7 @@ const TheCanon = ({ supabase }) => {
                   <VirtualList
                     items={fullRankings}
                     itemHeight={isMobile ? 60 : 80}
-                    containerHeight={isMobile ? window.innerHeight - 200 : 600}
+                    containerHeight={isMobile ? (typeof window !== 'undefined' ? window.innerHeight - 200 : 500) : 600}
                     className="pr-2"
                     renderItem={(item) => (
                       <div 
