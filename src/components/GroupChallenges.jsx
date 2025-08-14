@@ -9,7 +9,8 @@ import {
   Plus,
   Crown,
   Timer,
-  Award
+  Award,
+  X
 } from 'lucide-react';
 
 const GroupChallenges = ({ 
