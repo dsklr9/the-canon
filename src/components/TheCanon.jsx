@@ -3535,6 +3535,52 @@ const TheCanon = ({ supabase }) => {
     // In real implementation, would save challenge to database
   }, []);
 
+  const handleGroupChallengeStart = useCallback((challenge, action) => {
+    if (action === 'view_submission') {
+      addToast(`Viewing your submission for "${challenge.title}"`, 'info');
+      // In real implementation, would show submission details
+      return;
+    }
+
+    // Navigate to appropriate interface based on challenge type
+    switch (challenge.type) {
+      case 'ranking':
+        // Open the list creation interface
+        addToast(`Starting ranking challenge: "${challenge.title}"`, 'success');
+        // Navigate to "My Top 10" tab to create a new list
+        setActiveTab('mytop10');
+        // Could also trigger a specific challenge mode
+        break;
+        
+      case 'discovery':
+        // Open search interface with discovery criteria
+        addToast(`Starting discovery hunt: "${challenge.title}"`, 'success');
+        // Switch to search tab and set search context
+        setActiveTab('foryou'); // Or dedicated discovery tab
+        // Could pre-fill search criteria based on challenge.theme
+        break;
+        
+      case 'debate':
+        // Open debate creation modal
+        addToast(`Starting debate: "${challenge.title}"`, 'success');
+        setShowDebateModal(true);
+        setDebateTitle(challenge.title);
+        setDebateContent(`Challenge: ${challenge.theme}\n\nMy position: `);
+        break;
+        
+      case 'collaboration':
+        // Start collaborative list
+        addToast(`Starting collaboration: "${challenge.title}"`, 'success');
+        setActiveTab('mytop10');
+        // Could trigger collaborative mode
+        break;
+        
+      default:
+        addToast(`Starting challenge: "${challenge.title}"`, 'success');
+        break;
+    }
+  }, [addToast, setActiveTab, setShowDebateModal, setDebateTitle, setDebateContent]);
+
   const handleArtistCompare = useCallback((artist) => {
     // Show artist comparison with friends
     setShowArtistCard(artist);
@@ -7840,6 +7886,7 @@ const TheCanon = ({ supabase }) => {
                     friends={friends}
                     onJoinChallenge={handleGroupChallengeJoin}
                     onCreateChallenge={handleGroupChallengeCreate}
+                    onStartWorking={handleGroupChallengeStart}
                   />
                 </div>
               </div>

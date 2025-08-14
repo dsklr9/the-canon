@@ -18,6 +18,7 @@ const GroupChallenges = ({
   friends = [],
   onJoinChallenge,
   onCreateChallenge,
+  onStartWorking,
   className = ''
 }) => {
   const [activeChallenges, setActiveChallenges] = useState([]);
@@ -387,8 +388,17 @@ const GroupChallenges = ({
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => {
+                  const userParticipant = showChallengeDetails.participants.find(p => p.username === (currentUser?.username || 'You'));
+                  
+                  if (userParticipant?.completed) {
+                    // Show submission results
+                    onStartWorking?.(showChallengeDetails, 'view_submission');
+                  } else {
+                    // Start working on challenge
+                    onStartWorking?.(showChallengeDetails, 'start_working');
+                  }
+                  
                   setShowChallengeDetails(null);
-                  // In real implementation, would navigate to submission interface
                 }}
                 className="flex-1 py-2 bg-purple-600 hover:bg-purple-700 transition-colors font-medium rounded"
               >
