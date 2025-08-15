@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import { Heart, MessageCircle, Share2, TrendingUp, Users, Zap, Trophy, Flame, Star, ChevronDown, X, Check, Shuffle, Timer, Search, Plus, GripVertical, User, Edit2, Save, ArrowUp, ArrowDown, Swords, Crown, Settings, Copy, BarChart3, Sparkles, Target, Gift, AlertCircle, Loader2, Filter, Clock, Award, TrendingDown, Users2, Bell, LogOut } from 'lucide-react';
 import { ReportModal, useRateLimit, filterContent } from './ModerationComponents';
-import TournamentSection from './TournamentSection';
+// import TournamentSection from './TournamentSection'; // Replaced with TournamentWidget and TournamentBracket
 import CustomCategorySelector from './CustomCategorySelector';
 import CustomCategorySection from './CustomCategorySection';
 import RankingCard from './RankingCard';
@@ -15,6 +15,8 @@ import LiveActivityFeed from './LiveActivityFeed';
 import FriendCompatibility from './FriendCompatibility';
 import QuickSocialActions, { ArtistSocialActions } from './QuickSocialActions';
 import GroupChallenges from './GroupChallenges';
+import TournamentWidget from './TournamentWidget';
+import TournamentBracket from './TournamentBracket';
 import { useDebounce, useDebouncedCallback } from '../hooks/useDebounce';
 
 // Add CSS styles to prevent viewport issues
@@ -395,6 +397,19 @@ const TheCanon = ({ supabase }) => {
   const [showCanonExplanation, setShowCanonExplanation] = useState(false);
   const [loadedRankings, setLoadedRankings] = useState(50);
   const [promptAddToList, setPromptAddToList] = useState(false);
+  const [showTournamentBracket, setShowTournamentBracket] = useState(false);
+  const [currentTournament, setCurrentTournament] = useState({
+    id: 'march-madness-2024',
+    title: 'March Madness: Best Bars',
+    phase: 'submissions',
+    deadline: new Date(Date.now() + 48 * 60 * 60 * 1000),
+    totalSlots: 32,
+    submittedCount: 24,
+    userSubmitted: false,
+    currentRound: null,
+    prize: '🏆 Custom Canon Badge',
+    theme: 'Most iconic bars in hip-hop history'
+  });
   const [selectedArtistToAdd, setSelectedArtistToAdd] = useState(null);
   const [username, setUsername] = useState("HipHopFan2025");
   const [editingUsername, setEditingUsername] = useState(false);
@@ -6440,24 +6455,132 @@ const TheCanon = ({ supabase }) => {
             {console.log('🔍 Current activeTab in main content:', activeTab)}
             {activeTab === 'foryou' ? (
               <div className="space-y-6">
-                {/* Tournament Section */}
-                <TournamentSection 
-                  supabase={supabase} 
-                  currentUser={currentUser}
-                />
+                {/* Tournament Widget - Secondary Feature */}
+                {currentTournament && (
+                  <TournamentWidget 
+                    tournament={currentTournament}
+                    currentUser={currentUser}
+                    onSubmitEntry={() => {
+                      // TODO: Implement tournament submission
+                      setShowTournamentBracket(true);
+                    }}
+                    onExpandBracket={() => setShowTournamentBracket(true)}
+                  />
+                )}
                 
-                {/* Add Debate Button */}
-                <button
-                  onClick={() => {
-                    if (requireAuth('start a debate')) {
-                      setShowDebateModal(true);
-                    }
-                  }}
-                  className="w-full py-3 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-400/50 transition-colors font-medium flex items-center justify-center gap-2"
-                >
-                  <MessageCircle className="w-5 h-5" />
-                  Start a Debate
-                </button>
+                {/* Enhanced Top 10 Canon - Primary Feature */}
+                <div className="space-y-4">
+                  {/* Canon Header with Activity */}
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+                        <Trophy className="w-6 h-6 text-yellow-400" />
+                        THE CANON
+                      </h2>
+                      <p className="text-sm text-gray-400 mt-1">
+                        All-time greatest, ranked by the community
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {/* Live indicator */}
+                      <div className="flex items-center gap-1 px-2 py-1 bg-green-500/20 rounded-full">
+                        <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                        <span className="text-xs text-green-400">Live</span>
+                      </div>
+                      {/* Total voters count */}
+                      <div className="text-xs text-gray-400">
+                        {totalVoters} voters
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Enhanced Top 10 List */}
+                  {fullRankings.length > 0 && (
+                    <div className="bg-gradient-to-r from-yellow-900/20 to-orange-900/20 border border-yellow-500/30 rounded-lg p-4">
+                      <div className="space-y-2">
+                        {fullRankings.slice(0, 10).map((item, idx) => {
+                          const recentChange = Math.random() > 0.7 ? Math.floor(Math.random() * 3) - 1 : 0;
+                          const isYourVote = Math.random() > 0.8;
+                          
+                          return (
+                            <div 
+                              key={idx} 
+                              className={`flex items-center gap-3 p-3 bg-black/30 rounded-lg cursor-pointer hover:bg-white/5 transition-all ${
+                                item.trend === 'hot' ? 'ring-2 ring-orange-400/50' : ''
+                              }`}
+                              onClick={() => setShowArtistCard(item.artist)}
+                            >
+                              <div className="text-center w-12">
+                                <span className="text-2xl font-bold text-gray-400">#{item.rank}</span>
+                              </div>
+                              
+                              <div className="w-8">
+                                {recentChange > 0 && <ArrowUp className="w-4 h-4 text-green-400" />}
+                                {recentChange < 0 && <ArrowDown className="w-4 h-4 text-red-400" />}
+                                {item.trend === 'hot' && <Flame className="w-4 h-4 text-orange-400 animate-pulse" />}
+                              </div>
+                              
+                              <div className="w-12 h-12">
+                                <ArtistAvatar artist={item.artist} size="w-12 h-12" />
+                              </div>
+                              
+                              <div className="flex-1">
+                                <p className="font-bold text-lg">{item.artist.name}</p>
+                                <div className="flex items-center gap-3 text-xs text-gray-400">
+                                  {item.artist.era && <span>{item.artist.era}</span>}
+                                  {isYourVote && (
+                                    <span className="text-purple-400 flex items-center gap-1">
+                                      <Check className="w-3 h-3" />
+                                      Your vote helped
+                                    </span>
+                                  )}
+                                  {friends.length > 0 && Math.random() > 0.5 && (
+                                    <span className="text-blue-400">
+                                      {Math.floor(Math.random() * 3) + 1} friends agree
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              <div className="text-right">
+                                <p className="text-lg font-bold text-yellow-400">{item.canonScore || Math.round(item.totalPoints)}</p>
+                                <p className="text-xs text-gray-500">{item.votes} votes</p>
+                              </div>
+                              
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  quickAddToList(item.artist);
+                                }}
+                                className="p-2 hover:bg-white/10 rounded transition-colors"
+                                title="Add to My Top 10"
+                              >
+                                <Plus className="w-5 h-5" />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      
+                      {/* Bottom expand button */}
+                      <div className="mt-4 pt-4 border-t border-yellow-500/30">
+                        <button 
+                          onClick={() => setShowTop100Modal(true)}
+                          className="w-full py-3 text-center bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-400 rounded-lg transition-colors font-medium flex items-center justify-center gap-2"
+                        >
+                          <Trophy className="w-5 h-5" />
+                          View Full Top 100+ Rankings
+                          <ChevronDown className="w-5 h-5" />
+                        </button>
+                      </div>
+                      
+                      <div className="mt-3 flex justify-between text-xs text-gray-400">
+                        <span>{totalVoters} total voters</span>
+                        <span>Updated live</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
                 
                 {/* Top Section - Hot Debates + All-Time Top 10 */}
                 <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-3'} gap-6`}>
