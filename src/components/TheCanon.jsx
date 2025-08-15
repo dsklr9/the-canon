@@ -6494,24 +6494,48 @@ const TheCanon = ({ supabase }) => {
                     </div>
                   </div>
                   
-                  {/* Enhanced Top 10 List */}
+                  {/* Enhanced Top 10 List - Gold Accented */}
                   {fullRankings.length > 0 && (
-                    <div className="bg-gradient-to-r from-yellow-900/20 to-orange-900/20 border border-yellow-500/30 rounded-lg p-4">
+                    <div className="relative bg-gradient-to-br from-yellow-900/20 via-amber-900/15 to-orange-900/20 border-2 border-yellow-500/40 rounded-lg p-4 shadow-[0_0_30px_rgba(250,204,21,0.15)]">
+                      {/* Gold corner accents */}
+                      <div className="absolute top-0 left-0 w-16 h-16 border-t-2 border-l-2 border-yellow-400/60 rounded-tl-lg" />
+                      <div className="absolute top-0 right-0 w-16 h-16 border-t-2 border-r-2 border-yellow-400/60 rounded-tr-lg" />
+                      <div className="absolute bottom-0 left-0 w-16 h-16 border-b-2 border-l-2 border-yellow-400/60 rounded-bl-lg" />
+                      <div className="absolute bottom-0 right-0 w-16 h-16 border-b-2 border-r-2 border-yellow-400/60 rounded-br-lg" />
                       <div className="space-y-2">
                         {fullRankings.slice(0, 10).map((item, idx) => {
                           const recentChange = Math.random() > 0.7 ? Math.floor(Math.random() * 3) - 1 : 0;
                           const isYourVote = Math.random() > 0.8;
+                          const isNumberOne = item.rank === 1;
                           
                           return (
                             <div 
                               key={idx} 
-                              className={`flex items-center gap-3 p-3 bg-black/30 rounded-lg cursor-pointer hover:bg-white/5 transition-all ${
-                                item.trend === 'hot' ? 'ring-2 ring-orange-400/50' : ''
+                              className={`relative flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${
+                                isNumberOne 
+                                  ? 'bg-gradient-to-r from-yellow-900/40 via-amber-800/30 to-yellow-900/40 border-2 border-yellow-400/50 shadow-[0_0_20px_rgba(250,204,21,0.25)]' 
+                                  : 'bg-black/30 hover:bg-white/5'
+                              } ${
+                                item.trend === 'hot' && !isNumberOne ? 'ring-2 ring-orange-400/50' : ''
                               }`}
                               onClick={() => setShowArtistCard(item.artist)}
                             >
+                              {/* Crown for #1 */}
+                              {isNumberOne && (
+                                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                                  <Crown className="w-6 h-6 text-yellow-400 animate-pulse" />
+                                </div>
+                              )}
                               <div className="text-center w-12">
-                                <span className="text-2xl font-bold text-gray-400">#{item.rank}</span>
+                                <span className={`text-2xl font-bold ${
+                                  isNumberOne ? 'text-yellow-400' : 'text-gray-400'
+                                }`}>
+                                  {isNumberOne ? (
+                                    <span className="text-3xl font-black">#1</span>
+                                  ) : (
+                                    `#${item.rank}`
+                                  )}
+                                </span>
                               </div>
                               
                               <div className="w-8">
@@ -6543,8 +6567,17 @@ const TheCanon = ({ supabase }) => {
                               </div>
                               
                               <div className="text-right">
-                                <p className="text-lg font-bold text-yellow-400">{item.canonScore || Math.round(item.totalPoints)}</p>
-                                <p className="text-xs text-gray-500">{item.votes} votes</p>
+                                <p className={`text-lg font-bold ${
+                                  isNumberOne ? 'text-yellow-300' : 'text-yellow-400'
+                                }`}>
+                                  {item.canonScore || Math.round(item.totalPoints)}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  {item.votes} votes
+                                  {isNumberOne && (
+                                    <span className="block text-yellow-400/70 text-[10px] font-medium mt-1">REIGNING</span>
+                                  )}
+                                </p>
                               </div>
                               
                               <button 
@@ -6936,7 +6969,8 @@ const TheCanon = ({ supabase }) => {
                                 <span className={`text-gray-500 ${isMobile ? 'text-sm' : 'text-xs'}`}>{item.canonScore || Math.round(item.totalPoints)}</span>
                               </div>
                             </div>
-                          ))}
+                            );
+                          })}
                         </div>
                         
                         <div className={`mt-3 pt-3 border-t border-white/10 flex justify-between text-gray-400 ${isMobile ? 'text-sm' : 'text-xs'}`}>
