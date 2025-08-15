@@ -6924,51 +6924,61 @@ const TheCanon = ({ supabase }) => {
                       </div>
                         
                         <div className="space-y-1">
-                          {fullRankings.slice(0, 10).map((item, idx) => (
-                            <div 
-                              key={idx} 
-                              className={`flex items-center gap-2 px-2 py-1 ${isMobile ? 'text-sm' : 'text-xs'} cursor-pointer hover:bg-white/5 ${
-                                item.trend === 'hot' ? 'bg-orange-500/10 border-l-2 border-orange-400' : ''
-                              }`}
-                              onClick={() => setShowArtistCard(item.artist)}
-                            >
-                              <div className={`text-center ${isMobile ? 'w-10' : 'w-8'}`}>
-                                <span className="font-bold text-gray-500">#{item.rank}</span>
+                          {fullRankings.slice(0, 10).map((item, idx) => {
+                            const isNumberOne = item.rank === 1;
+                            return (
+                              <div 
+                                key={idx} 
+                                className={`flex items-center gap-2 px-2 py-1 ${isMobile ? 'text-sm' : 'text-xs'} cursor-pointer hover:bg-white/5 ${
+                                  isNumberOne ? 'bg-gradient-to-r from-yellow-900/30 to-transparent border-l-2 border-yellow-400' :
+                                  item.trend === 'hot' ? 'bg-orange-500/10 border-l-2 border-orange-400' : ''
+                                }`}
+                                onClick={() => setShowArtistCard(item.artist)}
+                              >
+                                <div className={`text-center ${isMobile ? 'w-10' : 'w-8'}`}>
+                                  {isNumberOne ? (
+                                    <span className="font-bold text-yellow-400 flex items-center gap-0.5">
+                                      <Crown className="w-3 h-3" />
+                                      <span>1</span>
+                                    </span>
+                                  ) : (
+                                    <span className="font-bold text-gray-500">#{item.rank}</span>
+                                  )}
+                                </div>
+                                
+                                <div className={isMobile ? 'w-5' : 'w-4'}>
+                                  {item.trend === 'up' && <ArrowUp className={`text-green-400 ${isMobile ? 'w-4 h-4' : 'w-3 h-3'}`} />}
+                                  {item.trend === 'down' && <ArrowDown className={`text-red-400 ${isMobile ? 'w-4 h-4' : 'w-3 h-3'}`} />}
+                                  {item.trend === 'hot' && <Flame className={`text-orange-400 ${isMobile ? 'w-4 h-4' : 'w-3 h-3'}`} />}
+                                </div>
+                                
+                                <div className={isMobile ? 'text-xl' : 'text-lg'}>
+                                  <ArtistAvatar artist={item.artist} size={isMobile ? 'w-8 h-8' : 'w-6 h-6'} />
+                                </div>
+                                
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium truncate">{item.artist.name}</p>
+                                  {friends.length > 0 && (
+                                    <p className="text-xs text-purple-400 mt-0.5">
+                                      {Math.floor(Math.random() * 3) + 1} friends rank this artist
+                                    </p>
+                                  )}
+                                </div>
+                                
+                                <div className="flex items-center gap-1">
+                                  <button 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      quickAddToList(item.artist);
+                                    }}
+                                    className={`hover:bg-white/10 rounded ${isMobile ? 'p-1 touch-target' : 'p-0.5'}`}
+                                    title="Add to My Top 10"
+                                  >
+                                    <Plus className={isMobile ? 'w-4 h-4' : 'w-3 h-3'} />
+                                  </button>
+                                  <span className={`text-gray-500 ${isMobile ? 'text-sm' : 'text-xs'}`}>{item.canonScore || Math.round(item.totalPoints)}</span>
+                                </div>
                               </div>
-                              
-                              <div className={isMobile ? 'w-5' : 'w-4'}>
-                                {item.trend === 'up' && <ArrowUp className={`text-green-400 ${isMobile ? 'w-4 h-4' : 'w-3 h-3'}`} />}
-                                {item.trend === 'down' && <ArrowDown className={`text-red-400 ${isMobile ? 'w-4 h-4' : 'w-3 h-3'}`} />}
-                                {item.trend === 'hot' && <Flame className={`text-orange-400 ${isMobile ? 'w-4 h-4' : 'w-3 h-3'}`} />}
-                              </div>
-                              
-                              <div className={isMobile ? 'text-xl' : 'text-lg'}>
-                                <ArtistAvatar artist={item.artist} size={isMobile ? 'w-8 h-8' : 'w-6 h-6'} />
-                              </div>
-                              
-                              <div className="flex-1 min-w-0">
-                                <p className="font-medium truncate">{item.artist.name}</p>
-                                {friends.length > 0 && (
-                                  <p className="text-xs text-purple-400 mt-0.5">
-                                    {Math.floor(Math.random() * 3) + 1} friends rank this artist
-                                  </p>
-                                )}
-                              </div>
-                              
-                              <div className="flex items-center gap-1">
-                                <button 
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    quickAddToList(item.artist);
-                                  }}
-                                  className={`hover:bg-white/10 rounded ${isMobile ? 'p-1 touch-target' : 'p-0.5'}`}
-                                  title="Add to My Top 10"
-                                >
-                                  <Plus className={isMobile ? 'w-4 h-4' : 'w-3 h-3'} />
-                                </button>
-                                <span className={`text-gray-500 ${isMobile ? 'text-sm' : 'text-xs'}`}>{item.canonScore || Math.round(item.totalPoints)}</span>
-                              </div>
-                            </div>
                             );
                           })}
                         </div>
