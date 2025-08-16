@@ -6787,7 +6787,7 @@ const TheCanon = ({ supabase }) => {
                               
                               {/* Artist Tags */}
                               {debate.artistTags.length > 0 && (
-                                <div className="flex gap-2 mb-3">
+                                <div className="flex flex-wrap gap-2 mb-3">
                                   {debate.artistTags.map((artistId) => {
                                     const artist = allArtists.find(a => a.id === artistId);
                                     return artist ? (
