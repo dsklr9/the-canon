@@ -6511,7 +6511,7 @@ const TheCanon = ({ supabase }) => {
                           return (
                             <div 
                               key={idx} 
-                              className={`relative flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${
+                              className={`relative flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-all ${
                                 isNumberOne 
                                   ? 'bg-gradient-to-r from-yellow-900/40 via-amber-800/30 to-yellow-900/40 border-2 border-yellow-400/50 shadow-[0_0_20px_rgba(250,204,21,0.25)]' 
                                   : 'bg-black/30 hover:bg-white/5'
@@ -6526,58 +6526,51 @@ const TheCanon = ({ supabase }) => {
                                   <Crown className="w-6 h-6 text-yellow-400 animate-pulse" />
                                 </div>
                               )}
-                              <div className="text-center w-12">
-                                <span className={`text-2xl font-bold ${
-                                  isNumberOne ? 'text-yellow-400' : 'text-gray-400'
+                              <div className="text-center w-8 flex-shrink-0">
+                                <span className={`text-lg font-black ${
+                                  isNumberOne ? 'text-yellow-400' : 'text-white'
                                 }`}>
-                                  {isNumberOne ? (
-                                    <span className="text-3xl font-black">#1</span>
-                                  ) : (
-                                    `#${item.rank}`
-                                  )}
+                                  {isNumberOne ? '1' : item.rank}
                                 </span>
                               </div>
                               
-                              <div className="w-8">
-                                {recentChange > 0 && <ArrowUp className="w-4 h-4 text-green-400" />}
-                                {recentChange < 0 && <ArrowDown className="w-4 h-4 text-red-400" />}
-                                {item.trend === 'hot' && <Flame className="w-4 h-4 text-orange-400 animate-pulse" />}
+                              <div className="w-6 flex justify-center flex-shrink-0">
+                                {recentChange > 0 && <ArrowUp className="w-3 h-3 text-green-400" />}
+                                {recentChange < 0 && <ArrowDown className="w-3 h-3 text-red-400" />}
+                                {item.trend === 'hot' && <Flame className="w-3 h-3 text-orange-400 animate-pulse" />}
                               </div>
                               
-                              <div className="w-12 h-12">
-                                <ArtistAvatar artist={item.artist} size="w-12 h-12" />
+                              <div className="w-10 h-10 flex-shrink-0">
+                                <ArtistAvatar artist={item.artist} size="w-10 h-10" />
                               </div>
                               
-                              <div className="flex-1">
-                                <p className="font-bold text-lg">{item.artist.name}</p>
-                                <div className="flex items-center gap-3 text-xs text-gray-400">
-                                  {item.artist.era && <span>{item.artist.era}</span>}
+                              <div className="flex-1 min-w-0">
+                                <p className="font-bold text-base truncate">{item.artist.name}</p>
+                                <div className="text-center">
+                                  {item.artist.era && <span className="text-xs text-gray-400">{item.artist.era}</span>}
                                   {isYourVote && (
-                                    <span className="text-purple-400 flex items-center gap-1">
+                                    <div className="text-xs text-purple-400 flex items-center justify-center gap-1 mt-0.5">
                                       <Check className="w-3 h-3" />
                                       Your vote helped
-                                    </span>
+                                    </div>
                                   )}
                                   {friends.length > 0 && Math.random() > 0.5 && (
-                                    <span className="text-blue-400">
+                                    <div className="text-xs text-blue-400 mt-0.5">
                                       {Math.floor(Math.random() * 3) + 1} friends agree
-                                    </span>
+                                    </div>
                                   )}
                                 </div>
                               </div>
                               
-                              <div className="text-right">
-                                <p className={`text-lg font-bold ${
+                              <div className="text-right flex-shrink-0">
+                                <p className={`text-sm font-bold ${
                                   isNumberOne ? 'text-yellow-300' : 'text-yellow-400'
                                 }`}>
                                   {item.canonScore || Math.round(item.totalPoints)}
                                 </p>
-                                <p className="text-xs text-gray-500">
-                                  {item.votes} votes
-                                  {isNumberOne && (
-                                    <span className="block text-yellow-400/70 text-[10px] font-medium mt-1">REIGNING</span>
-                                  )}
-                                </p>
+                                {isNumberOne && (
+                                  <span className="block text-yellow-400/70 text-[10px] font-medium mt-0.5">REIGNING</span>
+                                )}
                               </div>
                               
                               <button 
@@ -6585,10 +6578,10 @@ const TheCanon = ({ supabase }) => {
                                   e.stopPropagation();
                                   quickAddToList(item.artist);
                                 }}
-                                className="p-2 hover:bg-white/10 rounded transition-colors"
+                                className="p-1.5 hover:bg-white/10 rounded transition-colors flex-shrink-0"
                                 title="Add to My Top 10"
                               >
-                                <Plus className="w-5 h-5" />
+                                <Plus className="w-4 h-4" />
                               </button>
                             </div>
                           );
@@ -6607,8 +6600,7 @@ const TheCanon = ({ supabase }) => {
                         </button>
                       </div>
                       
-                      <div className="mt-3 flex justify-between text-xs text-gray-400">
-                        <span>{totalVoters} total voters</span>
+                      <div className="mt-3 text-center text-xs text-gray-400">
                         <span>Updated live</span>
                       </div>
                     </div>
@@ -6935,37 +6927,42 @@ const TheCanon = ({ supabase }) => {
                                 }`}
                                 onClick={() => setShowArtistCard(item.artist)}
                               >
-                                <div className={`text-center ${isMobile ? 'w-10' : 'w-8'}`}>
+                                <div className={`text-center ${isMobile ? 'w-6' : 'w-5'} flex-shrink-0`}>
                                   {isNumberOne ? (
-                                    <span className="font-bold text-yellow-400 flex items-center gap-0.5">
-                                      <Crown className="w-3 h-3" />
+                                    <span className="font-black text-yellow-400 flex items-center justify-center gap-0.5 text-sm">
+                                      <Crown className="w-2.5 h-2.5" />
                                       <span>1</span>
                                     </span>
                                   ) : (
-                                    <span className="font-bold text-gray-500">#{item.rank}</span>
+                                    <span className={`font-black text-white ${isMobile ? 'text-sm' : 'text-xs'}`}>{item.rank}</span>
                                   )}
                                 </div>
                                 
-                                <div className={isMobile ? 'w-5' : 'w-4'}>
-                                  {item.trend === 'up' && <ArrowUp className={`text-green-400 ${isMobile ? 'w-4 h-4' : 'w-3 h-3'}`} />}
-                                  {item.trend === 'down' && <ArrowDown className={`text-red-400 ${isMobile ? 'w-4 h-4' : 'w-3 h-3'}`} />}
-                                  {item.trend === 'hot' && <Flame className={`text-orange-400 ${isMobile ? 'w-4 h-4' : 'w-3 h-3'}`} />}
+                                <div className={`${isMobile ? 'w-5' : 'w-4'} flex justify-center flex-shrink-0`}>
+                                  {item.trend === 'up' && <ArrowUp className={`text-green-400 ${isMobile ? 'w-3 h-3' : 'w-2.5 h-2.5'}`} />}
+                                  {item.trend === 'down' && <ArrowDown className={`text-red-400 ${isMobile ? 'w-3 h-3' : 'w-2.5 h-2.5'}`} />}
+                                  {item.trend === 'hot' && <Flame className={`text-orange-400 ${isMobile ? 'w-3 h-3' : 'w-2.5 h-2.5'}`} />}
                                 </div>
                                 
-                                <div className={isMobile ? 'text-xl' : 'text-lg'}>
-                                  <ArtistAvatar artist={item.artist} size={isMobile ? 'w-8 h-8' : 'w-6 h-6'} />
+                                <div className={`${isMobile ? 'w-7 h-7' : 'w-6 h-6'} flex-shrink-0`}>
+                                  <ArtistAvatar artist={item.artist} size={isMobile ? 'w-7 h-7' : 'w-6 h-6'} />
                                 </div>
                                 
                                 <div className="flex-1 min-w-0">
-                                  <p className="font-medium truncate">{item.artist.name}</p>
+                                  <p className={`font-medium truncate ${isMobile ? 'text-sm' : 'text-xs'}`}>{item.artist.name}</p>
                                   {friends.length > 0 && (
-                                    <p className="text-xs text-purple-400 mt-0.5">
-                                      {Math.floor(Math.random() * 3) + 1} friends rank this artist
-                                    </p>
+                                    <div className="text-center">
+                                      <span className={`text-purple-400 ${isMobile ? 'text-xs' : 'text-[10px]'}`}>
+                                        {Math.floor(Math.random() * 3) + 1} friends agree
+                                      </span>
+                                    </div>
                                   )}
                                 </div>
                                 
-                                <div className="flex items-center gap-1">
+                                <div className="flex items-center gap-1 flex-shrink-0">
+                                  <span className={`text-yellow-400 font-medium ${isMobile ? 'text-xs' : 'text-[10px]'}`}>
+                                    {item.canonScore || Math.round(item.totalPoints)}
+                                  </span>
                                   <button 
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -6974,18 +6971,16 @@ const TheCanon = ({ supabase }) => {
                                     className={`hover:bg-white/10 rounded ${isMobile ? 'p-1 touch-target' : 'p-0.5'}`}
                                     title="Add to My Top 10"
                                   >
-                                    <Plus className={isMobile ? 'w-4 h-4' : 'w-3 h-3'} />
+                                    <Plus className={isMobile ? 'w-3 h-3' : 'w-2.5 h-2.5'} />
                                   </button>
-                                  <span className={`text-gray-500 ${isMobile ? 'text-sm' : 'text-xs'}`}>{item.canonScore || Math.round(item.totalPoints)}</span>
                                 </div>
                               </div>
                             );
                           })}
                         </div>
                         
-                        <div className={`mt-3 pt-3 border-t border-white/10 flex justify-between text-gray-400 ${isMobile ? 'text-sm' : 'text-xs'}`}>
-                          <span>{totalVoters} {totalVoters === 1 ? 'voter' : 'voters'}</span>
-                          <span>Avg unique: 6.8</span>
+                        <div className={`mt-3 pt-3 border-t border-white/10 text-center text-gray-400 ${isMobile ? 'text-sm' : 'text-xs'}`}>
+                          <span>Live rankings</span>
                         </div>
                       </div>
                     </div>
