@@ -4185,6 +4185,7 @@ const TheCanon = ({ supabase }) => {
     } else {
       // Handle artist dragging
       const { artist, listId } = data;
+      console.log('Setting draggedItem:', { artist: artist.name, listId });
       setDraggedItem({ artist, listId });
       setDraggedFromList(listId);
     }
@@ -4192,6 +4193,7 @@ const TheCanon = ({ supabase }) => {
 
   const handleMobileDragMove = useCallback((touch) => {
     const element = document.elementFromPoint(touch.clientX, touch.clientY);
+    console.log('Mobile drag move - touch:', touch.clientX, touch.clientY, 'element:', element?.className);
     
     if (draggedOtherRankingId) {
       // Check if we're dragging an other ranking
@@ -4207,41 +4209,38 @@ const TheCanon = ({ supabase }) => {
         setOtherRankingDragOverIndex(null);
       }
     } else if (draggedItem) {
-      // Handle artist dragging with live reordering
+      console.log('Dragged item found:', draggedItem);
+      // Handle artist dragging
       const dropTarget = element?.closest('[data-drop-index]');
+      console.log('Drop target:', dropTarget, 'data-drop-index:', dropTarget?.dataset?.dropIndex);
+      
       if (dropTarget) {
         const index = parseInt(dropTarget.dataset.dropIndex);
         const listElement = dropTarget.closest('[data-list-container]');
         const listId = listElement?.getAttribute('data-list-container') || draggedItem.listId;
         
-        // Update both dragOverIndex and draggedFromList for purple bar
-        setDragOverIndex(index);
-        setDraggedFromList(listId);
+        console.log('Setting dragOverIndex to:', index, 'listId:', listId);
         
-        // Live reordering for smooth UX
-        if (listId && draggedItem.listId === listId) {
-          const list = userLists.find(l => l.id === listId);
-          if (list) {
-            const fromIndex = list.artists.findIndex(a => a.id === draggedItem.artist.id);
-            if (fromIndex !== -1 && fromIndex !== index && index <= list.artists.length) {
-              // Create new array with item moved
-              const newArtists = [...list.artists];
-              const [movedItem] = newArtists.splice(fromIndex, 1);
-              const adjustedIndex = index > fromIndex ? index - 1 : index;
-              newArtists.splice(adjustedIndex, 0, movedItem);
-              
-              // Update immediately for smooth animation
-              setUserLists(prev => prev.map(l => 
-                l.id === listId ? { ...l, artists: newArtists } : l
-              ));
-            }
-          }
+        // Always update dragOverIndex for purple bar visibility
+        if (index !== dragOverIndex) {
+          setDragOverIndex(index);
+        }
+        
+        // Ensure draggedFromList is set for purple bar to show
+        if (!draggedFromList || draggedFromList !== listId) {
+          setDraggedFromList(listId);
         }
       } else {
-        setDragOverIndex(null);
+        console.log('No drop target found, clearing dragOverIndex');
+        // Clear when not over a valid drop zone
+        if (dragOverIndex !== null) {
+          setDragOverIndex(null);
+        }
       }
+    } else {
+      console.log('No dragged item found');
     }
-  }, [draggedOtherRankingId, draggedItem, userLists]);
+  }, [draggedOtherRankingId, draggedItem, dragOverIndex, draggedFromList]);
 
   const handleMobileDragEnd = useCallback((data, dropTarget) => {
     console.log('Mobile drag end:', { draggedItem, draggedOtherRankingId, dropTarget });
