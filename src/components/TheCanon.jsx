@@ -4206,17 +4206,42 @@ const TheCanon = ({ supabase }) => {
       } else {
         setOtherRankingDragOverIndex(null);
       }
-    } else {
-      // Handle artist dragging
+    } else if (draggedItem) {
+      // Handle artist dragging with live reordering
       const dropTarget = element?.closest('[data-drop-index]');
       if (dropTarget) {
         const index = parseInt(dropTarget.dataset.dropIndex);
+        const listElement = dropTarget.closest('[data-list-container]');
+        const listId = listElement?.getAttribute('data-list-container') || draggedItem.listId;
+        
+        // Update both dragOverIndex and draggedFromList for purple bar
         setDragOverIndex(index);
+        setDraggedFromList(listId);
+        
+        // Live reordering for smooth UX
+        if (listId && draggedItem.listId === listId) {
+          const list = userLists.find(l => l.id === listId);
+          if (list) {
+            const fromIndex = list.artists.findIndex(a => a.id === draggedItem.artist.id);
+            if (fromIndex !== -1 && fromIndex !== index && index <= list.artists.length) {
+              // Create new array with item moved
+              const newArtists = [...list.artists];
+              const [movedItem] = newArtists.splice(fromIndex, 1);
+              const adjustedIndex = index > fromIndex ? index - 1 : index;
+              newArtists.splice(adjustedIndex, 0, movedItem);
+              
+              // Update immediately for smooth animation
+              setUserLists(prev => prev.map(l => 
+                l.id === listId ? { ...l, artists: newArtists } : l
+              ));
+            }
+          }
+        }
       } else {
         setDragOverIndex(null);
       }
     }
-  }, [draggedOtherRankingId, userLists]);
+  }, [draggedOtherRankingId, draggedItem, userLists]);
 
   const handleMobileDragEnd = useCallback((data, dropTarget) => {
     console.log('Mobile drag end:', { draggedItem, draggedOtherRankingId, dropTarget });
@@ -7188,7 +7213,7 @@ const TheCanon = ({ supabase }) => {
                           )}
                           
                           {/* Artist List */}
-                          <div className="space-y-2">
+                          <div className="space-y-2" data-list-container={list.id}>
                             {list.artists.slice(0, displayCount).map((artist, index) => (
                               <div key={artist.id}>
                                 {/* Drop indicator */}
@@ -7232,6 +7257,7 @@ const TheCanon = ({ supabase }) => {
                             
                             <div
                               data-drop-index={list.artists.length}
+                              data-list-container={list.id}
                               className="h-2"
                             />
                           </div>
@@ -7390,7 +7416,7 @@ const TheCanon = ({ supabase }) => {
                                 </div>
                               )}
                             </div>
-                            <div className="space-y-1">
+                            <div className="space-y-1" data-list-container={existingList.id}>
                               {existingList.artists.map((artist, index) => (
                                 <div key={artist.id}>
                                   {/* Drop indicator */}
@@ -7398,7 +7424,7 @@ const TheCanon = ({ supabase }) => {
                                     <div className="h-1 bg-purple-400 rounded transition-all duration-200" />
                                   )}
                                   
-                                  <div data-drop-index={index}>
+                                  <div data-drop-index={index} data-list-container={existingList.id}>
                                     <ArtistRow
                                       artist={artist}
                                       index={index}
@@ -7437,6 +7463,7 @@ const TheCanon = ({ supabase }) => {
                               {/* Drop zone at the end */}
                               <div
                                 data-drop-index={existingList.artists.length}
+                                data-list-container={existingList.id}
                                 className={`${existingList.artists.length === 0 ? 
                                   'border-2 border-dashed border-gray-600 p-6 text-center text-gray-400 text-sm' : 
                                   'h-4 border border-dashed border-transparent hover:border-gray-600 transition-colors'
