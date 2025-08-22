@@ -5226,16 +5226,21 @@ const TheCanon = ({ supabase }) => {
             <div className="max-w-7xl mx-auto px-4 py-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <button 
-                    onClick={() => setShowCanonExplanation(true)}
-                    className={`${isMobile ? 'text-xl' : 'text-2xl'} font-black tracking-tight flex items-center gap-2 hover:text-purple-400 transition-colors cursor-pointer`}
-                  >
-                    THE CANON
-                    <Crown className={`${isMobile ? 'w-5 h-5' : 'w-6 h-6'} text-yellow-400`} />
-                  </button>
-                  {!isMobile && (
-                    <div className="text-xs text-gray-400 italic">Settle the Canon. Start the war.</div>
-                  )}
+                  <div>
+                    <button 
+                      onClick={() => setShowCanonExplanation(true)}
+                      className={`${isMobile ? 'text-xl' : 'text-2xl'} font-black tracking-tight flex items-center gap-2 hover:text-purple-400 transition-colors cursor-pointer`}
+                    >
+                      THE CANON
+                      <Crown className={`${isMobile ? 'w-5 h-5' : 'w-6 h-6'} text-yellow-400`} />
+                    </button>
+                    <div className={`${isMobile ? 'text-sm' : 'text-base'} text-yellow-400 font-bold tracking-wide -mt-1`}>
+                      GREATEST OF ALL TIME
+                    </div>
+                    {!isMobile && (
+                      <div className="text-xs text-gray-400 italic">Settle the Canon. Start the war.</div>
+                    )}
+                  </div>
                 </div>
                 <div className={`flex items-center ${isMobile ? 'gap-2' : 'gap-4'}`}>
                   {currentUser ? (
@@ -6937,93 +6942,6 @@ const TheCanon = ({ supabase }) => {
                     </div>
                   </div>
                   
-                  {/* All-Time Top 10 - Right Side (Compact) */}
-                  {fullRankings.length > 0 && (
-                    <div className={isMobile ? '' : 'lg:col-span-1'}>
-                      <div className="bg-slate-800/50 border-2 border-yellow-400/50 p-3">
-                        <div className="flex items-center justify-between mb-3">
-                        <h3 className={`font-bold tracking-tight flex items-center gap-1.5 ${isMobile ? 'text-base' : 'text-sm'}`}>
-                          <Trophy className={`text-yellow-400 ${isMobile ? 'w-4 h-4' : 'w-3.5 h-3.5'}`} />
-                          GREATEST OF ALL TIME
-                        </h3>
-                        <button 
-                          onClick={() => setShowTop100Modal(true)}
-                          className={`text-yellow-400 hover:text-yellow-300 ${isMobile ? 'text-sm' : 'text-xs'}`}
-                        >
-                          Top 100 →
-                        </button>
-                      </div>
-                        
-                        <div className="space-y-1">
-                          {fullRankings.slice(0, 10).map((item, idx) => {
-                            const isNumberOne = item.rank === 1;
-                            return (
-                              <div 
-                                key={idx} 
-                                className={`flex items-center gap-2 px-2 py-1 ${isMobile ? 'text-sm' : 'text-xs'} cursor-pointer hover:bg-white/5 ${
-                                  isNumberOne ? 'bg-gradient-to-r from-yellow-900/30 to-transparent border-l-2 border-yellow-400' :
-                                  item.trend === 'hot' ? 'bg-orange-500/10 border-l-2 border-orange-400' : ''
-                                }`}
-                                onClick={() => setShowArtistCard(item.artist)}
-                              >
-                                <div className={`text-center ${isMobile ? 'w-6' : 'w-5'} flex-shrink-0`}>
-                                  {isNumberOne ? (
-                                    <span className="font-black text-yellow-400 flex items-center justify-center gap-0.5 text-sm">
-                                      <Crown className="w-2.5 h-2.5" />
-                                      <span>1</span>
-                                    </span>
-                                  ) : (
-                                    <span className={`font-black text-white ${isMobile ? 'text-sm' : 'text-xs'}`}>{item.rank}</span>
-                                  )}
-                                </div>
-                                
-                                <div className={`${isMobile ? 'w-5' : 'w-4'} flex justify-center flex-shrink-0`}>
-                                  {item.trend === 'up' && <ArrowUp className={`text-green-400 ${isMobile ? 'w-3 h-3' : 'w-2.5 h-2.5'}`} />}
-                                  {item.trend === 'down' && <ArrowDown className={`text-red-400 ${isMobile ? 'w-3 h-3' : 'w-2.5 h-2.5'}`} />}
-                                  {item.trend === 'hot' && <Flame className={`text-orange-400 ${isMobile ? 'w-3 h-3' : 'w-2.5 h-2.5'}`} />}
-                                </div>
-                                
-                                <div className={`${isMobile ? 'w-7 h-7' : 'w-6 h-6'} flex-shrink-0`}>
-                                  <ArtistAvatar artist={item.artist} size={isMobile ? 'w-7 h-7' : 'w-6 h-6'} />
-                                </div>
-                                
-                                <div className="flex-1 min-w-0">
-                                  <p className={`font-medium truncate ${isMobile ? 'text-sm' : 'text-xs'}`}>{item.artist.name}</p>
-                                  {friends.length > 0 && (
-                                    <div className="text-center">
-                                      <span className={`text-purple-400 ${isMobile ? 'text-xs' : 'text-[10px]'}`}>
-                                        {Math.floor(Math.random() * 3) + 1} friends agree
-                                      </span>
-                                    </div>
-                                  )}
-                                </div>
-                                
-                                <div className="flex items-center gap-1 flex-shrink-0">
-                                  <span className={`text-yellow-400 font-medium ${isMobile ? 'text-xs' : 'text-[10px]'}`}>
-                                    {item.canonScore || Math.round(item.totalPoints)}
-                                  </span>
-                                  <button 
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      quickAddToList(item.artist);
-                                    }}
-                                    className={`hover:bg-white/10 rounded ${isMobile ? 'p-1 touch-target' : 'p-0.5'}`}
-                                    title="Add to My Top 10"
-                                  >
-                                    <Plus className={isMobile ? 'w-3 h-3' : 'w-2.5 h-2.5'} />
-                                  </button>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                        
-                        <div className={`mt-3 pt-3 border-t border-white/10 text-center text-gray-400 ${isMobile ? 'text-sm' : 'text-xs'}`}>
-                          <span>Live rankings</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
                 </div>
 
                 {/* Live Friend Activity Feed for For You Tab */}
