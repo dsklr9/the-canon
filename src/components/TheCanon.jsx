@@ -172,7 +172,6 @@ const useMobileDrag = (onDragStart, onDragEnd, onDragMove) => {
   const startPos = useRef({ x: 0, y: 0 });
 
   const handleTouchStart = useCallback((e, data) => {
-    console.log('[useMobileDrag] Touch start with data:', data);
     
     // Store touch position
     const touch = e.touches[0];
@@ -250,7 +249,6 @@ const useMobileDrag = (onDragStart, onDragEnd, onDragMove) => {
         dragClone.current.style.display = 'none';
       }
       dropTarget = document.elementFromPoint(touch.clientX, touch.clientY);
-      console.log('Drop target found:', dropTarget, 'at position:', touch.clientX, touch.clientY);
     }
     
     // Cleanup clone
@@ -479,6 +477,32 @@ const TheCanon = ({ supabase }) => {
   
   // Enhanced rate limiting
   const { checkRateLimit, checkFaceOffLimit } = useEnhancedRateLimit(supabase);
+
+  // Performance optimizations - memoized artist maps
+  const artistLookupMap = useMemo(() => {
+    const map = new Map();
+    allArtists.forEach(artist => {
+      map.set(artist.id, artist);
+    });
+    return map;
+  }, [allArtists]);
+
+  const sortedArtistsList = useMemo(() => {
+    return [...allArtists].sort((a, b) => a.name.localeCompare(b.name));
+  }, [allArtists]);
+
+  // Optimized artist lookup function
+  const getArtistById = useCallback((id) => {
+    return artistLookupMap.get(id);
+  }, [artistLookupMap]);
+
+  // Memoized list of displayed artists to prevent unnecessary recalculations
+  const getDisplayedArtists = useCallback((list, displayCount) => {
+    const baseArtists = draggedItem && draggedFromList === list.id && tempReorderedLists[list.id] 
+      ? tempReorderedLists[list.id] 
+      : list.artists;
+    return baseArtists.slice(0, displayCount);
+  }, [draggedItem, draggedFromList, tempReorderedLists]);
 
   // Artist Avatar Component - Now with LazyImage
   const ArtistAvatar = memo(({ artist, size = "w-8 h-8" }) => {
@@ -4141,7 +4165,6 @@ const TheCanon = ({ supabase }) => {
 
   // Mobile drag handlers
   const handleMobileDragStart = useCallback((data) => {
-    console.log('[Mobile Drag] Start:', data);
     if (data.isOtherRanking) {
       // Handle other rankings dragging
       const { rankingId } = data;
@@ -4149,14 +4172,12 @@ const TheCanon = ({ supabase }) => {
     } else {
       // Handle artist dragging
       const { artist, listId } = data;
-      console.log('[Mobile Drag] Setting draggedItem:', { artist: artist.name, listId });
       setDraggedItem({ artist, listId });
       setDraggedFromList(listId);
     }
   }, []);
 
   const handleMobileDragMove = useCallback((touch) => {
-    console.log('[Mobile Drag] Move - position:', touch.clientX, touch.clientY, 'draggedItem:', draggedItem);
     
     if (draggedOtherRankingId) {
       // Handle other rankings dragging
@@ -4175,14 +4196,12 @@ const TheCanon = ({ supabase }) => {
       const element = document.elementFromPoint(touch.clientX, touch.clientY);
       const dropTarget = element?.closest('[data-drop-index]');
       
-      console.log('[Mobile Drag] Found drop target:', dropTarget);
       
       if (dropTarget) {
         const index = parseInt(dropTarget.dataset.dropIndex);
         const listContainer = dropTarget.closest('[data-list-container]');
         const listId = listContainer?.getAttribute('data-list-container');
         
-        console.log('[Mobile Drag] Setting dragOverIndex to:', index, 'listId:', listId);
         
         // Update purple bar position
         setDragOverIndex(index);
@@ -4209,7 +4228,6 @@ const TheCanon = ({ supabase }) => {
           }
         }
       } else {
-        console.log('[Mobile Drag] No drop target found');
         setDragOverIndex(null);
         setTempReorderedLists({});
       }
@@ -6313,7 +6331,7 @@ const TheCanon = ({ supabase }) => {
                   {battleType === 'custom' && battleArtist1 && battleArtist2 && battleArtist1 !== battleArtist2 && (
                     <div className="bg-slate-700/50 rounded-lg p-3">
                       <p className="text-sm text-gray-300 text-center">
-                        <strong>{allArtists.find(a => a.id == battleArtist1)?.name}</strong> vs <strong>{allArtists.find(a => a.id == battleArtist2)?.name}</strong>
+                        <strong>{getArtistById(battleArtist1)?.name}</strong> vs <strong>{getArtistById(battleArtist2)?.name}</strong>
                       </p>
                     </div>
                   )}
@@ -6667,7 +6685,7 @@ const TheCanon = ({ supabase }) => {
                                   {debate.artistTags.length > 0 && (
                                     <div className="flex flex-wrap items-end gap-2 mb-3">
                                       {debate.artistTags.map((artistId) => {
-                                        const artist = allArtists.find(a => a.id === artistId);
+                                        const artist = getArtistById(artistId);
                                         return artist ? (
                                           <span key={artistId} className="inline-flex items-center gap-1 text-xs bg-purple-500/20 text-purple-300 px-2 py-1 rounded-full">
                                             {artist.avatar_url ? (
@@ -6810,7 +6828,7 @@ const TheCanon = ({ supabase }) => {
                               {debate.artistTags.length > 0 && (
                                 <div className="flex flex-wrap gap-2 mb-3">
                                   {debate.artistTags.map((artistId) => {
-                                    const artist = allArtists.find(a => a.id === artistId);
+                                    const artist = getArtistById(artistId);
                                     return artist ? (
                                       <span key={artistId} className="inline-flex items-center gap-1 text-xs bg-purple-500/20 text-purple-300 px-2 py-1 rounded-full">
                                         {artist.avatar_url ? (
@@ -7210,7 +7228,7 @@ const TheCanon = ({ supabase }) => {
                           
                           {/* Artist List */}
                           <div className="space-y-2" data-list-container={list.id}>
-                            {(draggedItem && draggedFromList === list.id && tempReorderedLists[list.id] ? tempReorderedLists[list.id] : list.artists).slice(0, displayCount).map((artist, index) => (
+                            {getDisplayedArtists(list, displayCount).map((artist, index) => (
                               <div key={artist.id}>
                                 {/* Drop indicator */}
                                 {dragOverIndex === index && draggedFromList === list.id && (
@@ -7413,7 +7431,7 @@ const TheCanon = ({ supabase }) => {
                               )}
                             </div>
                             <div className="space-y-1" data-list-container={existingList.id}>
-                              {(draggedItem && draggedFromList === existingList.id && tempReorderedLists[existingList.id] ? tempReorderedLists[existingList.id] : existingList.artists).map((artist, index) => (
+                              {getDisplayedArtists(existingList, existingList.artists.length).map((artist, index) => (
                                 <div key={artist.id}>
                                   {/* Drop indicator */}
                                   {dragOverIndex === index && draggedFromList === existingList.id && (

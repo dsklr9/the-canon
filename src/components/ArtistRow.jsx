@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { GripVertical, X } from 'lucide-react';
 
-const ArtistRow = ({ 
+const ArtistRow = memo(({ 
   artist, 
   index, 
   onRemove, 
@@ -96,6 +96,8 @@ const ArtistRow = ({
       )}
     </div>
   );
-};
+});
+
+ArtistRow.displayName = 'ArtistRow';
 
 export default ArtistRow;
