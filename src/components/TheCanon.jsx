@@ -5226,16 +5226,21 @@ const TheCanon = ({ supabase }) => {
             <div className="max-w-7xl mx-auto px-4 py-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <button 
-                    onClick={() => setShowCanonExplanation(true)}
-                    className={`${isMobile ? 'text-xl' : 'text-2xl'} font-black tracking-tight flex items-center gap-2 hover:text-purple-400 transition-colors cursor-pointer`}
-                  >
-                    THE CANON
-                    <Crown className={`${isMobile ? 'w-5 h-5' : 'w-6 h-6'} text-yellow-400`} />
-                  </button>
-                  {!isMobile && (
-                    <div className="text-xs text-gray-400 italic">Settle the Canon. Start the war.</div>
-                  )}
+                  <div>
+                    <button 
+                      onClick={() => setShowCanonExplanation(true)}
+                      className={`${isMobile ? 'text-xl' : 'text-2xl'} font-black tracking-tight flex items-center gap-2 hover:text-purple-400 transition-colors cursor-pointer`}
+                    >
+                      THE CANON
+                      <Crown className={`${isMobile ? 'w-5 h-5' : 'w-6 h-6'} text-yellow-400`} />
+                    </button>
+                    <div className={`${isMobile ? 'text-sm' : 'text-base'} text-yellow-400 font-bold tracking-wide -mt-1`}>
+                      GREATEST OF ALL TIME
+                    </div>
+                    {!isMobile && (
+                      <div className="text-xs text-gray-400 italic">Settle the Canon. Start the war.</div>
+                    )}
+                  </div>
                 </div>
                 <div className={`flex items-center ${isMobile ? 'gap-2' : 'gap-4'}`}>
                   {currentUser ? (
@@ -6507,144 +6512,6 @@ const TheCanon = ({ supabase }) => {
                   />
                 )}
                 
-                {/* Enhanced Top 10 Canon - Primary Feature */}
-                <div className="space-y-4">
-                  {/* Canon Header with Activity */}
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-                        <Trophy className="w-6 h-6 text-yellow-400" />
-                        THE CANON
-                      </h2>
-                      <p className="text-sm text-gray-400 mt-1">
-                        All-time greatest, ranked by the community
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {/* Live indicator */}
-                      <div className="flex items-center gap-1 px-2 py-1 bg-green-500/20 rounded-full">
-                        <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                        <span className="text-xs text-green-400">Live</span>
-                      </div>
-                      {/* Total voters count */}
-                      <div className="text-xs text-gray-400">
-                        {totalVoters} voters
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Enhanced Top 10 List - Gold Accented */}
-                  {fullRankings.length > 0 && (
-                    <div className="relative bg-gradient-to-br from-yellow-900/20 via-amber-900/15 to-orange-900/20 border-2 border-yellow-500/40 rounded-lg p-4 shadow-[0_0_30px_rgba(250,204,21,0.15)]">
-                      {/* Gold corner accents */}
-                      <div className="absolute top-0 left-0 w-16 h-16 border-t-2 border-l-2 border-yellow-400/60 rounded-tl-lg" />
-                      <div className="absolute top-0 right-0 w-16 h-16 border-t-2 border-r-2 border-yellow-400/60 rounded-tr-lg" />
-                      <div className="absolute bottom-0 left-0 w-16 h-16 border-b-2 border-l-2 border-yellow-400/60 rounded-bl-lg" />
-                      <div className="absolute bottom-0 right-0 w-16 h-16 border-b-2 border-r-2 border-yellow-400/60 rounded-br-lg" />
-                      <div className="space-y-2">
-                        {fullRankings.slice(0, 10).map((item, idx) => {
-                          const recentChange = Math.random() > 0.7 ? Math.floor(Math.random() * 3) - 1 : 0;
-                          const isYourVote = Math.random() > 0.8;
-                          const isNumberOne = item.rank === 1;
-                          
-                          return (
-                            <div 
-                              key={idx} 
-                              className={`relative flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-all ${
-                                isNumberOne 
-                                  ? 'bg-gradient-to-r from-yellow-900/40 via-amber-800/30 to-yellow-900/40 border-2 border-yellow-400/50 shadow-[0_0_20px_rgba(250,204,21,0.25)]' 
-                                  : 'bg-black/30 hover:bg-white/5'
-                              } ${
-                                item.trend === 'hot' && !isNumberOne ? 'ring-2 ring-orange-400/50' : ''
-                              }`}
-                              onClick={() => setShowArtistCard(item.artist)}
-                            >
-                              {/* Crown for #1 */}
-                              {isNumberOne && (
-                                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                                  <Crown className="w-6 h-6 text-yellow-400 animate-pulse" />
-                                </div>
-                              )}
-                              <div className="text-center w-8 flex-shrink-0">
-                                <span className={`text-lg font-black ${
-                                  isNumberOne ? 'text-yellow-400' : 'text-white'
-                                }`}>
-                                  {isNumberOne ? '1' : item.rank}
-                                </span>
-                              </div>
-                              
-                              <div className="w-6 flex justify-center flex-shrink-0">
-                                {recentChange > 0 && <ArrowUp className="w-3 h-3 text-green-400" />}
-                                {recentChange < 0 && <ArrowDown className="w-3 h-3 text-red-400" />}
-                                {item.trend === 'hot' && <Flame className="w-3 h-3 text-orange-400 animate-pulse" />}
-                              </div>
-                              
-                              <div className="w-10 h-10 flex-shrink-0">
-                                <ArtistAvatar artist={item.artist} size="w-10 h-10" />
-                              </div>
-                              
-                              <div className="flex-1 min-w-0">
-                                <p className="font-bold text-base truncate">{item.artist.name}</p>
-                                <div className="text-center">
-                                  {item.artist.era && <span className="text-xs text-gray-400">{item.artist.era}</span>}
-                                  {isYourVote && (
-                                    <div className="text-xs text-purple-400 flex items-center justify-center gap-1 mt-0.5">
-                                      <Check className="w-3 h-3" />
-                                      Your vote helped
-                                    </div>
-                                  )}
-                                  {friends.length > 0 && Math.random() > 0.5 && (
-                                    <div className="text-xs text-blue-400 mt-0.5">
-                                      {Math.floor(Math.random() * 3) + 1} friends agree
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                              
-                              <div className="text-right flex-shrink-0">
-                                <p className={`text-sm font-bold ${
-                                  isNumberOne ? 'text-yellow-300' : 'text-yellow-400'
-                                }`}>
-                                  {item.canonScore || Math.round(item.totalPoints)}
-                                </p>
-                                {isNumberOne && (
-                                  <span className="block text-yellow-400/70 text-[10px] font-medium mt-0.5">REIGNING</span>
-                                )}
-                              </div>
-                              
-                              <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  quickAddToList(item.artist);
-                                }}
-                                className="p-1.5 hover:bg-white/10 rounded transition-colors flex-shrink-0"
-                                title="Add to My Top 10"
-                              >
-                                <Plus className="w-4 h-4" />
-                              </button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                      
-                      {/* Bottom expand button */}
-                      <div className="mt-4 pt-4 border-t border-yellow-500/30">
-                        <button 
-                          onClick={() => setShowTop100Modal(true)}
-                          className="w-full py-3 text-center bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-400 rounded-lg transition-colors font-medium flex items-center justify-center gap-2"
-                        >
-                          <Trophy className="w-5 h-5" />
-                          View Full Top 100+ Rankings
-                          <ChevronDown className="w-5 h-5" />
-                        </button>
-                      </div>
-                      
-                      <div className="mt-3 text-center text-xs text-gray-400">
-                        <span>Updated live</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
                 
                 {/* Top Section - Hot Debates + All-Time Top 10 */}
                 <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-3'} gap-6`}>
