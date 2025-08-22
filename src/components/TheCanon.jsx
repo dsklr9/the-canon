@@ -164,158 +164,121 @@ const useIsMobile = () => {
   return isMobile;
 };
 
-// Enhanced mobile drag handler with improved scroll prevention
+// Enhanced mobile drag handler with simplified approach
 const useMobileDrag = (onDragStart, onDragEnd, onDragMove) => {
   const [isDragging, setIsDragging] = useState(false);
-  const [draggedElement, setDraggedElement] = useState(null);
-  const touchStartY = useRef(0);
-  const touchCurrentY = useRef(0);
-  const touchStartX = useRef(0);
-  const initialScrollY = useRef(0);
-  const dragThreshold = 8; // Reduced threshold for better responsiveness
-  const allowScrollDirection = useRef(null);
+  const [dragData, setDragData] = useState(null);
+  const dragClone = useRef(null);
+  const startPos = useRef({ x: 0, y: 0 });
 
   const handleTouchStart = useCallback((e, data) => {
-    // Touch events are now directly on drag handle, so no need to check target
+    console.log('[useMobileDrag] Touch start with data:', data);
     
-    // Immediately prevent default to stop any scroll behavior
+    // Store touch position
+    const touch = e.touches[0];
+    startPos.current = { x: touch.clientX, y: touch.clientY };
+    
+    // Store drag data
+    setDragData(data);
+    
+    // Prevent default to stop scrolling
     e.preventDefault();
-    e.stopPropagation();
     
-    // Store initial touch position and scroll position
-    touchStartY.current = e.touches[0].clientY;
-    touchCurrentY.current = e.touches[0].clientY;
-    touchStartX.current = e.touches[0].clientX;
-    initialScrollY.current = window.scrollY;
-    allowScrollDirection.current = null;
-    
-    // Aggressive scroll prevention - apply immediately
-    document.body.style.overflow = 'hidden';
-    document.body.style.position = 'fixed';
-    document.body.style.top = `-${initialScrollY.current}px`;
-    document.body.style.touchAction = 'none';
-    document.body.style.width = '100%';
-    document.body.style.userSelect = 'none';
-    
-    // Also lock all scrollable containers
-    const scrollableElements = document.querySelectorAll('[style*="overflow"]');
-    scrollableElements.forEach(el => {
-      el.style.touchAction = 'none';
-      el.style.overflowY = 'hidden';
-    });
-    
-    // Find main scrollable container and lock it
-    const mainContainer = document.querySelector('main') || document.querySelector('[class*="overflow"]');
-    if (mainContainer) {
-      mainContainer.style.overflow = 'hidden';
-      mainContainer.style.touchAction = 'none';
+    // Add touch-action: none to the element and its parents
+    let element = e.currentTarget;
+    while (element) {
+      element.style.touchAction = 'none';
+      element = element.parentElement;
+      if (element === document.body) break;
     }
     
-    // Find the draggable item container
-    const draggableItem = e.currentTarget.closest('[data-drop-index]') || e.currentTarget.closest('[data-list-id]');
-    setDraggedElement({ element: draggableItem, data });
-  }, []);
+    // Start dragging immediately (no threshold)
+    setIsDragging(true);
+    onDragStart && onDragStart(data);
+    
+    // Create visual clone
+    const target = e.currentTarget.closest('[data-drop-index]');
+    if (target) {
+      const rect = target.getBoundingClientRect();
+      const clone = target.cloneNode(true);
+      clone.style.position = 'fixed';
+      clone.style.top = `${rect.top}px`;
+      clone.style.left = `${rect.left}px`;
+      clone.style.width = `${rect.width}px`;
+      clone.style.height = `${rect.height}px`;
+      clone.style.opacity = '0.8';
+      clone.style.pointerEvents = 'none';
+      clone.style.zIndex = '9999';
+      clone.style.transform = 'scale(1.02)';
+      clone.style.boxShadow = '0 10px 30px rgba(0,0,0,0.3)';
+      document.body.appendChild(clone);
+      dragClone.current = clone;
+      
+      // Hide original
+      target.style.opacity = '0.3';
+    }
+  }, [onDragStart]);
 
   const handleTouchMove = useCallback((e) => {
-    if (!draggedElement) return;
+    if (!isDragging) return;
     
-    // Always prevent default to stop scrolling
     e.preventDefault();
-    e.stopPropagation();
+    const touch = e.touches[0];
     
-    touchCurrentY.current = e.touches[0].clientY;
-    const touchCurrentX = e.touches[0].clientX;
-    
-    const deltaY = Math.abs(touchCurrentY.current - touchStartY.current);
-    const deltaX = Math.abs(touchCurrentX - touchStartX.current);
-    
-    // Only start dragging if we've moved enough and it's primarily vertical
-    if (!isDragging && deltaY > dragThreshold) {
-      // Ensure we're moving more vertically than horizontally for drag
-      if (deltaY > deltaX * 0.7) {
-        setIsDragging(true);
-        onDragStart && onDragStart(draggedElement.data);
-        
-        // Add visual feedback with more pronounced effects
-        draggedElement.element.style.opacity = '0.8';
-        draggedElement.element.style.transform = 'scale(1.05)';
-        draggedElement.element.style.zIndex = '9999';
-        draggedElement.element.style.position = 'relative';
-        draggedElement.element.style.boxShadow = '0 8px 24px rgba(0,0,0,0.3)';
-        draggedElement.element.style.transition = 'none';
-      }
+    // Move the clone
+    if (dragClone.current) {
+      const deltaX = touch.clientX - startPos.current.x;
+      const deltaY = touch.clientY - startPos.current.y;
+      dragClone.current.style.transform = `translate(${deltaX}px, ${deltaY}px) scale(1.02)`;
     }
     
-    if (isDragging && onDragMove) {
-      // Move the element with the touch
-      const moveY = touchCurrentY.current - touchStartY.current;
-      draggedElement.element.style.transform = `translateY(${moveY}px) scale(1.05)`;
-      
-      onDragMove(e.touches[0]);
+    // Call onDragMove with the touch position
+    if (onDragMove) {
+      onDragMove(touch);
     }
-  }, [draggedElement, isDragging, onDragStart, onDragMove]);
+  }, [isDragging, onDragMove]);
 
   const handleTouchEnd = useCallback((e) => {
-    // Restore scroll position and re-enable scrolling
-    const scrollY = initialScrollY.current;
-    document.body.style.overflow = '';
-    document.body.style.position = '';
-    document.body.style.top = '';
-    document.body.style.touchAction = '';
-    document.body.style.width = '';
-    document.body.style.userSelect = '';
+    if (!isDragging) return;
     
-    // Restore scroll position immediately
-    window.scrollTo(0, scrollY);
+    // Find drop target at touch position
+    let dropTarget = null;
+    if (e.changedTouches[0]) {
+      const touch = e.changedTouches[0];
+      // Temporarily hide clone to get element underneath
+      if (dragClone.current) {
+        dragClone.current.style.display = 'none';
+      }
+      dropTarget = document.elementFromPoint(touch.clientX, touch.clientY);
+      console.log('Drop target found:', dropTarget, 'at position:', touch.clientX, touch.clientY);
+    }
     
-    // Re-enable all previously locked containers
-    const scrollableElements = document.querySelectorAll('[style*="touch-action"]');
-    scrollableElements.forEach(el => {
-      el.style.touchAction = '';
-      el.style.overflowY = '';
+    // Cleanup clone
+    if (dragClone.current) {
+      document.body.removeChild(dragClone.current);
+      dragClone.current = null;
+    }
+    
+    // Restore original element opacity
+    const draggedElements = document.querySelectorAll('[style*="opacity: 0.3"]');
+    draggedElements.forEach(el => {
+      el.style.opacity = '1';
     });
     
-    const mainContainer = document.querySelector('main') || document.querySelector('[class*="overflow"]');
-    if (mainContainer) {
-      mainContainer.style.overflow = '';
-      mainContainer.style.touchAction = '';
+    // Reset touch-action on all elements
+    document.querySelectorAll('[style*="touch-action"]').forEach(el => {
+      el.style.touchAction = '';
+    });
+    
+    // Call onDragEnd
+    if (onDragEnd) {
+      onDragEnd(dragData, dropTarget);
     }
     
-    if (isDragging && draggedElement) {
-      // Reset visual feedback
-      draggedElement.element.style.opacity = '1';
-      draggedElement.element.style.transform = '';
-      draggedElement.element.style.zIndex = '';
-      draggedElement.element.style.position = '';
-      draggedElement.element.style.boxShadow = '';
-      draggedElement.element.style.transition = '';
-      
-      // Find drop target by temporarily hiding the dragged element
-      const touch = e.changedTouches[0];
-      const originalDisplay = draggedElement.element.style.display;
-      const originalPointerEvents = draggedElement.element.style.pointerEvents;
-      
-      // Temporarily hide the dragged element to get element underneath
-      draggedElement.element.style.display = 'none';
-      draggedElement.element.style.pointerEvents = 'none';
-      
-      const dropTarget = document.elementFromPoint(touch.clientX, touch.clientY);
-      console.log('Drop target found:', dropTarget, 'at position:', touch.clientX, touch.clientY);
-      
-      // Restore the element visibility
-      draggedElement.element.style.display = originalDisplay;
-      draggedElement.element.style.pointerEvents = originalPointerEvents;
-      
-      onDragEnd && onDragEnd(draggedElement.data, dropTarget);
-    }
-    
+    // Reset state
     setIsDragging(false);
-    setDraggedElement(null);
-    touchStartY.current = 0;
-    touchCurrentY.current = 0;
-    touchStartX.current = 0;
-    allowScrollDirection.current = null;
-  }, [isDragging, draggedElement, onDragEnd]);
+    setDragData(null);
+  }, [isDragging, dragData, onDragEnd]);
 
   return {
     handleTouchStart,
@@ -393,6 +356,7 @@ const TheCanon = ({ supabase }) => {
   const [showCustomCategorySelector, setShowCustomCategorySelector] = useState(false);
   const [userCustomCategories, setUserCustomCategories] = useState([]);
   const [draggedItem, setDraggedItem] = useState(null);
+  const [tempReorderedLists, setTempReorderedLists] = useState({});
   const [showTop100Modal, setShowTop100Modal] = useState(false);
   const [showCanonExplanation, setShowCanonExplanation] = useState(false);
   const [loadedRankings, setLoadedRankings] = useState(50);
@@ -618,7 +582,7 @@ const TheCanon = ({ supabase }) => {
     draggable: true,
     onDragStart: (e) => handleDragStart(e, artist, listId),
     onDragEnd: handleDragEnd,
-    onDragEnter: (e) => handleDragEnter(e, index),
+    onDragEnter: (e) => handleDragEnter(e, index, listId),
     onDragOver: handleDragOver,
     onDrop: (e) => handleDrop(e, index, listId)
   }), []);
@@ -4177,7 +4141,7 @@ const TheCanon = ({ supabase }) => {
 
   // Mobile drag handlers
   const handleMobileDragStart = useCallback((data) => {
-    console.log('handleMobileDragStart called with:', data);
+    console.log('[Mobile Drag] Start:', data);
     if (data.isOtherRanking) {
       // Handle other rankings dragging
       const { rankingId } = data;
@@ -4185,23 +4149,21 @@ const TheCanon = ({ supabase }) => {
     } else {
       // Handle artist dragging
       const { artist, listId } = data;
-      console.log('Setting draggedItem:', { artist: artist.name, listId });
+      console.log('[Mobile Drag] Setting draggedItem:', { artist: artist.name, listId });
       setDraggedItem({ artist, listId });
       setDraggedFromList(listId);
     }
   }, []);
 
   const handleMobileDragMove = useCallback((touch) => {
-    const element = document.elementFromPoint(touch.clientX, touch.clientY);
-    console.log('Mobile drag move - touch:', touch.clientX, touch.clientY, 'element:', element?.className);
+    console.log('[Mobile Drag] Move - position:', touch.clientX, touch.clientY, 'draggedItem:', draggedItem);
     
     if (draggedOtherRankingId) {
-      // Check if we're dragging an other ranking
-      const otherRankingDropZone = element?.closest('[data-list-id]');
-      if (otherRankingDropZone) {
-        // Find the index of this ranking in the other rankings
+      // Handle other rankings dragging
+      const dropZone = document.elementFromPoint(touch.clientX, touch.clientY)?.closest('[data-list-id]');
+      if (dropZone) {
         const otherRankingLists = userLists.filter(list => !list.custom_category_id && !list.isAllTime);
-        const dropIndex = otherRankingLists.findIndex(list => list.id === otherRankingDropZone.getAttribute('data-list-id'));
+        const dropIndex = otherRankingLists.findIndex(list => list.id === dropZone.getAttribute('data-list-id'));
         if (dropIndex !== -1) {
           setOtherRankingDragOverIndex(dropIndex);
         }
@@ -4209,41 +4171,54 @@ const TheCanon = ({ supabase }) => {
         setOtherRankingDragOverIndex(null);
       }
     } else if (draggedItem) {
-      console.log('Dragged item found:', draggedItem);
       // Handle artist dragging
+      const element = document.elementFromPoint(touch.clientX, touch.clientY);
       const dropTarget = element?.closest('[data-drop-index]');
-      console.log('Drop target:', dropTarget, 'data-drop-index:', dropTarget?.dataset?.dropIndex);
+      
+      console.log('[Mobile Drag] Found drop target:', dropTarget);
       
       if (dropTarget) {
         const index = parseInt(dropTarget.dataset.dropIndex);
-        const listElement = dropTarget.closest('[data-list-container]');
-        const listId = listElement?.getAttribute('data-list-container') || draggedItem.listId;
+        const listContainer = dropTarget.closest('[data-list-container]');
+        const listId = listContainer?.getAttribute('data-list-container');
         
-        console.log('Setting dragOverIndex to:', index, 'listId:', listId);
+        console.log('[Mobile Drag] Setting dragOverIndex to:', index, 'listId:', listId);
         
-        // Always update dragOverIndex for purple bar visibility
-        if (index !== dragOverIndex) {
-          setDragOverIndex(index);
-        }
+        // Update purple bar position
+        setDragOverIndex(index);
         
-        // Ensure draggedFromList is set for purple bar to show
-        if (!draggedFromList || draggedFromList !== listId) {
+        if (listId) {
           setDraggedFromList(listId);
+          
+          // Create temporary reordered list for live preview
+          const targetList = userLists.find(l => l.id === listId);
+          if (targetList && draggedItem.artist) {
+            const tempArtists = [...targetList.artists];
+            // Remove dragged artist if it exists in the list
+            const existingIndex = tempArtists.findIndex(a => a.id === draggedItem.artist.id);
+            if (existingIndex !== -1) {
+              tempArtists.splice(existingIndex, 1);
+            }
+            // Insert at new position
+            tempArtists.splice(index, 0, draggedItem.artist);
+            
+            setTempReorderedLists(prev => ({
+              ...prev,
+              [listId]: tempArtists
+            }));
+          }
         }
       } else {
-        console.log('No drop target found, clearing dragOverIndex');
-        // Clear when not over a valid drop zone
-        if (dragOverIndex !== null) {
-          setDragOverIndex(null);
-        }
+        console.log('[Mobile Drag] No drop target found');
+        setDragOverIndex(null);
+        setTempReorderedLists({});
       }
-    } else {
-      console.log('No dragged item found');
     }
-  }, [draggedOtherRankingId, draggedItem, dragOverIndex, draggedFromList]);
+  }, [draggedOtherRankingId, draggedItem, userLists]);
 
   const handleMobileDragEnd = useCallback((data, dropTarget) => {
-    console.log('Mobile drag end:', { draggedItem, draggedOtherRankingId, dropTarget });
+    // Clear temporary reordering
+    setTempReorderedLists({});
     
     // Handle other rankings dragging
     if (draggedOtherRankingId && dropTarget) {
@@ -4278,7 +4253,6 @@ const TheCanon = ({ supabase }) => {
     
     // Handle artist dragging
     if (!draggedItem || !dropTarget) {
-      console.log('No dragged item or drop target');
       setDraggedItem(null);
       setDragOverIndex(null);
       return;
@@ -4371,6 +4345,7 @@ const TheCanon = ({ supabase }) => {
     e.target.style.opacity = '1';
     setDragOverIndex(null);
     setDraggedFromList(null);
+    setTempReorderedLists({});
   }, []);
 
   const handleDragOver = useCallback((e) => {
@@ -4378,11 +4353,33 @@ const TheCanon = ({ supabase }) => {
     e.dataTransfer.dropEffect = 'move';
   }, []);
 
-  const handleDragEnter = useCallback((e, index) => {
+  const handleDragEnter = useCallback((e, index, listId) => {
     if (draggedItem) {
       setDragOverIndex(index);
+      
+      // Create temporary reordered list for live preview on desktop too
+      if (listId) {
+        setDraggedFromList(listId);
+        const targetList = userLists.find(l => l.id === listId);
+        if (targetList && draggedItem.artist) {
+          const tempArtists = [...targetList.artists];
+          // Remove dragged artist if it exists in the list
+          const existingIndex = tempArtists.findIndex(a => a.id === draggedItem.artist.id);
+          if (existingIndex !== -1) {
+            tempArtists.splice(existingIndex, 1);
+          }
+          // Insert at new position
+          tempArtists.splice(index, 0, draggedItem.artist);
+          
+          // Update temporary reordered lists
+          setTempReorderedLists(prev => ({
+            ...prev,
+            [listId]: tempArtists
+          }));
+        }
+      }
     }
-  }, [draggedItem]);
+  }, [draggedItem, userLists]);
 
   const handleDrop = useCallback((e, targetIndex, listId) => {
     e.preventDefault();
@@ -7213,7 +7210,7 @@ const TheCanon = ({ supabase }) => {
                           
                           {/* Artist List */}
                           <div className="space-y-2" data-list-container={list.id}>
-                            {list.artists.slice(0, displayCount).map((artist, index) => (
+                            {(draggedItem && draggedFromList === list.id && tempReorderedLists[list.id] ? tempReorderedLists[list.id] : list.artists).slice(0, displayCount).map((artist, index) => (
                               <div key={artist.id}>
                                 {/* Drop indicator */}
                                 {dragOverIndex === index && draggedFromList === list.id && (
@@ -7232,7 +7229,7 @@ const TheCanon = ({ supabase }) => {
                                       draggable: true,
                                       onDragStart: (e) => handleDragStart(e, artist, list.id),
                                       onDragEnd: handleDragEnd,
-                                      onDragEnter: (e) => handleDragEnter(e, index),
+                                      onDragEnter: (e) => handleDragEnter(e, index, list.id),
                                       onDragOver: handleDragOver,
                                       onDrop: (e) => handleDrop(e, index, list.id)
                                     } : {}}
@@ -7416,7 +7413,7 @@ const TheCanon = ({ supabase }) => {
                               )}
                             </div>
                             <div className="space-y-1" data-list-container={existingList.id}>
-                              {existingList.artists.map((artist, index) => (
+                              {(draggedItem && draggedFromList === existingList.id && tempReorderedLists[existingList.id] ? tempReorderedLists[existingList.id] : existingList.artists).map((artist, index) => (
                                 <div key={artist.id}>
                                   {/* Drop indicator */}
                                   {dragOverIndex === index && draggedFromList === existingList.id && (
@@ -7438,7 +7435,7 @@ const TheCanon = ({ supabase }) => {
                                         draggable: true,
                                         onDragStart: (e) => handleDragStart(e, artist, existingList.id),
                                         onDragOver: handleDragOver,
-                                        onDragEnter: (e) => handleDragEnter(e, index),
+                                        onDragEnter: (e) => handleDragEnter(e, index, existingList.id),
                                         onDrop: (e) => handleDrop(e, index, existingList.id)
                                       } : {}}
                                       mobileDragHandlers={isMobile ? {

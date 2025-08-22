@@ -27,6 +27,7 @@ const ArtistRow = ({
       {isDraggable && (
         <div 
           className={`drag-handle ${isMobile ? 'touch-target flex items-center justify-center w-8 h-8' : ''}`}
+          style={isMobile ? { touchAction: 'none', userSelect: 'none' } : {}}
           {...(isMobile ? mobileDragHandlers : {})}
         >
           <GripVertical className={`${isMobile ? 'w-4 h-4' : 'w-5 h-5'} text-gray-400`} />
