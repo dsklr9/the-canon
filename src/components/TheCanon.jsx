@@ -6381,10 +6381,12 @@ const TheCanon = ({ supabase }) => {
                         };
                         
                         try {
+                          let artist1Id = null;
+                          let artist2Id = null;
                           
                           if (battleType === 'custom') {
-                            const artist1Id = parseInt(battleArtist1);
-                            const artist2Id = parseInt(battleArtist2);
+                            artist1Id = parseInt(battleArtist1);
+                            artist2Id = parseInt(battleArtist2);
                             
                             // Validate that both artist IDs are valid numbers
                             if (isNaN(artist1Id) || isNaN(artist2Id)) {
@@ -6397,22 +6399,67 @@ const TheCanon = ({ supabase }) => {
                           
                           console.log('Sending challenge data:', challengeData);
                           
-                          const { data, error } = await supabase
-                            .from('friend_challenges')
-                            .insert(challengeData)
-                            .select();
+                          // Try to insert into friend_challenges table
+                          let challengeInserted = false;
+                          try {
+                            const { data, error } = await supabase
+                              .from('friend_challenges')
+                              .insert(challengeData)
+                              .select();
+                              
+                            console.log('Challenge insert result - data:', data, 'error:', error);
                             
-                          console.log('Challenge insert result - data:', data, 'error:', error);
+                            if (error) {
+                              console.error('Friend challenges table error:', {
+                                message: error.message,
+                                details: error.details,
+                                hint: error.hint,
+                                code: error.code
+                              });
+                              // Don't throw here, we'll use fallback
+                            } else {
+                              challengeInserted = true;
+                            }
+                          } catch (tableError) {
+                            console.log('Friend challenges table might not exist, using fallback');
+                          }
                           
-                          if (error) throw error;
-                          
-                          // Send notification and email
+                          // Always send notification (this is what the user sees anyway)
                           await createChallengeNotification(
                             selectedFriend,
                             currentUser.id,
                             battleType,
                             battleMessage
                           );
+                          
+                          // If challenges table didn't work, store in notifications with extra metadata
+                          if (!challengeInserted) {
+                            const notificationContent = battleType === 'random' 
+                              ? `challenged you to a random battle${battleMessage ? `: "${battleMessage}"` : ''}`
+                              : `challenged you to battle: ${getArtistById(artist1Id)?.name || 'Artist 1'} vs ${getArtistById(artist2Id)?.name || 'Artist 2'}${battleMessage ? ` - "${battleMessage}"` : ''}`;
+                            
+                            const { error: notifError } = await supabase
+                              .from('notifications')
+                              .insert({
+                                to_user_id: selectedFriend,
+                                from_user_id: currentUser.id,
+                                type: 'battle_challenge',
+                                content: notificationContent,
+                                metadata: {
+                                  challenge_type: battleType,
+                                  artist1_id: artist1Id,
+                                  artist2_id: artist2Id,
+                                  message: battleMessage
+                                },
+                                read: false,
+                                created_at: new Date().toISOString()
+                              });
+                            
+                            if (notifError) {
+                              console.error('Notification fallback error:', notifError);
+                              throw new Error('Could not send challenge. Please try again.');
+                            }
+                          }
                           
                           setShowBattleModal(false);
                           setSelectedFriend('');
