@@ -6893,7 +6893,7 @@ const TheCanon = ({ supabase }) => {
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       if (requireAuth('add friends')) {
-                                        addFriend(debate.userProfile);
+                                        sendFriendRequest(debate.userProfile?.id);
                                       }
                                     }}
                                     className="px-2 py-0.5 bg-purple-600/20 text-purple-400 border border-purple-500/30 hover:bg-purple-600/30 transition-colors text-xs font-medium rounded"
@@ -8232,8 +8232,7 @@ const TheCanon = ({ supabase }) => {
                       <button
                         onClick={() => {
                           if (requireAuth('add friends')) {
-                            addFriend(viewingFriend);
-                            addToast(`Friend request sent to ${viewingFriend.username}!`, 'success');
+                            sendFriendRequest(viewingFriend.id);
                           }
                         }}
                         className="px-4 py-2 bg-purple-600 hover:bg-purple-700 transition-colors text-sm font-medium rounded"
