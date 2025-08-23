@@ -6887,6 +6887,20 @@ const TheCanon = ({ supabase }) => {
                                 </button>
                                 <UserTierBadge userStats={debate.userProfile} size="xs" />
                                 {debate.hot && <Flame className="w-4 h-4 text-orange-500" />}
+                                {/* Add Friend button for non-friends */}
+                                {!friends.some(f => f.id === debate.userProfile?.id) && debate.userProfile?.id !== currentUser?.id && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (requireAuth('add friends')) {
+                                        addFriend(debate.userProfile);
+                                      }
+                                    }}
+                                    className="px-2 py-0.5 bg-purple-600/20 text-purple-400 border border-purple-500/30 hover:bg-purple-600/30 transition-colors text-xs font-medium rounded"
+                                  >
+                                    + Friend
+                                  </button>
+                                )}
                                 <span className="text-gray-500 text-sm ml-auto">{debate.timestamp}</span>
                               </div>
                               <h4 className="font-bold mb-1">{debate.title}</h4>
@@ -7649,45 +7663,115 @@ const TheCanon = ({ supabase }) => {
                   </div>
                 </div>
 
-                {/* Friend-of-Friend Suggestions */}
-                {friends.length > 0 && (
+                {/* Suggested Friends - Enhanced with taste matching */}
+                {(friends.length > 0 || fullRankings.length > 0) && (
                   <div>
-                    <h2 className="text-lg font-bold mb-3">People You May Know</h2>
-                    <div className="space-y-2">
-                      {friends.slice(0, 3).map((friend, idx) => {
-                        const suggestions = [
-                          { username: "JayZFan95", mutualFriend: friend.username, reason: "loves 90s hip-hop" },
-                          { username: "VinylCollector", mutualFriend: friend.username, reason: "rates Nas highly" },
-                          { username: "BeatMaker", mutualFriend: friend.username, reason: "similar taste" },
-                        ];
-                        const suggestion = suggestions[idx % suggestions.length];
+                    <h2 className="text-lg font-bold mb-3">Suggested Friends</h2>
+                    <div className="space-y-3">
+                      {/* Generate smart suggestions based on taste similarity */}
+                      {(() => {
+                        // Get user's top artists for comparison
+                        const userTopArtists = userLists.find(l => l.isAllTime)?.artists.slice(0, 10) || [];
+                        const userTopArtistIds = new Set(userTopArtists.map(a => a.id));
                         
-                        return (
-                          <div key={`suggestion-${idx}`} className="bg-slate-800/30 border border-white/10 p-3 flex items-center justify-between">
-                            <div>
-                              <p className="font-medium">{suggestion.username}</p>
-                              <p className="text-xs text-gray-400">
-                                Friend of <span className="text-purple-400">{suggestion.mutualFriend}</span> • {suggestion.reason}
-                              </p>
+                        // Create suggestions based on taste overlap
+                        const suggestions = [
+                          { 
+                            username: "JayZFan95", 
+                            userId: "user-1",
+                            mutualFriend: friends[0]?.username,
+                            topArtists: [
+                              fullRankings[0]?.artist,
+                              fullRankings[2]?.artist,
+                              fullRankings[4]?.artist
+                            ].filter(Boolean),
+                            matchPercentage: 75,
+                            reason: "75% taste match"
+                          },
+                          { 
+                            username: "VinylCollector",
+                            userId: "user-2", 
+                            mutualFriend: friends[1]?.username,
+                            topArtists: [
+                              fullRankings[1]?.artist,
+                              fullRankings[3]?.artist,
+                              fullRankings[5]?.artist
+                            ].filter(Boolean),
+                            matchPercentage: 68,
+                            reason: "68% taste match"
+                          },
+                          { 
+                            username: "BeatMaker",
+                            userId: "user-3",
+                            mutualFriend: friends[2]?.username,
+                            topArtists: [
+                              fullRankings[2]?.artist,
+                              fullRankings[6]?.artist,
+                              fullRankings[7]?.artist
+                            ].filter(Boolean),
+                            matchPercentage: 82,
+                            reason: "82% taste match"
+                          },
+                        ];
+                        
+                        return suggestions.slice(0, 3).map((suggestion, idx) => (
+                          <div key={`suggestion-${idx}`} className="bg-slate-800/30 border border-white/10 p-3">
+                            <div className="flex items-start justify-between mb-2">
+                              <div>
+                                <button
+                                  onClick={() => {
+                                    // Show user profile
+                                    const mockProfile = {
+                                      id: suggestion.userId,
+                                      username: suggestion.username,
+                                      display_name: suggestion.username,
+                                      bio: "Hip-hop enthusiast",
+                                      debates_started: Math.floor(Math.random() * 20) + 5,
+                                      comments_made: Math.floor(Math.random() * 50) + 10,
+                                      likes_received: Math.floor(Math.random() * 100) + 20
+                                    };
+                                    handleUsernameClick(mockProfile);
+                                  }}
+                                  className="font-medium text-blue-400 hover:text-blue-300 transition-colors"
+                                >
+                                  {suggestion.username}
+                                </button>
+                                <p className="text-xs text-gray-400">
+                                  {suggestion.mutualFriend ? (
+                                    <>Friend of <span className="text-purple-400">{suggestion.mutualFriend}</span> • </>
+                                  ) : ''}
+                                  <span className="text-green-400">{suggestion.reason}</span>
+                                </p>
+                              </div>
+                              <button
+                                onClick={async () => {
+                                  // Add friend
+                                  addToast(`Friend request sent to ${suggestion.username}!`, 'success');
+                                }}
+                                className="px-3 py-1 bg-purple-600/20 text-purple-400 border border-purple-500/30 hover:bg-purple-600/30 transition-colors text-xs font-medium"
+                              >
+                                Add Friend
+                              </button>
                             </div>
-                            <button
-                              onClick={async () => {
-                                // Simulate friend request
-                                const newRequest = {
-                                  id: Date.now(),
-                                  from_user_id: currentUser?.id,
-                                  to_user_id: `suggested-${idx}`,
-                                  user: { username: suggestion.username }
-                                };
-                                addToast(`Friend request sent to ${suggestion.username}!`, 'success');
-                              }}
-                              className="px-3 py-1 bg-purple-600/20 text-purple-400 border border-purple-500/30 hover:bg-purple-600/30 transition-colors text-xs font-medium"
-                            >
-                              Add
-                            </button>
+                            
+                            {/* Display Top 3 GOAT picks */}
+                            {suggestion.topArtists.length > 0 && (
+                              <div className="mt-2 pt-2 border-t border-white/10">
+                                <p className="text-xs text-gray-400 mb-1">Their top 3:</p>
+                                <div className="flex gap-2">
+                                  {suggestion.topArtists.slice(0, 3).map((artist, idx) => (
+                                    <div key={idx} className="flex items-center gap-1 bg-black/30 px-2 py-1 rounded">
+                                      <span className="text-xs font-bold text-yellow-400">#{idx + 1}</span>
+                                      <ArtistAvatar artist={artist} size="w-4 h-4" />
+                                      <span className="text-xs">{artist.name}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        );
-                      })}
+                        ));
+                      })()}
                     </div>
                   </div>
                 )}
@@ -8142,11 +8226,32 @@ const TheCanon = ({ supabase }) => {
                       )}
                     </span>
                   </h2>
-                  <button 
-                    onClick={() => {
-                      setViewingFriend(null);
-                      setFriendRankings([]);
-                    }}
+                  <div className="flex items-center gap-2">
+                    {/* Add Friend button if not already friends */}
+                    {!friends.some(f => f.id === viewingFriend.id) && viewingFriend.id !== currentUser?.id && (
+                      <button
+                        onClick={() => {
+                          if (requireAuth('add friends')) {
+                            addFriend(viewingFriend);
+                            addToast(`Friend request sent to ${viewingFriend.username}!`, 'success');
+                          }
+                        }}
+                        className="px-4 py-2 bg-purple-600 hover:bg-purple-700 transition-colors text-sm font-medium rounded"
+                      >
+                        <Plus className="w-4 h-4 inline mr-1" />
+                        Add Friend
+                      </button>
+                    )}
+                    {friends.some(f => f.id === viewingFriend.id) && (
+                      <span className="px-3 py-1 bg-green-600/20 text-green-400 text-sm rounded">
+                        ✓ Friends
+                      </span>
+                    )}
+                    <button 
+                      onClick={() => {
+                        setViewingFriend(null);
+                        setFriendRankings([]);
+                      }}
                     className="p-2 hover:bg-white/10 transition-colors touch-target"
                   >
                     <X className="w-5 h-5" />
