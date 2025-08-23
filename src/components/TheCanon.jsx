@@ -8252,10 +8252,11 @@ const TheCanon = ({ supabase }) => {
                         setViewingFriend(null);
                         setFriendRankings([]);
                       }}
-                    className="p-2 hover:bg-white/10 transition-colors touch-target"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
+                      className="p-2 hover:bg-white/10 transition-colors touch-target"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
                 </div>
                 
                 {/* Scrollable Content */}
