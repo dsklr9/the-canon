@@ -6368,6 +6368,9 @@ const TheCanon = ({ supabase }) => {
                         console.log('Current user:', currentUser);
                         console.log('Selected friend:', selectedFriend);
                         console.log('Battle type:', battleType);
+                        console.log('Battle artist 1:', battleArtist1);
+                        console.log('Battle artist 2:', battleArtist2);
+                        console.log('Battle message:', battleMessage);
                         
                         const challengeData = {
                           challenger_id: currentUser.id,
@@ -6380,8 +6383,16 @@ const TheCanon = ({ supabase }) => {
                         try {
                           
                           if (battleType === 'custom') {
-                            challengeData.artist1_id = parseInt(battleArtist1);
-                            challengeData.artist2_id = parseInt(battleArtist2);
+                            const artist1Id = parseInt(battleArtist1);
+                            const artist2Id = parseInt(battleArtist2);
+                            
+                            // Validate that both artist IDs are valid numbers
+                            if (isNaN(artist1Id) || isNaN(artist2Id)) {
+                              throw new Error('Invalid artist selection. Please select both artists.');
+                            }
+                            
+                            challengeData.artist1_id = artist1Id;
+                            challengeData.artist2_id = artist2Id;
                           }
                           
                           console.log('Sending challenge data:', challengeData);
@@ -6412,8 +6423,13 @@ const TheCanon = ({ supabase }) => {
                           addToast('Challenge sent successfully!', 'success');
                         } catch (error) {
                           console.error('Error sending challenge:', error);
+                          console.error('Error message:', error?.message);
+                          console.error('Error details:', error);
                           console.error('Challenge data:', challengeData);
-                          addToast(`Failed to send challenge: ${error.message}`, 'error');
+                          
+                          // More specific error message
+                          const errorMessage = error?.message || 'Unknown error occurred';
+                          addToast(`Failed to send challenge: ${errorMessage}`, 'error');
                         }
                       }}
                       disabled={!selectedFriend || (battleType === 'custom' && (!battleArtist1 || !battleArtist2 || battleArtist1 === battleArtist2))}
