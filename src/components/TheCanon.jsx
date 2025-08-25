@@ -7048,20 +7048,20 @@ const TheCanon = ({ supabase }) => {
                   
                 </div>
 
-              </div>
-              {/* End of hidden old content */}
-              
-              {/* Live Friend Activity Feed for For You Tab */}
-              <div className="mt-8">
-                <LiveActivityFeed
-                    supabase={supabase}
-                    currentUser={currentUser}
-                    friends={friends}
-                    onUserClick={handleUserClick}
-                    onArtistClick={setShowArtistCard}
-                  />
-                </div>
-              </div>
+            </div>
+            {/* End of hidden old content */}
+            
+            {/* Live Friend Activity Feed for For You Tab */}
+            <div className="mt-8">
+              <LiveActivityFeed
+                supabase={supabase}
+                currentUser={currentUser}
+                friends={friends}
+                onUserClick={handleUserClick}
+                onArtistClick={setShowArtistCard}
+              />
+            </div>
+          </div>
             ) : activeTab === 'mytop10' ? (
               <div className="space-y-6">
                 {/* All-Time List Section */}
