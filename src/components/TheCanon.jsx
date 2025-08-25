@@ -6596,22 +6596,27 @@ const TheCanon = ({ supabase }) => {
                     {/* HOT DEBATES - Moved to left/top */}
                     <div>
                       <h2 className="text-lg font-bold tracking-tight mb-4">HOT DEBATES</h2>
-                <div className="space-y-4">
-                  {/* Canon Header with Activity */}
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-                        <Trophy className="w-6 h-6 text-yellow-400" />
-                        THE CANON
-                      </h2>
-                      <p className="text-sm text-gray-400 mt-1">
-                        All-time greatest, ranked by the community
-                      </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {/* Live indicator */}
-                      <div className="flex items-center gap-1 px-2 py-1 bg-green-500/20 rounded-full">
-                        <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                  </div>
+                  
+                  {/* Right Column: Canon Rankings (Web) / Bottom (Mobile) */}
+                  <div className={`${isMobile ? '' : 'lg:order-2'}`}>
+                    <div className="space-y-4">
+                      {/* Canon Header with Activity */}
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+                            <Trophy className="w-6 h-6 text-yellow-400" />
+                            THE CANON
+                          </h2>
+                          <p className="text-sm text-gray-400 mt-1">
+                            All-time greatest, ranked by the community
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {/* Live indicator */}
+                          <div className="flex items-center gap-1 px-2 py-1 bg-green-500/20 rounded-full">
+                            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
                         <span className="text-xs text-green-400">Live</span>
                       </div>
                       {/* Total voters count */}
@@ -6733,12 +6738,14 @@ const TheCanon = ({ supabase }) => {
                     </div>
                   )}
                 </div>
-                
-                {/* Top Section - Hot Debates + All-Time Top 10 */}
-                <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-3'} gap-6`}>
-                  {/* Hot Debates - Left Side */}
-                  <div className={isMobile ? '' : 'lg:col-span-2'}>
-                    <h2 className="text-lg font-bold tracking-tight mb-4">HOT DEBATES</h2>
+              </div>
+            </div>
+            
+            {/* OLD CONTENT BELOW - TO BE REMOVED */}
+            <div style={{display: 'none'}}>
+              {/* Hot Debates - Old Location */}
+              <div>
+                <h2 className="text-lg font-bold tracking-tight mb-4">HOT DEBATES</h2>
                     
                     {/* Your Debates Section */}
                     {realDebates.filter(d => d.isOwn).length > 0 && (
@@ -7041,9 +7048,12 @@ const TheCanon = ({ supabase }) => {
                   
                 </div>
 
-                {/* Live Friend Activity Feed for For You Tab */}
-                <div className="mt-8">
-                  <LiveActivityFeed
+              </div>
+              {/* End of hidden old content */}
+              
+              {/* Live Friend Activity Feed for For You Tab */}
+              <div className="mt-8">
+                <LiveActivityFeed
                     supabase={supabase}
                     currentUser={currentUser}
                     friends={friends}
