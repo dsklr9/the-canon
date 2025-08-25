@@ -7048,9 +7048,6 @@ const TheCanon = ({ supabase }) => {
                   
                 </div>
 
-            </div>
-            {/* End of hidden old content */}
-            
             {/* Live Friend Activity Feed for For You Tab */}
             <div className="mt-8">
               <LiveActivityFeed
