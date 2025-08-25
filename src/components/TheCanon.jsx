@@ -7062,7 +7062,7 @@ const TheCanon = ({ supabase }) => {
               />
             </div>
           </div>
-            ) : activeTab === 'mytop10' ? (
+        ) : activeTab === 'mytop10' ? (
               <div className="space-y-6">
                 {/* All-Time List Section */}
                 {!hasAllTimeList ? (
