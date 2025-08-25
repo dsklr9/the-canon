@@ -6561,9 +6561,9 @@ const TheCanon = ({ supabase }) => {
           <main className="max-w-7xl mx-auto px-4 py-6">
             {console.log('🔍 Current activeTab in main content:', activeTab)}
             {activeTab === 'foryou' ? (
-              <div className="space-y-6">
-                {/* Tournament Widget - Secondary Feature */}
-                {currentTournament && (
+              <div className={isMobile ? 'space-y-6' : ''}>
+                {/* Tournament Widget - Secondary Feature - Mobile Only */}
+                {isMobile && currentTournament && (
                   <TournamentWidget 
                     tournament={currentTournament}
                     currentUser={currentUser}
@@ -6575,7 +6575,27 @@ const TheCanon = ({ supabase }) => {
                   />
                 )}
                 
-                {/* Enhanced Top 10 Canon - Primary Feature */}
+                {/* Main Content Layout - Two Column for Web, Stacked for Mobile */}
+                <div className={`${isMobile ? 'space-y-6' : 'grid grid-cols-1 lg:grid-cols-2 gap-8'}`}>
+                  
+                  {/* Left Column: Debates & Activity (Web) / Top (Mobile) */}
+                  <div className={`${isMobile ? '' : 'lg:order-1'} space-y-6`}>
+                    
+                    {/* Tournament Widget for Web */}
+                    {!isMobile && currentTournament && (
+                      <TournamentWidget 
+                        tournament={currentTournament}
+                        currentUser={currentUser}
+                        onSubmitEntry={() => {
+                          setShowTournamentBracket(true);
+                        }}
+                        onExpandBracket={() => setShowTournamentBracket(true)}
+                      />
+                    )}
+
+                    {/* HOT DEBATES - Moved to left/top */}
+                    <div>
+                      <h2 className="text-lg font-bold tracking-tight mb-4">HOT DEBATES</h2>
                 <div className="space-y-4">
                   {/* Canon Header with Activity */}
                   <div className="flex items-center justify-between mb-4">
