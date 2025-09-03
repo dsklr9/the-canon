@@ -6593,6 +6593,89 @@ const TheCanon = ({ supabase }) => {
                     {/* HOT DEBATES - Moved to left/top */}
                     <div>
                       <h2 className="text-lg font-bold tracking-tight mb-4">HOT DEBATES</h2>
+                      
+                      {/* Debates List - Always show at least 3 */}
+                      <div className="space-y-4">
+                        {(() => {
+                          // Generate sample debates to ensure we always have at least 3
+                          const sampleDebates = [
+                            {
+                              id: 'sample-1',
+                              user: 'HipHopScholar',
+                              title: "Biggie's flow was unmatched",
+                              content: "The way Big could switch from smooth to aggressive mid-bar while maintaining perfect rhythm is something I've never heard replicated. Listen to 'Gimme the Loot' - he's literally having a conversation with himself using two completely different flows.",
+                              timestamp: '2h ago',
+                              likes: 47,
+                              replies: 12,
+                              hot: true,
+                              artistTags: []
+                            },
+                            {
+                              id: 'sample-2',
+                              user: 'WestCoastHead',
+                              title: "2Pac's impact transcended music",
+                              content: "Pac wasn't just a rapper - he was a revolutionary. His ability to speak on social issues while making hits that topped charts is unmatched. 'Changes' still relevant today, 'Dear Mama' still makes grown folks cry.",
+                              timestamp: '4h ago',
+                              likes: 63,
+                              replies: 18,
+                              artistTags: []
+                            },
+                            {
+                              id: 'sample-3',
+                              user: 'BoomBapPurist',
+                              title: "Nas' Illmatic is the perfect album",
+                              content: "10 tracks, no skips, production from the greatest producers of the era. The storytelling on 'One Love', the raw hunger on 'NY State of Mind' - this is hip-hop at its purest form.",
+                              timestamp: '6h ago',
+                              likes: 89,
+                              replies: 24,
+                              artistTags: []
+                            }
+                          ];
+                          
+                          // Combine real debates with samples, ensuring at least 3 total
+                          const allDebates = [...realDebates];
+                          const neededSamples = Math.max(0, 3 - allDebates.length);
+                          const debatesToShow = [...allDebates, ...sampleDebates.slice(0, neededSamples)].slice(0, 3);
+                          
+                          return debatesToShow.map((debate) => (
+                            <div key={debate.id} className="bg-slate-800/50 border border-white/10 p-4 rounded-lg hover:border-purple-400/30 transition-colors">
+                              <div className="flex gap-3">
+                                <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-blue-500 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0">
+                                  {debate.user?.[0] || 'U'}
+                                </div>
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="font-bold text-blue-400">{debate.user}</span>
+                                    {debate.hot && <Flame className="w-4 h-4 text-orange-500" />}
+                                    <span className="text-gray-500 text-sm ml-auto">{debate.timestamp}</span>
+                                  </div>
+                                  <h4 className="font-bold mb-1">{debate.title}</h4>
+                                  <p className="text-gray-300 text-sm mb-2 line-clamp-2">{debate.content}</p>
+                                  
+                                  <div className="flex items-center gap-4">
+                                    <button className="flex items-center gap-1 text-sm hover:text-purple-400 transition-colors">
+                                      <Heart className="w-4 h-4" />
+                                      {debate.likes || 0}
+                                    </button>
+                                    <button className="flex items-center gap-1 text-sm hover:text-purple-400 transition-colors">
+                                      <MessageCircle className="w-4 h-4" />
+                                      {debate.replies || 0}
+                                    </button>
+                                    <button className="flex items-center gap-1 text-sm hover:text-purple-400 transition-colors">
+                                      <Share2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ));
+                        })()}
+                      </div>
+                      
+                      {/* View All Debates Button */}
+                      <button className="w-full mt-4 py-2 text-center text-purple-400 hover:text-purple-300 text-sm font-medium transition-colors">
+                        View All Debates →
+                      </button>
                     </div>
                   </div>
                   
@@ -6672,29 +6755,29 @@ const TheCanon = ({ supabase }) => {
                                 {item.trend === 'hot' && <Flame className="w-3 h-3 text-orange-400 animate-pulse" />}
                               </div>
                               
-                              <div className="w-10 h-10 flex-shrink-0">
+                              <div className="w-10 h-10 flex-shrink-0 flex items-center">
                                 <ArtistAvatar artist={item.artist} size="w-10 h-10" />
                               </div>
                               
-                              <div className="flex-1 min-w-0">
+                              <div className={`flex-1 min-w-0 ${!isMobile ? 'flex flex-col justify-center' : ''}`}>
                                 <p className="font-bold text-base truncate">{item.artist.name}</p>
-                                <div className="text-center">
+                                <div className={`${!isMobile ? 'flex items-center gap-2' : 'text-center'}`}>
                                   {item.artist.era && <span className="text-xs text-gray-400">{item.artist.era}</span>}
                                   {isYourVote && (
-                                    <div className="text-xs text-purple-400 flex items-center justify-center gap-1 mt-0.5">
+                                    <div className="text-xs text-purple-400 flex items-center gap-1">
                                       <Check className="w-3 h-3" />
                                       Your vote helped
                                     </div>
                                   )}
                                   {friends.length > 0 && Math.random() > 0.5 && (
-                                    <div className="text-xs text-blue-400 mt-0.5">
+                                    <div className="text-xs text-blue-400">
                                       {Math.floor(Math.random() * 3) + 1} friends agree
                                     </div>
                                   )}
                                 </div>
                               </div>
                               
-                              <div className="text-right flex-shrink-0">
+                              <div className="text-right flex-shrink-0 flex flex-col justify-center">
                                 <p className={`text-sm font-bold ${
                                   isNumberOne ? 'text-yellow-300' : 'text-yellow-400'
                                 }`}>
