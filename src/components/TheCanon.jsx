@@ -6602,14 +6602,14 @@ const TheCanon = ({ supabase }) => {
                       {/* Canon Header with Activity */}
                       <div className="flex items-center justify-between mb-4">
                         <div>
-                          <div className="text-yellow-400 font-bold tracking-wide mb-1">
-                            GREATEST OF ALL TIME
-                          </div>
-                          <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-                            <Trophy className="w-6 h-6 text-yellow-400" />
+                          <h2 className="text-3xl font-bold tracking-tight flex items-center gap-2 mb-1">
+                            <Trophy className="w-7 h-7 text-yellow-400" />
                             THE CANON
                           </h2>
-                          <p className="text-sm text-gray-400 mt-1">
+                          <div className="text-yellow-400 font-bold tracking-wide text-sm mb-1">
+                            GREATEST OF ALL TIME
+                          </div>
+                          <p className="text-sm text-gray-400">
                             All-time greatest, ranked by the community
                           </p>
                         </div>
