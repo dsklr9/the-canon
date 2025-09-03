@@ -5234,9 +5234,6 @@ const TheCanon = ({ supabase }) => {
                       THE CANON
                       <Crown className={`${isMobile ? 'w-5 h-5' : 'w-6 h-6'} text-yellow-400`} />
                     </button>
-                    <div className={`${isMobile ? 'text-sm' : 'text-base'} text-yellow-400 font-bold tracking-wide -mt-1`}>
-                      GREATEST OF ALL TIME
-                    </div>
                     {!isMobile && (
                       <div className="text-xs text-gray-400 italic">Settle the Canon. Start the war.</div>
                     )}
@@ -6605,6 +6602,9 @@ const TheCanon = ({ supabase }) => {
                       {/* Canon Header with Activity */}
                       <div className="flex items-center justify-between mb-4">
                         <div>
+                          <div className="text-yellow-400 font-bold tracking-wide mb-1">
+                            GREATEST OF ALL TIME
+                          </div>
                           <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
                             <Trophy className="w-6 h-6 text-yellow-400" />
                             THE CANON
