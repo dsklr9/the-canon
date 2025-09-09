@@ -548,9 +548,15 @@ const TheCanon = ({ supabase }) => {
 
   // DebateItem Component for Hot Debates section
   const DebateItem = memo(({ debate, loadUserProfile, addToast }) => {
-    const [isExpanded, setIsExpanded] = useState(false);
+    const [showAllComments, setShowAllComments] = useState(false);
+    const [isContentExpanded, setIsContentExpanded] = useState(false);
     const [localLikes, setLocalLikes] = useState(debate.likes || 0);
     const [hasLiked, setHasLiked] = useState(false);
+    
+    // Determine how many comments to show
+    const commentsToShow = debate.comments || [];
+    const visibleComments = showAllComments ? commentsToShow : commentsToShow.slice(0, 3);
+    const hasMoreComments = commentsToShow.length > 3;
     
     return (
       <div className="bg-slate-800/50 border border-white/10 p-4 rounded-lg hover:border-purple-400/30 transition-colors">
@@ -597,24 +603,24 @@ const TheCanon = ({ supabase }) => {
             <h4 className="font-bold mb-1">{debate.title}</h4>
             
             {/* Content - Expandable */}
-            <p className={`text-gray-300 text-sm mb-2 ${!isExpanded ? 'line-clamp-2' : ''}`}>
+            <p className={`text-gray-300 text-sm mb-2 ${!isContentExpanded ? 'line-clamp-2' : ''}`}>
               {debate.content}
             </p>
             
-            {/* Show More/Less button if content is long */}
+            {/* Show More/Less button for content if it's long */}
             {debate.content && debate.content.length > 150 && (
               <button 
-                onClick={() => setIsExpanded(!isExpanded)}
+                onClick={() => setIsContentExpanded(!isContentExpanded)}
                 className="text-purple-400 text-xs hover:text-purple-300 transition-colors mb-2"
               >
-                {isExpanded ? 'Show Less' : 'Show More'}
+                {isContentExpanded ? 'Show Less' : 'Show More'}
               </button>
             )}
             
-            {/* Comments section when expanded */}
-            {isExpanded && debate.comments && debate.comments.length > 0 && (
+            {/* Comments section - Always show first 2-3 comments */}
+            {commentsToShow.length > 0 && (
               <div className="mt-3 pl-4 border-l-2 border-white/10 space-y-2">
-                {debate.comments.map((comment, idx) => (
+                {visibleComments.map((comment, idx) => (
                   <div key={idx} className="text-sm">
                     <button 
                       onClick={() => loadUserProfile(comment.userId || comment.username)}
@@ -626,11 +632,24 @@ const TheCanon = ({ supabase }) => {
                     <span className="text-gray-500 text-xs ml-2">{comment.timestamp}</span>
                   </div>
                 ))}
+                
+                {/* Show more/less comments button */}
+                {hasMoreComments && (
+                  <button 
+                    onClick={() => setShowAllComments(!showAllComments)}
+                    className="text-purple-400 text-xs hover:text-purple-300 transition-colors mt-1"
+                  >
+                    {showAllComments 
+                      ? 'Show Less' 
+                      : `View ${commentsToShow.length - 3} more comment${commentsToShow.length - 3 > 1 ? 's' : ''}`
+                    }
+                  </button>
+                )}
               </div>
             )}
             
             {/* Interaction buttons */}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 mt-3">
               <button 
                 onClick={() => {
                   setHasLiked(!hasLiked);
@@ -647,15 +666,19 @@ const TheCanon = ({ supabase }) => {
               
               <button 
                 onClick={() => {
-                  setIsExpanded(!isExpanded);
-                  if (!isExpanded) {
-                    addToast('Viewing comments...', 'info');
+                  if (commentsToShow.length > 0) {
+                    setShowAllComments(!showAllComments);
+                    if (!showAllComments && hasMoreComments) {
+                      addToast(`Showing all ${commentsToShow.length} comments`, 'info');
+                    }
+                  } else {
+                    addToast('No comments yet. Be the first!', 'info');
                   }
                 }}
                 className="flex items-center gap-1 text-sm hover:text-purple-400 transition-colors"
               >
                 <MessageCircle className="w-4 h-4" />
-                {debate.replies || 0}
+                {debate.replies || commentsToShow.length || 0}
               </button>
               
               <button 
@@ -6296,7 +6319,13 @@ const TheCanon = ({ supabase }) => {
                           content: "Pac wasn't just a rapper - he was a revolutionary. His ability to speak on social issues while making hits that topped charts is unmatched. 'Changes' still relevant today, 'Dear Mama' still makes grown folks cry.",
                           timestamp: '4h ago',
                           likes: 63,
-                          replies: 18
+                          replies: 18,
+                          comments: [
+                            { username: 'RealHipHop', text: 'Pac spoke for the voiceless. No one else had that raw emotion', timestamp: '3h ago' },
+                            { username: 'CaliFan', text: 'All Eyez On Me is still in rotation daily', timestamp: '2h ago' },
+                            { username: 'TruthSpeaker', text: 'His interviews hit harder than most rappers\' songs', timestamp: '1h ago' },
+                            { username: 'Music4Life', text: 'The passion in his delivery was unmatched', timestamp: '45m ago' }
+                          ]
                         },
                         {
                           id: 'all-3',
@@ -6305,7 +6334,14 @@ const TheCanon = ({ supabase }) => {
                           content: "10 tracks, no skips, production from the greatest producers of the era. The storytelling on 'One Love', the raw hunger on 'NY State of Mind' - this is hip-hop at its purest form.",
                           timestamp: '6h ago',
                           likes: 89,
-                          replies: 24
+                          replies: 24,
+                          comments: [
+                            { username: 'NYState', text: 'The production on this album is untouchable. DJ Premier, Pete Rock, Q-Tip...', timestamp: '5h ago' },
+                            { username: 'GoldenEra', text: 'Every bar is quotable. EVERY. SINGLE. BAR.', timestamp: '4h ago' },
+                            { username: 'HipHopHead', text: 'This album literally saved hip-hop in 94', timestamp: '3h ago' },
+                            { username: 'BarsOnly', text: 'The way he painted Queensbridge... pure poetry', timestamp: '2h ago' },
+                            { username: 'ClassicFan', text: 'Still sounds fresh 30 years later', timestamp: '1h ago' }
+                          ]
                         },
                         {
                           id: 'all-4',
@@ -6314,7 +6350,11 @@ const TheCanon = ({ supabase }) => {
                           content: "TPAB changed the game. The way he blends consciousness with incredible production and flow patterns that sound like jazz instruments - nobody else is doing it like this.",
                           timestamp: '8h ago',
                           likes: 72,
-                          replies: 31
+                          replies: 31,
+                          comments: [
+                            { username: 'ComptonKid', text: 'GKMC walked so TPAB could run', timestamp: '7h ago' },
+                            { username: 'JazzRap', text: 'The live instrumentation on TPAB is insane', timestamp: '6h ago' }
+                          ]
                         },
                         {
                           id: 'all-5',
@@ -6323,7 +6363,15 @@ const TheCanon = ({ supabase }) => {
                           content: "The way DOOM could bend words, create internal rhyme schemes, and reference obscure cartoons while maintaining a narrative is peak lyricism. Your favorite rapper's favorite rapper.",
                           timestamp: '12h ago',
                           likes: 95,
-                          replies: 28
+                          replies: 28,
+                          comments: [
+                            { username: 'Villain', text: 'ALL CAPS when you spell the man name', timestamp: '11h ago' },
+                            { username: 'Underground', text: 'Madvillainy is a masterpiece. No debate.', timestamp: '10h ago' },
+                            { username: 'RhymeScheme', text: 'His flow was like butter over those beats', timestamp: '9h ago' },
+                            { username: 'MetalFace', text: 'Operation Doomsday still on repeat', timestamp: '8h ago' },
+                            { username: 'BeatHead', text: 'The Special Herbs series is underrated', timestamp: '7h ago' },
+                            { username: 'MCsOnly', text: 'He made being weird cool in hip-hop', timestamp: '6h ago' }
+                          ]
                         }
                       ];
                       
