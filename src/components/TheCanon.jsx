@@ -388,6 +388,7 @@ const TheCanon = ({ supabase }) => {
   const [selectedCategory, setSelectedCategory] = useState('all-time');
   const [dailyFaceOffsCompleted, setDailyFaceOffsCompleted] = useState(0);
   const [showDebateModal, setShowDebateModal] = useState(false);
+  const [showAllDebates, setShowAllDebates] = useState(false);
   const [debateTitle, setDebateTitle] = useState('');
   const [debateContent, setDebateContent] = useState('');
   const searchRef = useRef(null);
@@ -6230,6 +6231,125 @@ const TheCanon = ({ supabase }) => {
             </div>
           )}
 
+          {/* All Debates Modal */}
+          {showAllDebates && (
+            <div 
+              className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4"
+              onClick={() => setShowAllDebates(false)}
+            >
+              <div 
+                className={`bg-slate-800 border border-white/20 ${isMobile ? 'w-full h-full' : 'max-w-4xl w-full max-h-[90vh]'} flex flex-col rounded-lg overflow-hidden`}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header */}
+                <div className="flex justify-between items-center p-6 border-b border-white/10 flex-shrink-0">
+                  <h2 className={`font-bold tracking-tight flex items-center gap-3 ${isMobile ? 'text-xl' : 'text-2xl'}`}>
+                    <Flame className="w-6 h-6 text-orange-500" />
+                    All Debates
+                  </h2>
+                  <button 
+                    onClick={() => setShowAllDebates(false)}
+                    className="p-2 hover:bg-white/10 transition-colors rounded"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                
+                {/* Scrollable Content */}
+                <div className="flex-1 overflow-y-auto p-6">
+                  {/* Start New Debate Button */}
+                  <button 
+                    onClick={() => {
+                      setShowAllDebates(false);
+                      setShowDebateModal(true);
+                    }}
+                    className="w-full mb-6 py-3 bg-purple-600 hover:bg-purple-700 transition-colors text-white font-medium rounded-lg flex items-center justify-center gap-2"
+                  >
+                    <Plus className="w-5 h-5" />
+                    Start New Debate
+                  </button>
+                  
+                  {/* Debates List */}
+                  <div className="space-y-4">
+                    {/* Combine real debates with sample debates for display */}
+                    {(() => {
+                      const allDebatesList = [
+                        ...realDebates,
+                        {
+                          id: 'all-1',
+                          user: 'HipHopScholar',
+                          title: "Biggie's flow was unmatched",
+                          content: "The way Big could switch from smooth to aggressive mid-bar while maintaining perfect rhythm is something I've never heard replicated. Listen to 'Gimme the Loot' - he's literally having a conversation with himself using two completely different flows.",
+                          timestamp: '2h ago',
+                          likes: 47,
+                          replies: 12,
+                          hot: true,
+                          comments: [
+                            { username: 'RapFan92', text: 'Facts! His versatility was insane', timestamp: '1h ago' },
+                            { username: 'OldSchoolHead', text: 'The king of New York for a reason', timestamp: '30m ago' }
+                          ]
+                        },
+                        {
+                          id: 'all-2',
+                          user: 'WestCoastHead',
+                          title: "2Pac's impact transcended music",
+                          content: "Pac wasn't just a rapper - he was a revolutionary. His ability to speak on social issues while making hits that topped charts is unmatched. 'Changes' still relevant today, 'Dear Mama' still makes grown folks cry.",
+                          timestamp: '4h ago',
+                          likes: 63,
+                          replies: 18
+                        },
+                        {
+                          id: 'all-3',
+                          user: 'BoomBapPurist',
+                          title: "Nas' Illmatic is the perfect album",
+                          content: "10 tracks, no skips, production from the greatest producers of the era. The storytelling on 'One Love', the raw hunger on 'NY State of Mind' - this is hip-hop at its purest form.",
+                          timestamp: '6h ago',
+                          likes: 89,
+                          replies: 24
+                        },
+                        {
+                          id: 'all-4',
+                          user: 'NewGenListener',
+                          title: "Kendrick is the GOAT of this generation",
+                          content: "TPAB changed the game. The way he blends consciousness with incredible production and flow patterns that sound like jazz instruments - nobody else is doing it like this.",
+                          timestamp: '8h ago',
+                          likes: 72,
+                          replies: 31
+                        },
+                        {
+                          id: 'all-5',
+                          user: 'LyricsFirst',
+                          title: "MF DOOM's wordplay was unmatched",
+                          content: "The way DOOM could bend words, create internal rhyme schemes, and reference obscure cartoons while maintaining a narrative is peak lyricism. Your favorite rapper's favorite rapper.",
+                          timestamp: '12h ago',
+                          likes: 95,
+                          replies: 28
+                        }
+                      ];
+                      
+                      // Remove duplicates and return unique debates
+                      const uniqueDebates = Array.from(new Map(allDebatesList.map(d => [d.id, d])).values());
+                      
+                      return uniqueDebates.map((debate) => (
+                        <DebateItem 
+                          key={debate.id} 
+                          debate={debate} 
+                          loadUserProfile={loadUserProfile}
+                          addToast={addToast}
+                        />
+                      ));
+                    })()}
+                  </div>
+                  
+                  {/* Load More Button */}
+                  <button className="w-full mt-6 py-2 text-center text-purple-400 hover:text-purple-300 text-sm font-medium transition-colors">
+                    Load More Debates
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Report Modal */}
           <ReportModal
             isOpen={showReportModal}
@@ -6850,8 +6970,8 @@ const TheCanon = ({ supabase }) => {
                       {/* View All Debates Button */}
                       <button 
                         onClick={() => {
-                          setActiveTab('debates');
-                          addToast('Switching to Debates tab...', 'info');
+                          setShowAllDebates(true);
+                          addToast('Opening all debates...', 'info');
                         }}
                         className="w-full mt-4 py-2 text-center text-purple-400 hover:text-purple-300 text-sm font-medium transition-colors"
                       >

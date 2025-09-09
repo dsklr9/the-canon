@@ -14,7 +14,8 @@
       "Bash(npx kill-port:*)",
       "Bash(touch:*)",
       "Bash(rm:*)",
-      "Bash(del \"C\\357\\200\\272UsersdsackDesktopthe-canonsrccomponentsTournamentBracket.jsx\")"
+      "Bash(del \"C\\357\\200\\272UsersdsackDesktopthe-canonsrccomponentsTournamentBracket.jsx\")",
+      "WebSearch"
     ],
     "deny": []
   }
