@@ -19,9 +19,9 @@ const Login = () => {
 
   const handleGoogleLogin = async () => {
     try {
-      // Use production URL for redirect, fallback to current origin for local dev
+      // Use thecanon.io for production
       const redirectUrl = process.env.NODE_ENV === 'production' 
-        ? 'https://the-canon.vercel.app'
+        ? 'https://thecanon.io'
         : window.location.origin;
         
       const { error } = await supabase.auth.signInWithOAuth({

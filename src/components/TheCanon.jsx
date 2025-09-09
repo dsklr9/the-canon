@@ -332,6 +332,7 @@ const TheCanon = ({ supabase }) => {
   const [commentText, setCommentText] = useState('');
   const [listComments, setListComments] = useState({});
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showEmailLogin, setShowEmailLogin] = useState(false);
   const [debateLikes, setDebateLikes] = useState({});
   const [commentLikes, setCommentLikes] = useState({});
   const [dragOverIndex, setDragOverIndex] = useState(null);
@@ -9386,54 +9387,202 @@ const TheCanon = ({ supabase }) => {
             onClick={() => setShowLoginModal(false)}
           >
             <div 
-              className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-md w-full'}`}
+              className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-md w-full'} rounded-lg`}
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold">Join The Canon</h2>
+                <h2 className="text-2xl font-bold">THE CANON</h2>
                 <button 
                   onClick={() => setShowLoginModal(false)}
-                  className="p-2 hover:bg-white/10 transition-colors"
+                  className="p-2 hover:bg-white/10 transition-colors rounded"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
               
-              <div className="text-center mb-6">
-                <p className="text-gray-400 mb-4">
-                  Sign in to participate in debates, create your Top 10 lists, and connect with hip-hop heads worldwide.
-                </p>
-                
-                <div className="grid grid-cols-3 gap-4 mb-4 text-sm">
-                  <div className="flex flex-col items-center">
-                    <MessageCircle className="w-6 h-6 text-purple-400 mb-1" />
-                    <span>Start Debates</span>
-                  </div>
-                  <div className="flex flex-col items-center">
-                    <Crown className="w-6 h-6 text-yellow-400 mb-1" />
-                    <span>Build Lists</span>
-                  </div>
-                  <div className="flex flex-col items-center">
-                    <Users className="w-6 h-6 text-blue-400 mb-1" />
-                    <span>Find Friends</span>
-                  </div>
+              <p className="text-gray-400 text-center mb-6">
+                Settle the Canon. Start the war.
+              </p>
+              
+              <div className="grid grid-cols-3 gap-4 mb-6 text-sm">
+                <div className="flex flex-col items-center">
+                  <MessageCircle className="w-6 h-6 text-purple-400 mb-1" />
+                  <span>Start Debates</span>
+                </div>
+                <div className="flex flex-col items-center">
+                  <Crown className="w-6 h-6 text-yellow-400 mb-1" />
+                  <span>Build Lists</span>
+                </div>
+                <div className="flex flex-col items-center">
+                  <Users className="w-6 h-6 text-blue-400 mb-1" />
+                  <span>Find Friends</span>
                 </div>
               </div>
               
               <div className="space-y-3">
                 <button
-                  onClick={() => window.location.href = '/login'}
-                  className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors"
+                  onClick={async () => {
+                    try {
+                      const redirectUrl = window.location.hostname === 'localhost' 
+                        ? window.location.origin 
+                        : 'https://thecanon.io';
+                      
+                      const { error } = await supabase.auth.signInWithOAuth({
+                        provider: 'google',
+                        options: {
+                          redirectTo: redirectUrl
+                        }
+                      });
+                      if (error) throw error;
+                    } catch (error) {
+                      addToast('Error signing in with Google', 'error');
+                      console.error('Auth error:', error);
+                    }
+                  }}
+                  className="w-full bg-white hover:bg-gray-100 text-gray-900 font-medium py-3 px-4 flex items-center justify-center gap-3 transition-colors rounded-lg"
                 >
-                  Sign In / Sign Up
+                  <img src="https://www.google.com/favicon.ico" alt="Google" className="w-5 h-5" />
+                  Sign in with Google
                 </button>
+                
+                <button
+                  onClick={() => {
+                    setShowLoginModal(false);
+                    setShowEmailLogin(true);
+                  }}
+                  className="w-full bg-slate-700 hover:bg-slate-600 text-white font-medium py-3 px-4 transition-colors rounded-lg"
+                >
+                  Sign in with Email
+                </button>
+                
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-600"></div>
+                  </div>
+                  <div className="relative flex justify-center text-xs">
+                    <span className="px-2 bg-slate-800 text-gray-500">OR</span>
+                  </div>
+                </div>
+                
                 <button
                   onClick={() => setShowLoginModal(false)}
                   className="w-full py-2 text-gray-400 hover:text-white transition-colors text-sm"
                 >
-                  Continue browsing
+                  Continue browsing →
                 </button>
               </div>
+              
+              <p className="text-gray-500 text-xs text-center mt-4">
+                By signing in, you agree to our Terms of Service and Privacy Policy
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Email Login Modal */}
+        {showEmailLogin && (
+          <div 
+            className="fixed inset-0 z-50 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setShowEmailLogin(false)}
+          >
+            <div 
+              className={`bg-slate-800 border border-white/20 p-6 ${isMobile ? 'w-full' : 'max-w-md w-full'} rounded-lg`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold">THE CANON</h2>
+                <button 
+                  onClick={() => setShowEmailLogin(false)}
+                  className="p-2 hover:bg-white/10 transition-colors rounded"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <p className="text-gray-400 text-center mb-6">
+                Sign in with your email
+              </p>
+              
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+                const email = formData.get('email');
+                const password = formData.get('password');
+                
+                try {
+                  const { error } = await supabase.auth.signInWithPassword({
+                    email,
+                    password
+                  });
+                  
+                  if (error) {
+                    // If sign in fails, try sign up
+                    if (error.message.includes('Invalid login credentials')) {
+                      const { error: signUpError } = await supabase.auth.signUp({
+                        email,
+                        password,
+                        options: {
+                          emailRedirectTo: window.location.hostname === 'localhost' 
+                            ? window.location.origin 
+                            : 'https://thecanon.io'
+                        }
+                      });
+                      
+                      if (signUpError) throw signUpError;
+                      addToast('Check your email to verify your account!', 'success');
+                    } else {
+                      throw error;
+                    }
+                  } else {
+                    setShowEmailLogin(false);
+                    addToast('Welcome back!', 'success');
+                  }
+                } catch (error) {
+                  addToast(error.message, 'error');
+                }
+              }}>
+                <div className="space-y-4">
+                  <input
+                    type="email"
+                    name="email"
+                    placeholder="Email"
+                    required
+                    className="w-full px-4 py-3 bg-black/50 border border-white/20 focus:border-purple-400 focus:outline-none rounded-lg"
+                  />
+                  
+                  <input
+                    type="password"
+                    name="password"
+                    placeholder="Password"
+                    required
+                    minLength={6}
+                    className="w-full px-4 py-3 bg-black/50 border border-white/20 focus:border-purple-400 focus:outline-none rounded-lg"
+                  />
+                  
+                  <button
+                    type="submit"
+                    className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors"
+                  >
+                    Sign In / Sign Up
+                  </button>
+                </div>
+              </form>
+              
+              <div className="mt-4 text-center">
+                <button
+                  onClick={() => {
+                    setShowEmailLogin(false);
+                    setShowLoginModal(true);
+                  }}
+                  className="text-sm text-gray-400 hover:text-white transition-colors"
+                >
+                  ← Back to other options
+                </button>
+              </div>
+              
+              <p className="text-gray-500 text-xs text-center mt-4">
+                New users will receive a verification email
+              </p>
             </div>
           </div>
         )}
