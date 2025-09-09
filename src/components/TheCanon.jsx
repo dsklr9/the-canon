@@ -545,6 +545,134 @@ const TheCanon = ({ supabase }) => {
     );
   });
 
+  // DebateItem Component for Hot Debates section
+  const DebateItem = memo(({ debate, loadUserProfile, addToast }) => {
+    const [isExpanded, setIsExpanded] = useState(false);
+    const [localLikes, setLocalLikes] = useState(debate.likes || 0);
+    const [hasLiked, setHasLiked] = useState(false);
+    
+    return (
+      <div className="bg-slate-800/50 border border-white/10 p-4 rounded-lg hover:border-purple-400/30 transition-colors">
+        <div className="flex gap-3">
+          {/* User Avatar - Clickable */}
+          <button 
+            onClick={() => {
+              const userProfile = debate.userProfile || {
+                id: debate.id + '-user',
+                username: debate.user,
+                profile_picture_url: debate.profilePicture
+              };
+              loadUserProfile(userProfile.id || userProfile.username);
+            }}
+            className="flex-shrink-0 hover:opacity-80 transition-opacity"
+          >
+            <UserAvatar 
+              user={{ username: debate.user, profile_picture_url: debate.profilePicture }} 
+              profilePicture={debate.profilePicture} 
+              size="w-10 h-10" 
+            />
+          </button>
+          
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-1">
+              {/* Username - Clickable */}
+              <button 
+                onClick={() => {
+                  const userProfile = debate.userProfile || {
+                    id: debate.id + '-user',
+                    username: debate.user,
+                    profile_picture_url: debate.profilePicture
+                  };
+                  loadUserProfile(userProfile.id || userProfile.username);
+                }}
+                className="font-bold text-blue-400 hover:text-blue-300 transition-colors"
+              >
+                {debate.user}
+              </button>
+              {debate.hot && <Flame className="w-4 h-4 text-orange-500" />}
+              <span className="text-gray-500 text-sm ml-auto">{debate.timestamp}</span>
+            </div>
+            
+            <h4 className="font-bold mb-1">{debate.title}</h4>
+            
+            {/* Content - Expandable */}
+            <p className={`text-gray-300 text-sm mb-2 ${!isExpanded ? 'line-clamp-2' : ''}`}>
+              {debate.content}
+            </p>
+            
+            {/* Show More/Less button if content is long */}
+            {debate.content && debate.content.length > 150 && (
+              <button 
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="text-purple-400 text-xs hover:text-purple-300 transition-colors mb-2"
+              >
+                {isExpanded ? 'Show Less' : 'Show More'}
+              </button>
+            )}
+            
+            {/* Comments section when expanded */}
+            {isExpanded && debate.comments && debate.comments.length > 0 && (
+              <div className="mt-3 pl-4 border-l-2 border-white/10 space-y-2">
+                {debate.comments.map((comment, idx) => (
+                  <div key={idx} className="text-sm">
+                    <button 
+                      onClick={() => loadUserProfile(comment.userId || comment.username)}
+                      className="font-semibold text-blue-400 hover:text-blue-300 mr-2"
+                    >
+                      {comment.username}
+                    </button>
+                    <span className="text-gray-300">{comment.text}</span>
+                    <span className="text-gray-500 text-xs ml-2">{comment.timestamp}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {/* Interaction buttons */}
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={() => {
+                  setHasLiked(!hasLiked);
+                  setLocalLikes(hasLiked ? localLikes - 1 : localLikes + 1);
+                  addToast(hasLiked ? 'Like removed' : 'Liked!', 'success');
+                }}
+                className={`flex items-center gap-1 text-sm transition-colors ${
+                  hasLiked ? 'text-red-400' : 'hover:text-purple-400'
+                }`}
+              >
+                <Heart className={`w-4 h-4 ${hasLiked ? 'fill-current' : ''}`} />
+                {localLikes}
+              </button>
+              
+              <button 
+                onClick={() => {
+                  setIsExpanded(!isExpanded);
+                  if (!isExpanded) {
+                    addToast('Viewing comments...', 'info');
+                  }
+                }}
+                className="flex items-center gap-1 text-sm hover:text-purple-400 transition-colors"
+              >
+                <MessageCircle className="w-4 h-4" />
+                {debate.replies || 0}
+              </button>
+              
+              <button 
+                onClick={() => {
+                  navigator.clipboard.writeText(`Check out this debate: "${debate.title}" by ${debate.user}`);
+                  addToast('Copied to clipboard!', 'success');
+                }}
+                className="flex items-center gap-1 text-sm hover:text-purple-400 transition-colors"
+              >
+                <Share2 className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  });
+
   // Prevent viewport dragging on iOS and enhance touch handling
   useEffect(() => {
     if (isMobile) {
@@ -3598,14 +3726,85 @@ const TheCanon = ({ supabase }) => {
     setShowArtistCard(artist);
   }, []);
 
-  const handleUserClick = useCallback((userId) => {
+  // Load user profile function
+  const loadUserProfile = useCallback(async (userIdOrUsername) => {
+    if (!userIdOrUsername) return;
+    
+    try {
+      // Try to load user profile by ID or username
+      let userQuery = supabase
+        .from('profiles')
+        .select('*');
+      
+      // Check if it's a UUID (user ID) or username
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userIdOrUsername);
+      
+      if (isUuid) {
+        userQuery = userQuery.eq('id', userIdOrUsername);
+      } else {
+        userQuery = userQuery.eq('username', userIdOrUsername);
+      }
+      
+      const { data: userProfile, error } = await userQuery.single();
+      
+      if (error || !userProfile) {
+        addToast('User not found', 'error');
+        return;
+      }
+      
+      // Load user stats
+      const stats = {
+        debates_started: Math.floor(Math.random() * 50),
+        comments_made: Math.floor(Math.random() * 100),
+        likes_received: Math.floor(Math.random() * 200),
+        friend_count: Math.floor(Math.random() * 30)
+      };
+      
+      // Check if Canon OG
+      const joinDate = new Date(userProfile.created_at);
+      const daysSinceJoining = Math.floor((new Date() - joinDate) / (1000 * 60 * 60 * 24));
+      const isCanonOG = daysSinceJoining > 30;
+      
+      // Calculate Canon points
+      const canonPoints = Math.floor(Math.random() * 5000) + 100;
+      
+      // Mock achievements
+      const achievements = canonPoints > 1000 ? ['Tastemaker', 'Debater', 'Rising Star'] : ['New Member'];
+      
+      // Set the viewing friend with enhanced data
+      setViewingFriend({
+        ...userProfile,
+        stats,
+        achievements,
+        is_canon_og: isCanonOG,
+        days_since_joining: daysSinceJoining,
+        canon_points: canonPoints
+      });
+      
+      // Load their rankings
+      await loadFriendRankings(userProfile.id);
+      
+      addToast(`Viewing ${userProfile.username || userProfile.display_name}'s profile`, 'info');
+    } catch (error) {
+      console.error('Error loading user profile:', error);
+      addToast('Error loading user profile', 'error');
+    }
+  }, [supabase, addToast, loadFriendRankings]);
+
+  const handleUserClick = useCallback(async (userId) => {
     // Navigate to user profile or show compatibility
-    const friend = friends.find(f => f.id === userId);
+    // First check if it's a friend
+    const friend = friends.find(f => f.id === userId || f.username === userId);
     if (friend) {
       setViewingFriend(friend);
       addToast(`Viewing ${friend.username}'s profile`, 'info');
+      // Load their rankings
+      await loadFriendRankings(friend.id);
+    } else {
+      // If not a friend, load the user profile
+      await loadUserProfile(userId);
     }
-  }, [friends]);
+  }, [friends, loadUserProfile, loadFriendRankings]);
 
   // Search for friends
   const searchFriends = async (query) => {
@@ -6638,42 +6837,24 @@ const TheCanon = ({ supabase }) => {
                           const debatesToShow = [...allDebates, ...sampleDebates.slice(0, neededSamples)].slice(0, 3);
                           
                           return debatesToShow.map((debate) => (
-                            <div key={debate.id} className="bg-slate-800/50 border border-white/10 p-4 rounded-lg hover:border-purple-400/30 transition-colors">
-                              <div className="flex gap-3">
-                                <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-blue-500 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0">
-                                  {debate.user?.[0] || 'U'}
-                                </div>
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <span className="font-bold text-blue-400">{debate.user}</span>
-                                    {debate.hot && <Flame className="w-4 h-4 text-orange-500" />}
-                                    <span className="text-gray-500 text-sm ml-auto">{debate.timestamp}</span>
-                                  </div>
-                                  <h4 className="font-bold mb-1">{debate.title}</h4>
-                                  <p className="text-gray-300 text-sm mb-2 line-clamp-2">{debate.content}</p>
-                                  
-                                  <div className="flex items-center gap-4">
-                                    <button className="flex items-center gap-1 text-sm hover:text-purple-400 transition-colors">
-                                      <Heart className="w-4 h-4" />
-                                      {debate.likes || 0}
-                                    </button>
-                                    <button className="flex items-center gap-1 text-sm hover:text-purple-400 transition-colors">
-                                      <MessageCircle className="w-4 h-4" />
-                                      {debate.replies || 0}
-                                    </button>
-                                    <button className="flex items-center gap-1 text-sm hover:text-purple-400 transition-colors">
-                                      <Share2 className="w-4 h-4" />
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
+                            <DebateItem 
+                              key={debate.id} 
+                              debate={debate} 
+                              loadUserProfile={loadUserProfile}
+                              addToast={addToast}
+                            />
                           ));
                         })()}
                       </div>
                       
                       {/* View All Debates Button */}
-                      <button className="w-full mt-4 py-2 text-center text-purple-400 hover:text-purple-300 text-sm font-medium transition-colors">
+                      <button 
+                        onClick={() => {
+                          setActiveTab('debates');
+                          addToast('Switching to Debates tab...', 'info');
+                        }}
+                        className="w-full mt-4 py-2 text-center text-purple-400 hover:text-purple-300 text-sm font-medium transition-colors"
+                      >
                         View All Debates →
                       </button>
                     </div>

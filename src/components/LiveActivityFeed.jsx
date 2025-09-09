@@ -266,9 +266,15 @@ const LiveActivityFeed = ({
               
               <div className="flex-1 min-w-0">
                 <p className="text-sm">
-                  <span className="font-medium text-white hover:text-purple-400 transition-colors">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onUserClick?.(activity.user_id || activity.username);
+                    }}
+                    className="font-medium text-white hover:text-purple-400 transition-colors"
+                  >
                     {activity.username}
-                  </span>
+                  </button>
                   <span className="text-gray-300 ml-1">
                     {config.format(activity)}
                   </span>
