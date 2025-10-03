@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Crown, UserPlus, Trophy, Heart, MessageCircle, Share2, Loader2 } from 'lucide-react';
+import { Crown, UserPlus, Trophy, Heart, MessageCircle, Share2, Loader2, Copy, Check } from 'lucide-react';
 
 const ShareProfile = ({ supabase, currentSession }) => {
-  const { userId } = useParams();
+  const { userId, username } = useParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -11,27 +11,32 @@ const ShareProfile = ({ supabase, currentSession }) => {
   const [goatList, setGoatList] = useState([]);
   const [addingFriend, setAddingFriend] = useState(false);
   const [friendAdded, setFriendAdded] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   useEffect(() => {
-    console.log('ShareProfile: Component mounted, userId:', userId);
+    console.log('ShareProfile: Component mounted, userId:', userId, 'username:', username);
     console.log('ShareProfile: currentSession:', currentSession);
     fetchUserData();
-  }, [userId]);
+  }, [userId, username]);
 
   const fetchUserData = async () => {
     try {
-      console.log('ShareProfile: Fetching user data for userId:', userId);
-      
-      if (!userId) {
-        throw new Error('No userId provided');
+      console.log('ShareProfile: Fetching user data for userId/username:', userId, username);
+
+      if (!userId && !username) {
+        throw new Error('No userId or username provided');
       }
-      
-      // Get user profile
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
+
+      // Get user profile - either by ID or username
+      let query = supabase.from('profiles').select('*');
+
+      if (username) {
+        query = query.eq('username', username);
+      } else {
+        query = query.eq('id', userId);
+      }
+
+      const { data: profile, error: profileError } = await query.single();
 
       console.log('ShareProfile: Profile query result:', { profile, profileError });
       
@@ -39,11 +44,11 @@ const ShareProfile = ({ supabase, currentSession }) => {
 
       setUserData(profile);
 
-      // Get user's GOAT list
+      // Get user's GOAT list using the profile ID we just fetched
       const { data: lists, error: listsError } = await supabase
         .from('user_lists')
         .select('*')
-        .eq('user_id', userId)
+        .eq('user_id', profile.id)
         .eq('is_all_time', true)
         .order('created_at', { ascending: false })
         .limit(1);
@@ -104,7 +109,8 @@ const ShareProfile = ({ supabase, currentSession }) => {
   const handleAddFriend = async () => {
     if (!currentSession) {
       // Redirect to login with return URL
-      navigate('/', { state: { returnUrl: `/share/${userId}`, autoFriend: userId } });
+      const profileUrl = userData?.username ? `/u/${userData.username}` : `/share/${userData?.id}`;
+      navigate('/', { state: { returnUrl: profileUrl, autoFriend: userData?.id } });
       return;
     }
 
@@ -115,7 +121,7 @@ const ShareProfile = ({ supabase, currentSession }) => {
         .from('friendships')
         .select('*')
         .or(`requester_id.eq.${currentSession.user.id},accepter_id.eq.${currentSession.user.id}`)
-        .or(`requester_id.eq.${userId},accepter_id.eq.${userId}`)
+        .or(`requester_id.eq.${userData.id},accepter_id.eq.${userData.id}`)
         .single();
 
       if (existingFriendship) {
@@ -129,7 +135,7 @@ const ShareProfile = ({ supabase, currentSession }) => {
         .from('friendships')
         .insert({
           requester_id: currentSession.user.id,
-          accepter_id: userId,
+          accepter_id: userData.id,
           status: 'pending'
         });
 
@@ -143,11 +149,26 @@ const ShareProfile = ({ supabase, currentSession }) => {
     }
   };
 
+  const handleCopyProfileLink = async () => {
+    const profileUrl = userData?.username
+      ? `${window.location.origin}/u/${userData.username}`
+      : `${window.location.origin}/share/${userData?.id}`;
+
+    try {
+      await navigator.clipboard.writeText(profileUrl);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy link:', err);
+    }
+  };
+
   const handleEnterApp = () => {
     if (currentSession) {
       navigate('/');
     } else {
-      navigate('/', { state: { returnUrl: `/share/${userId}`, autoFriend: userId } });
+      const profileUrl = userData?.username ? `/u/${userData.username}` : `/share/${userData?.id}`;
+      navigate('/', { state: { returnUrl: profileUrl, autoFriend: userData?.id } });
     }
   };
 
@@ -215,32 +236,52 @@ const ShareProfile = ({ supabase, currentSession }) => {
                 <p className="text-gray-400">Hip-hop enthusiast</p>
               </div>
             </div>
-            
-            {currentSession?.user?.id !== userId && (
+
+            <div className="flex items-center gap-2">
               <button
-                onClick={handleAddFriend}
-                disabled={addingFriend || friendAdded}
-                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
-                  friendAdded 
-                    ? 'bg-green-600 text-white' 
-                    : 'bg-blue-600 hover:bg-blue-700 text-white'
-                }`}
+                onClick={handleCopyProfileLink}
+                className="flex items-center space-x-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
+                title="Copy profile link"
               >
-                {addingFriend ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : friendAdded ? (
+                {copiedLink ? (
                   <>
-                    <UserPlus className="w-4 h-4" />
-                    <span>Friend Request Sent</span>
+                    <Check className="w-4 h-4 text-green-400" />
+                    <span className="text-sm">Copied!</span>
                   </>
                 ) : (
                   <>
-                    <UserPlus className="w-4 h-4" />
-                    <span>Add Friend</span>
+                    <Copy className="w-4 h-4" />
+                    <span className="text-sm hidden sm:inline">Share</span>
                   </>
                 )}
               </button>
-            )}
+
+              {currentSession?.user?.id !== userData?.id && (
+                <button
+                  onClick={handleAddFriend}
+                  disabled={addingFriend || friendAdded}
+                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                    friendAdded
+                      ? 'bg-green-600 text-white'
+                      : 'bg-blue-600 hover:bg-blue-700 text-white'
+                  }`}
+                >
+                  {addingFriend ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : friendAdded ? (
+                    <>
+                      <UserPlus className="w-4 h-4" />
+                      <span className="hidden sm:inline">Friend Request Sent</span>
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="w-4 h-4" />
+                      <span className="hidden sm:inline">Add Friend</span>
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
           </div>
 
           {/* GOAT List Preview */}

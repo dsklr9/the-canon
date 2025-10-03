@@ -17,7 +17,9 @@ import QuickSocialActions, { ArtistSocialActions } from './QuickSocialActions';
 import GroupChallenges from './GroupChallenges';
 import TournamentWidget from './TournamentWidget';
 import TournamentBracket from './TournamentBracket';
+import ShareableCard from './ShareableCard';
 import { useDebounce, useDebouncedCallback } from '../hooks/useDebounce';
+import { getAuthRedirectUrl } from '../lib/supabase';
 
 // Add CSS styles to prevent viewport issues
 const globalStyles = `
@@ -390,6 +392,7 @@ const TheCanon = ({ supabase }) => {
   const [dailyFaceOffsCompleted, setDailyFaceOffsCompleted] = useState(0);
   const [showDebateModal, setShowDebateModal] = useState(false);
   const [showAllDebates, setShowAllDebates] = useState(false);
+  const [showShareableCard, setShowShareableCard] = useState(false);
   const [debateTitle, setDebateTitle] = useState('');
   const [debateContent, setDebateContent] = useState('');
   const searchRef = useRef(null);
@@ -5468,11 +5471,26 @@ const TheCanon = ({ supabase }) => {
                     <>
                       {/* Gamification Display */}
                       <div className={`flex items-center ${isMobile ? 'gap-1 text-xs' : 'gap-3 text-sm'}`}>
-                        {userStreak > 0 && !isMobile && (
-                          <span className="flex items-center gap-1">
-                            <Flame className="w-4 h-4 text-orange-400" />
-                            {userStreak} day streak
-                          </span>
+                        {userStreak > 0 && (
+                          <button
+                            onClick={() => {
+                              addToast(`🔥 ${userStreak} day streak! Keep it up!`, 'info');
+                            }}
+                            className={`flex items-center gap-1 px-2 py-1 rounded ${
+                              userStreak >= 7 ? 'bg-orange-500/20 border border-orange-500/50' :
+                              userStreak >= 3 ? 'bg-orange-500/10' : ''
+                            } hover:bg-orange-500/30 transition-colors`}
+                            title={`${userStreak} day login streak! ${
+                              userStreak >= 7 ? '🎉 Week Warrior!' :
+                              userStreak >= 30 ? '👑 Month Master!' :
+                              userStreak >= 100 ? '🔥 LEGEND!' :
+                              `${7 - userStreak} days to Week Warrior badge`
+                            }`}
+                          >
+                            <Flame className={`${isMobile ? 'w-3 h-3' : 'w-4 h-4'} ${userStreak >= 7 ? 'text-orange-300' : 'text-orange-400'}`} />
+                            {!isMobile && <span className="font-semibold">{userStreak}</span>}
+                            {isMobile && <span className="font-bold">{userStreak}</span>}
+                          </button>
                         )}
                         <span className="flex items-center gap-1">
                           <Star className={`${isMobile ? 'w-3 h-3' : 'w-4 h-4'} text-yellow-400`} />
@@ -5511,8 +5529,16 @@ const TheCanon = ({ supabase }) => {
                         </div>
                       )}
                       
+                      <button
+                        onClick={() => setShowShareableCard(true)}
+                        className={`p-2 hover:bg-white/10 border border-white/10 transition-colors ${isMobile ? 'touch-target' : ''}`}
+                        title="Share your rankings"
+                      >
+                        <Share2 className={`${isMobile ? 'w-4 h-4' : 'w-5 h-5'}`} />
+                      </button>
+
                       {friendRequests.length > 0 && (
-                        <button 
+                        <button
                           onClick={() => setActiveTab('mypeople')}
                           className={`relative p-2 hover:bg-white/10 border border-white/10 transition-colors ${isMobile ? 'touch-target' : ''}`}
                           title={`${friendRequests.length} pending friend request${friendRequests.length > 1 ? 's' : ''}`}
@@ -5523,7 +5549,7 @@ const TheCanon = ({ supabase }) => {
                           </div>
                         </button>
                       )}
-                      
+
                       <div className="relative">
                         <button
                           onClick={() => setShowProfile(!showProfile)}
@@ -6029,6 +6055,15 @@ const TheCanon = ({ supabase }) => {
                 </div>
               </div>
             </div>
+          )}
+
+          {/* Shareable Card Modal */}
+          {showShareableCard && (
+            <ShareableCard
+              userData={{ username, id: currentUser?.id }}
+              topArtists={(userRankings['all-time'] || []).slice(0, 10)}
+              onClose={() => setShowShareableCard(false)}
+            />
           )}
 
           {/* Create Debate Modal */}
@@ -6927,6 +6962,39 @@ const TheCanon = ({ supabase }) => {
             {console.log('🔍 Current activeTab in main content:', activeTab)}
             {activeTab === 'foryou' ? (
               <div className={isMobile ? 'space-y-6' : ''}>
+                {/* Streak Reminder Banner */}
+                {currentUser && userStreak > 0 && (
+                  <div className={`bg-gradient-to-r ${
+                    userStreak >= 7 ? 'from-orange-600/20 to-red-600/20 border-orange-500/50' :
+                    userStreak >= 3 ? 'from-orange-500/20 to-yellow-500/20 border-orange-500/30' :
+                    'from-yellow-500/20 to-orange-500/20 border-yellow-500/30'
+                  } border rounded-lg p-4 flex items-center justify-between ${isMobile ? 'text-sm' : ''}`}>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-1">
+                        <Flame className="w-6 h-6 text-orange-400" />
+                        <span className="text-2xl font-bold text-white">{userStreak}</span>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-white">
+                          {userStreak >= 100 ? '🔥 LEGENDARY STREAK!' :
+                           userStreak >= 30 ? '👑 Month Master!' :
+                           userStreak >= 7 ? '🎉 Week Warrior!' :
+                           `${userStreak} Day Streak!`}
+                        </p>
+                        <p className="text-gray-300 text-xs">
+                          {userStreak >= 7 ? 'Amazing! Keep going!' : `${7 - userStreak} more days to Week Warrior badge`}
+                        </p>
+                      </div>
+                    </div>
+                    {!isMobile && (
+                      <div className="text-right">
+                        <p className="text-gray-400 text-xs">Don't break your streak!</p>
+                        <p className="text-gray-500 text-xs">Come back tomorrow</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Tournament Widget - Secondary Feature - Mobile Only */}
                 {isMobile && currentTournament && (
                   <TournamentWidget 
@@ -9423,14 +9491,10 @@ const TheCanon = ({ supabase }) => {
                 <button
                   onClick={async () => {
                     try {
-                      const redirectUrl = window.location.hostname === 'localhost' 
-                        ? window.location.origin 
-                        : 'https://thecanon.io';
-                      
                       const { error } = await supabase.auth.signInWithOAuth({
                         provider: 'google',
                         options: {
-                          redirectTo: redirectUrl
+                          redirectTo: getAuthRedirectUrl()
                         }
                       });
                       if (error) throw error;
@@ -9522,9 +9586,7 @@ const TheCanon = ({ supabase }) => {
                         email,
                         password,
                         options: {
-                          emailRedirectTo: window.location.hostname === 'localhost' 
-                            ? window.location.origin 
-                            : 'https://thecanon.io'
+                          emailRedirectTo: getAuthRedirectUrl()
                         }
                       });
                       
