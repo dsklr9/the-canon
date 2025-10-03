@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { supabase, getAuthRedirectUrl } from '../lib/supabase';
 import EmailLogin from './EmailLogin';
 
 const Login = () => {
@@ -19,15 +19,10 @@ const Login = () => {
 
   const handleGoogleLogin = async () => {
     try {
-      // Use thecanon.io for production
-      const redirectUrl = process.env.NODE_ENV === 'production' 
-        ? 'https://thecanon.io'
-        : window.location.origin;
-        
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: redirectUrl
+          redirectTo: getAuthRedirectUrl()
         }
       });
       if (error) throw error;
