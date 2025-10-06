@@ -6995,9 +6995,44 @@ const TheCanon = ({ supabase }) => {
                   </div>
                 )}
 
+                {/* Collaborative Rankings Promo */}
+                {currentUser && friends.length > 0 && (
+                  <div className="bg-gradient-to-r from-purple-900/30 to-pink-900/30 border border-purple-500/30 rounded-lg p-4">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-10 h-10 bg-purple-500/20 rounded-full flex items-center justify-center">
+                        <Users className="w-5 h-5 text-purple-400" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-bold text-white flex items-center gap-2">
+                          Collaborative Rankings
+                          <Sparkles className="w-4 h-4 text-yellow-400" />
+                        </h3>
+                        <p className="text-sm text-gray-300">
+                          Build top 10s together with friends
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 mt-3">
+                      <button
+                        onClick={() => setActiveTab('mypeople')}
+                        className="flex-1 py-2 px-3 bg-purple-600 hover:bg-purple-700 transition-colors rounded-lg text-sm font-medium"
+                      >
+                        Start Collab with Friend
+                      </button>
+                      <button
+                        onClick={() => addToast('Co-created lists appear in your profile!', 'info')}
+                        className="px-3 py-2 bg-slate-700 hover:bg-slate-600 transition-colors rounded-lg text-sm"
+                        title="How it works"
+                      >
+                        ?
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Tournament Widget - Secondary Feature - Mobile Only */}
                 {isMobile && currentTournament && (
-                  <TournamentWidget 
+                  <TournamentWidget
                     tournament={currentTournament}
                     currentUser={currentUser}
                     onSubmitEntry={() => {
@@ -8462,6 +8497,26 @@ const TheCanon = ({ supabase }) => {
                                 )}
                               </div>
                             )}
+
+                            {/* Collaborative Ranking CTA */}
+                            <div className="mt-3 pt-3 border-t border-white/10">
+                              <button
+                                onClick={() => {
+                                  addToast(`Collaborative rankings with ${friend.username} coming soon!`, 'info');
+                                  // TODO: Implement collaborative ranking creation
+                                  // setShowCollabModal(true);
+                                  // setCollabPartner(friend);
+                                }}
+                                className="w-full py-2 px-3 bg-gradient-to-r from-purple-600/20 to-pink-600/20 border border-purple-500/30 hover:border-purple-500/50 rounded-lg transition-all flex items-center justify-center gap-2 text-sm font-medium"
+                              >
+                                <Users className="w-4 h-4" />
+                                <span>Start Collab Ranking</span>
+                                <Sparkles className="w-3 h-3 text-yellow-400" />
+                              </button>
+                              <p className="text-xs text-gray-500 text-center mt-1">
+                                Build a top 10 together
+                              </p>
+                            </div>
                           </div>
                         );
                       })}

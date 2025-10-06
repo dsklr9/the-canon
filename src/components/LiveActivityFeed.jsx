@@ -1,26 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Heart, 
-  MessageCircle, 
-  Trophy, 
-  Plus, 
-  Swords, 
+import {
+  Heart,
+  MessageCircle,
+  Trophy,
+  Plus,
+  Swords,
   TrendingUp,
   Users,
   Sparkles,
-  Music
+  Music,
+  Flame,
+  Zap
 } from 'lucide-react';
 
-const LiveActivityFeed = ({ 
-  supabase, 
-  currentUser, 
+const LiveActivityFeed = ({
+  supabase,
+  currentUser,
   friends = [],
   onUserClick,
   onArtistClick,
-  className = '' 
+  className = ''
 }) => {
   const [activities, setActivities] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [activityReactions, setActivityReactions] = useState({});
+  const [userReactions, setUserReactions] = useState({});
 
   // Activity type configs with colors and icons
   const activityConfig = {
@@ -117,11 +121,17 @@ const LiveActivityFeed = ({
     try {
       // Get friend IDs
       const friendIds = friends.map(f => f.id);
-      
+
       // Mock activities for now (replace with actual DB query)
       const mockActivities = generateMockActivities(friends);
       setActivities(mockActivities);
-      
+
+      // Load reactions for mock activities
+      const activityIds = mockActivities.map(a => a.id);
+      if (activityIds.length > 0) {
+        await loadReactions(activityIds);
+      }
+
       // In production, use:
       /*
       const { data, error } = await supabase
@@ -130,9 +140,14 @@ const LiveActivityFeed = ({
         .in('user_id', friendIds)
         .order('created_at', { ascending: false })
         .limit(20);
-      
+
       if (data) {
-        setActivities(data.map(formatActivity));
+        const formattedActivities = data.map(formatActivity);
+        setActivities(formattedActivities);
+
+        // Load reactions
+        const activityIds = data.map(a => a.id);
+        await loadReactions(activityIds);
       }
       */
     } catch (error) {
@@ -203,11 +218,112 @@ const LiveActivityFeed = ({
 
   const getTimeAgo = (date) => {
     const seconds = Math.floor((new Date() - new Date(date)) / 1000);
-    
+
     if (seconds < 60) return 'just now';
     if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
     if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
     return `${Math.floor(seconds / 86400)}d ago`;
+  };
+
+  // Handle reactions on activities
+  const handleReaction = async (activityId, reactionType) => {
+    if (!currentUser) return;
+
+    const reactionKey = `${activityId}_${reactionType}`;
+    const hasReacted = userReactions[reactionKey];
+
+    try {
+      if (hasReacted) {
+        // Remove reaction
+        await supabase
+          .from('activity_reactions')
+          .delete()
+          .eq('activity_id', activityId)
+          .eq('user_id', currentUser.id)
+          .eq('reaction_type', reactionType);
+
+        setUserReactions(prev => {
+          const updated = { ...prev };
+          delete updated[reactionKey];
+          return updated;
+        });
+
+        setActivityReactions(prev => ({
+          ...prev,
+          [activityId]: {
+            ...prev[activityId],
+            [reactionType]: (prev[activityId]?.[reactionType] || 1) - 1
+          }
+        }));
+      } else {
+        // Add reaction
+        await supabase
+          .from('activity_reactions')
+          .insert({
+            activity_id: activityId,
+            user_id: currentUser.id,
+            reaction_type: reactionType,
+            created_at: new Date().toISOString()
+          });
+
+        setUserReactions(prev => ({
+          ...prev,
+          [reactionKey]: true
+        }));
+
+        setActivityReactions(prev => ({
+          ...prev,
+          [activityId]: {
+            ...prev[activityId],
+            [reactionType]: (prev[activityId]?.[reactionType] || 0) + 1
+          }
+        }));
+
+        // TODO: Create notification for activity owner
+        // await createReactionNotification(activityId, reactionType);
+      }
+    } catch (error) {
+      console.error('Error handling reaction:', error);
+    }
+  };
+
+  // Load reactions for activities
+  const loadReactions = async (activityIds) => {
+    if (!currentUser || activityIds.length === 0) return;
+
+    try {
+      // Get reaction counts
+      const { data: reactionCounts } = await supabase
+        .from('activity_reactions')
+        .select('activity_id, reaction_type')
+        .in('activity_id', activityIds);
+
+      if (reactionCounts) {
+        const counts = {};
+        reactionCounts.forEach(r => {
+          if (!counts[r.activity_id]) counts[r.activity_id] = {};
+          counts[r.activity_id][r.reaction_type] = (counts[r.activity_id][r.reaction_type] || 0) + 1;
+        });
+        setActivityReactions(counts);
+      }
+
+      // Get user's reactions
+      const { data: userReactionData } = await supabase
+        .from('activity_reactions')
+        .select('activity_id, reaction_type')
+        .in('activity_id', activityIds)
+        .eq('user_id', currentUser.id);
+
+      if (userReactionData) {
+        const userReacts = {};
+        userReactionData.forEach(r => {
+          userReacts[`${r.activity_id}_${r.reaction_type}`] = true;
+        });
+        setUserReactions(userReacts);
+      }
+    } catch (error) {
+      console.error('Error loading reactions:', error);
+    }
   };
 
   if (isLoading) {
@@ -279,21 +395,43 @@ const LiveActivityFeed = ({
                     {config.format(activity)}
                   </span>
                 </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  {activity.timeAgo}
-                </p>
-              </div>
+                <div className="flex items-center gap-3 mt-2">
+                  <p className="text-xs text-gray-500">
+                    {activity.timeAgo}
+                  </p>
+                  {/* Reaction buttons */}
+                  <div className="flex items-center gap-2">
+                    {[
+                      { type: 'heart', icon: Heart, color: 'text-red-400' },
+                      { type: 'fire', icon: Flame, color: 'text-orange-400' },
+                      { type: '100', icon: Zap, color: 'text-yellow-400' }
+                    ].map(({ type, icon: Icon, color }) => {
+                      const reactionKey = `${activity.id}_${type}`;
+                      const hasReacted = userReactions[reactionKey];
+                      const count = activityReactions[activity.id]?.[type] || 0;
 
-              {/* Quick action button */}
-              <button 
-                className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 hover:bg-white/10 rounded"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  // Handle quick action based on type
-                }}
-              >
-                <Heart className="w-3 h-3" />
-              </button>
+                      return (
+                        <button
+                          key={type}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleReaction(activity.id, type);
+                          }}
+                          className={`flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-white/10 transition-all ${
+                            hasReacted ? `${color} bg-white/10` : 'text-gray-500'
+                          }`}
+                          title={`React with ${type}`}
+                        >
+                          <Icon className="w-3 h-3" />
+                          {count > 0 && (
+                            <span className="text-xs font-medium">{count}</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
             </div>
           );
         })}
